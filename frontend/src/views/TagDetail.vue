@@ -50,6 +50,10 @@
         <router-link :to="'/api/tag/detail/' + childId">{{ childId }}</router-link>
       </li>
     </ul>
+    <!-- 🟢 태그의 스톱워치 컴포넌트 추가 -->
+    <h3>스톱워치</h3>
+    <Stopwatch :tagId="tag.id" />
+
     <router-link to="/">홈으로</router-link>
   </div>
   <p v-else>로딩 중...</p>
@@ -59,6 +63,7 @@
 import { ref, onMounted, watch} from "vue";
 import { useRoute } from "vue-router";
 import axios from "axios";
+import Stopwatch from "@/components/StopwatchTimer.vue";
 
 const route = useRoute();
 const tag = ref(null);
