@@ -1,40 +1,3 @@
-<!--<template>-->
-<!--  <div v-if="tag">-->
-<!--    <h1>{{ tag.name }}</h1>-->
-<!--    <p>부모 태그: {{ tag.parent ? tag.parent.name : "없음" }}</p>-->
-<!--    <p>총 시간: {{ tag.totalTime }} 시간</p>-->
-<!--    <h3>하위 태그</h3>-->
-<!--    <ul>-->
-<!--      <li v-for="child in tag.children" :key="child.id">-->
-<!--        <router-link :to="`/tag/${child.id}`">{{ child.name }}</router-link>-->
-<!--      </li>-->
-<!--    </ul>-->
-<!--    <router-link to="/">홈으로</router-link>-->
-<!--  </div>-->
-<!--  <p v-else>로딩 중...</p>-->
-<!--</template>-->
-
-<!--<script setup>-->
-<!--import { ref, onMounted } from "vue";-->
-<!--import { useRoute } from "vue-router";-->
-<!--import axios from "axios";-->
-
-<!--const route = useRoute();-->
-<!--const tag = ref(null);-->
-
-<!--// 🟢 특정 태그 상세 정보 가져오기-->
-<!--const fetchTagDetail = async () => {-->
-<!--  try {-->
-<!--    const response = await axios.get(`/api/tag/detail/${route.params.id}`);-->
-<!--    tag.value = response.data;-->
-<!--  } catch (error) {-->
-<!--    console.error("Error fetching tag detail:", error);-->
-<!--  }-->
-<!--};-->
-
-<!--onMounted(fetchTagDetail);-->
-<!--</script>-->
-
 <!--아래는 서버와의 재 통신 없이 데이터 떙겨오는 코드-->
 <template>
   <div v-if="tag">
@@ -42,7 +5,6 @@
     <p>부모 태그:
       <router-link v-if="tag.parentId" :to="'/api/tag/detail/' + tag.parentId">부모 태그 보기</router-link>
       <span v-else>식별 안됨</span></p>
-    <p>총 시간: {{ tag.totalTime }} 시간</p>
     <h3>하위 태그</h3>
     <!-- 자식 태그 리스트 표시 -->
     <ul v-if="tag.childrenList && tag.childrenList.length > 0">
@@ -52,7 +14,9 @@
     </ul>
     <!-- 🟢 태그의 스톱워치 컴포넌트 추가 -->
     <h3>스톱워치</h3>
-    <Stopwatch :tagId="tag.id" />
+<!--    <Stopwatch :tagId="tag.id" />-->
+    <!-- Stopwatch 컴포넌트에 전체 tagData 전달 -->
+    <Stopwatch :tagData="tag" />
 
     <router-link to="/">홈으로</router-link>
   </div>
