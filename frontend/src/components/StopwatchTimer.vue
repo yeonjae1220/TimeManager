@@ -7,9 +7,9 @@
       <p>Daily Accumulated Time: {{ formattedAccumulatedTime }}</p>
       <p v-if="dailyGoalTime > 0">Remaining Time: {{ formattedRemainingTime }}</p>
       <p>Latest Start Time: {{ stopwatch.latestStartTime || 'Not started' }}</p>
-      <p>End Time: {{ stopwatch.endTime || 'Not stopped' }}</p>
-      <p>tagTotalTIme : {{tagData.tagTotalTime}}</p>
-      <p>총 시간: {{ tagData.totalTime }} Sec</p>
+      <p>End Time: {{ stopwatch.latestEndTime || 'Not stopped' }}</p>
+      <p>tagTotalTIme : {{stopwatch.tagTotalTime}}</p>
+      <p>총 시간: {{ stopwatch.totalTime }} Sec</p>
     </div>
 
     <div class="buttons">
@@ -66,7 +66,6 @@ watch(() => props.tagData, (newData) => {
     stopwatch.tagTotalTime = newData.tagTotalTime || 0;
     stopwatch.totalTime = newData.totalTime || 0;
 
-
     const newTagId = newData.id;
     if (!stopwatchState[newTagId]) {
       stopwatchState[newTagId] = getStopwatchState(newTagId);
@@ -85,7 +84,7 @@ const formatTime = (seconds) => {
 };
 
 // ✅ 계산된 값들
-const formattedElapsedTime = computed(() => formatTime(stopwatch.timeElapsed));
+const formattedElapsedTime = computed(() => formatTime(stopwatch.elapsedTime));
 const formattedAccumulatedTime = computed(() => formatTime(stopwatch.dailyTotalTime));
 const dailyGoalTime = computed(() => props.tagData?.dailyGoalTime || 0);
 const formattedRemainingTime = computed(() => {
@@ -110,11 +109,12 @@ const startStopwatch = async () => {
 
   stopwatch.isRunning = true;
   stopwatch.latestStartTime = Date.now();
-  stopwatch.latestStartTime = new Date(stopwatch.startTime).toLocaleTimeString();
   updateTimer();
+  // stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toLocaleTimeString();
+  stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toISOString();
 
   try {
-    await axios.post(`/api/tag/${props.tagData.id}/start`, stopwatch.startTime, {
+    await axios.post(`/api/tag/${props.tagData.id}/start`, stopwatch.latestStartTime, {
       headers: {"Content-Type": "application/json"},
     });
   } catch (error) {
@@ -129,17 +129,21 @@ const stopStopwatch = async () => {
   stopwatch.isRunning = false;
   cancelAnimationFrame(stopwatch.rAF_ID);
   // stopwatch.endTime = new Date().toLocaleTimeString();
-  stopwatch.endTime = Date.now();
-  stopwatch.elapsedTime += Math.floor(stopwatch.endTime - stopwatch.startTime) / 1000;
-  stopwatch.accumulatedTime += Math.floor(stopwatch.endTime - stopwatch.startTime);
-  stopwatch.endTime = new Date(stopwatch.endTime).toLocaleTimeString();
+  stopwatch.latestEndTime = Date.now();
+  stopwatch.elapsedTime += Math.floor(stopwatch.latestEndTime - stopwatch.latestStartTime) / 1000;
+  stopwatch.accumulatedTime += Math.floor(stopwatch.latestEndTime - stopwatch.latestStartTime) / 1000;
+  stopwatch.latestEndTime = new Date(stopwatch.latestEndTime).toLocaleTimeString();
   // stopwatch.accumulatedTime += stopwatch.elapsedTime;
 
 
   try {
     await axios.post(
         `/api/record/${props.tagData.id}/stop`,
-        {elapsedTime: stopwatch.elapsedTime, startTime: new Date(stopwatch.latestStartTime).toISOString(), endTime: new Date().toISOString()},
+        {elapsedTime: stopwatch.elapsedTime,
+          timestamps: {
+            startTime: new Date(stopwatch.latestStartTime).toISOString(),
+            endTime: new Date().toISOString()
+          }},
         {headers: {"Content-Type": "application/json"}}
     );
   } catch (error) {
