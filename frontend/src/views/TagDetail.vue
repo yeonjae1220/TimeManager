@@ -81,7 +81,8 @@ onMounted(async () => {
         } else {
           console.log("⏭ 다른 페이지 이동 → 데이터 요청 안 함");
         }
-      }
+      },
+      { immediate: true }
   );
   // 자식 태그가 정상적으로 들어오는지 확인
   if (tag.value) {
