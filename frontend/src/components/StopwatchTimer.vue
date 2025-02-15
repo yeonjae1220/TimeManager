@@ -6,10 +6,10 @@
       <p>Stopwatch: {{ formattedElapsedTime }}</p>
       <p>Daily Accumulated Time: {{ formattedAccumulatedTime }}</p>
       <p v-if="dailyGoalTime > 0">Remaining Time: {{ formattedRemainingTime }}</p>
-      <p>Latest Start Time: {{ stopwatch.latestStartTime || 'Not started' }}</p>
-      <p>End Time: {{ stopwatch.latestEndTime || 'Not stopped' }}</p>
-      <p>tagTotalTIme : {{stopwatch.tagTotalTime}}</p>
-      <p>총 시간: {{ stopwatch.totalTime }} Sec</p>
+      <p>Latest Start Time: {{ formattedStartTime || 'Not started' }}</p>
+      <p>End Time: {{ formattedEndTime || 'Not stopped' }}</p>
+      <p>tagTotalTIme : {{ formattedTagTotalTime }}</p>
+      <p>총 시간: {{ formattedTotalTime }} Sec</p>
     </div>
 
     <div class="buttons">
@@ -21,7 +21,7 @@
 </template>
 
 <script setup>
-import {reactive, computed, watch} from "vue";
+import {reactive, computed, watch, watchEffect, ref} from "vue";
 import axios from "axios";
 
 const props = defineProps({
@@ -47,6 +47,8 @@ const getStopwatchState = (id) => {
 
       timeElapsed: 0, // timer에 나타나는 시간
       accumulatedTime: 0, // dailyTotalTime 나타내는 시간
+      tagTotalTimeCal: 0,
+      totalTimeCal: 0,
     };
   }
   return stopwatchState[id];
@@ -75,6 +77,29 @@ watch(() => props.tagData, (newData) => {
     {deep : true} // 객체 내부 값이 변해도 감지
 );
 
+// 처음 페이지 접속 시, 서버에서 가져오는 초기값들을 template에서 보여주기 위한 초기값 할당, 좌변 애들은 전부 계산에 쓰이기 위해 별도로 만든 변수
+stopwatch.timeElapsed = stopwatch.elapsedTime;
+stopwatch.accumulatedTime = stopwatch.dailyTotalTime;
+stopwatch.tagTotalTimeCal = stopwatch.tagTotalTime;
+stopwatch.totalTimeCal = stopwatch.totalTime;
+// 1970년 1월 1일이면 "No Data", 아니면 변환된 날짜 표시
+const formattedStartTime = ref("No Data");
+const formattedEndTime = ref("No Data");
+
+watchEffect(() => {
+  console.log("Stopwatch latestStartTime Updated:", stopwatch.latestStartTime);
+  if (!stopwatch || !stopwatch.latestStartTime) return;
+  const date = new Date(stopwatch.latestStartTime);
+  formattedStartTime.value = date.getFullYear() === 1970 ? "No Data" : date.toLocaleString();
+});
+
+watchEffect(() => {
+  console.log("Stopwatch latestStopTime Updated:", stopwatch.latestStartTime);
+  if (!stopwatch || !stopwatch.latestEndTime) return;
+  const date = new Date(stopwatch.latestEndTime);
+  formattedEndTime.value = date.getFullYear() === 1970 ? "No Data" : date.toLocaleString();
+});
+
 // ✅ 타이머 포맷 함수 (HH:mm:ss)
 const formatTime = (seconds) => {
   const h = String(Math.floor(seconds / 3600)).padStart(2, "0");
@@ -84,13 +109,16 @@ const formatTime = (seconds) => {
 };
 
 // ✅ 계산된 값들
-const formattedElapsedTime = computed(() => formatTime(stopwatch.elapsedTime));
-const formattedAccumulatedTime = computed(() => formatTime(stopwatch.dailyTotalTime));
+const formattedElapsedTime = computed(() => formatTime(stopwatch.timeElapsed));
+const formattedAccumulatedTime = computed(() => formatTime(stopwatch.accumulatedTime));
 const dailyGoalTime = computed(() => props.tagData?.dailyGoalTime || 0);
 const formattedRemainingTime = computed(() => {
-  const remainingTime = dailyGoalTime.value - stopwatch.dailyTotalTime;
+  const remainingTime = dailyGoalTime.value - stopwatch.accumulatedTime;
   return `+${formatTime(Math.max(0, remainingTime))}`;
 });
+// 할 것 얘내 연산 해주기
+const formattedTagTotalTime = computed(() => formatTime(stopwatch.tagTotalTimeCal));
+const formattedTotalTime = computed(() => formatTime(stopwatch.totalTimeCal));
 
 // ✅ 스톱워치 업데이트 (애니메이션 프레임)
 const updateTimer = () => {
@@ -98,7 +126,10 @@ const updateTimer = () => {
 
   const currentTime = Date.now();
   stopwatch.timeElapsed = Math.floor((currentTime - stopwatch.latestStartTime) / 1000) + stopwatch.elapsedTime;
-  stopwatch.accumulatedTime += stopwatch.timeElapsed - stopwatch.elapsedTime;
+  stopwatch.accumulatedTime = stopwatch.dailyTotalTime + stopwatch.timeElapsed - stopwatch.elapsedTime; // 정상 작동 하나 확인 필요
+
+  stopwatch.tagTotalTimeCal = stopwatch.tagTotalTime + stopwatch.accumulatedTime;
+  stopwatch.totalTimeCal = stopwatch.totalTime + stopwatch.accumulatedTime;
 
   stopwatch.rAF_ID = requestAnimationFrame(updateTimer);
 };
@@ -109,12 +140,13 @@ const startStopwatch = async () => {
 
   stopwatch.isRunning = true;
   stopwatch.latestStartTime = Date.now();
+  console.log("Updated latestStartTime:", stopwatch.latestStartTime);
   updateTimer();
   // stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toLocaleTimeString();
-  stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toISOString();
+  // stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toISOString();
 
   try {
-    await axios.post(`/api/tag/${props.tagData.id}/start`, stopwatch.latestStartTime, {
+    await axios.post(`/api/tag/${props.tagData.id}/start`, new Date(stopwatch.latestStartTime).toISOString(), {
       headers: {"Content-Type": "application/json"},
     });
   } catch (error) {
@@ -131,8 +163,8 @@ const stopStopwatch = async () => {
   // stopwatch.endTime = new Date().toLocaleTimeString();
   stopwatch.latestEndTime = Date.now();
   stopwatch.elapsedTime += Math.floor(stopwatch.latestEndTime - stopwatch.latestStartTime) / 1000;
-  stopwatch.accumulatedTime += Math.floor(stopwatch.latestEndTime - stopwatch.latestStartTime) / 1000;
-  stopwatch.latestEndTime = new Date(stopwatch.latestEndTime).toLocaleTimeString();
+  stopwatch.dailyTotalTime += Math.floor(stopwatch.latestEndTime - stopwatch.latestStartTime) / 1000;
+  // stopwatch.latestEndTime = new Date(stopwatch.latestEndTime).toLocaleTimeString();
   // stopwatch.accumulatedTime += stopwatch.elapsedTime;
 
 
@@ -154,6 +186,7 @@ const stopStopwatch = async () => {
 // ✅ 스톱워치 리셋
 const resetStopwatch = () => {
   if (stopwatch.isRunning) return;
+  stopwatch.timeElapsed = 0;
   stopwatch.elapsedTime = 0;
 };
 
