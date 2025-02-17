@@ -9,8 +9,8 @@
 
       <!-- 부모 태그 변경 -->
       <select v-model="selectedParentId">
-        <option v-for="tag in tagList" :key="tag.id" :value="tag.id">
-          {{ tag.name }}
+        <option v-for="tag in flatTagList" :key="tag.id" :value="tag.id">
+          {{ tag.indentation }}{{ tag.name }}
         </option>
       </select>
       <button @click="updateParentTag">부모 태그 변경</button>
@@ -24,7 +24,7 @@
 </template>
 
 <script setup>
-import { ref, defineProps, watchEffect } from "vue";
+import { ref, defineProps, watchEffect, computed } from "vue";
 import axios from "axios";
 
 const props = defineProps({
@@ -60,6 +60,20 @@ watchEffect(() => {
   if (props.isOpen) fetchTags();
 });
 
+// 태그 목록 평탄화 (계층 구조 유지)
+const flatTagList = computed(() => {
+  const flattenTags = (tags, depth = 0) => {
+    return tags.reduce((acc, tag) => {
+      acc.push({ ...tag, indentation: "— ".repeat(depth) }); // 들여쓰기 추가
+      if (tag.children && tag.children.length > 0) {
+        acc.push(...flattenTags(tag.children, depth + 1));
+      }
+      return acc;
+    }, []);
+  };
+  return flattenTags(tagList.value);
+});
+
 // 태그 생성
 const createTag = async () => {
   if (!newTagName.value) return alert("태그 이름을 입력하세요.");
@@ -84,6 +98,7 @@ const updateParentTag = async () => {
   if (!selectedParentId.value) return alert("새 부모 태그를 선택하세요.");
   try {
     console.log("selectedParentId : " + selectedParentId.value)
+    // props.tagData.id → props.tagData?.id 로 변경 후 처리 해줘야함 에러 방지 위해서
     await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
       newParentTagId: selectedParentId.value,
     });
