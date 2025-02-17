@@ -1,5 +1,15 @@
 <!--아래는 서버와의 재 통신 없이 데이터 떙겨오는 코드-->
 <template>
+  <div class="relative">
+    <!-- 상단 우측 버튼 -->
+    <button @click="isModalOpen = true" class="modalBtn">
+      <Menu name="menu"/>
+    </button>
+
+    <!-- 태그 관리 모달 -->
+    <TagModal v-if="isModalOpen" :isOpen="isModalOpen" :tagData="tag" @close="isModalOpen = false" />
+  </div>
+
   <div v-if="tag">
     <h1>{{ tag.name }}</h1>
     <p>부모 태그:
@@ -26,11 +36,20 @@
 <script setup>
 import { ref, onMounted, watch} from "vue";
 import { useRoute } from "vue-router";
+import { Menu } from "lucide-vue-next";
 import axios from "axios";
 import Stopwatch from "@/components/StopwatchTimer.vue";
+import TagModal from "@/Modals/EditTagModal.vue";
 
 const route = useRoute();
 const tag = ref(null);
+
+// defineProps({
+//   tagId: Number,
+//   memberId: Number,
+// });
+
+const isModalOpen = ref(false); // 모달 상태 관리
 
 // ✅ `history.state`에서 태그 데이터 가져오기
 const fetchTagData = async (tagId) => {
