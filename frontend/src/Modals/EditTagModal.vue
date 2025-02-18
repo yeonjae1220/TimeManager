@@ -37,6 +37,7 @@ const emit = defineEmits(["close"]);
 const newTagName = ref("");
 const selectedParentId = ref(null);
 const tagList = ref([]);
+const discardedTag = ref(null); // DISCARDED 태그 저장
 
 console.log("tagData:", props.tagData);
 console.log("memberId:", props.tagData?.memberId);
@@ -49,6 +50,10 @@ const fetchTags = async () => {
     console.log("fetch Tags memberId : " + props.tagData.memberId)
     const response = await axios.get(`/api/tag/${Number(props.tagData.memberId)}`);
     tagList.value = response.data;
+
+    // DISCARDED 태그 설정
+    discardedTag.value = tagList.value.find((tag) => tag.type === "DISCARDED") || null;
+
     console.log("tagList.value:", tagList.value); // ✅ 이 부분 추가
   } catch (error) {
     console.error("태그 목록 가져오기 실패", error);
@@ -61,17 +66,28 @@ watchEffect(() => {
 });
 
 // 태그 목록 평탄화 (계층 구조 유지)
+
+
 const flatTagList = computed(() => {
   const flattenTags = (tags, depth = 0) => {
-    return tags.reduce((acc, tag) => {
-      acc.push({ ...tag, indentation: "— ".repeat(depth) }); // 들여쓰기 추가
-      if (tag.children && tag.children.length > 0) {
-        acc.push(...flattenTags(tag.children, depth + 1));
+    const result = [];
+
+    tags.forEach((tag) => {
+      if (tag.type === "DISCARDED") {
+        discardedTag.value = tag; // 단 하나의 DISCARDED 태그 저장
+      } else {
+        result.push({ ...tag, indentation: "— ".repeat(depth) }); // 들여쓰기 추가
+        if (tag.children && tag.children.length > 0) {
+          result.push(...flattenTags(tag.children, depth + 1));
+        }
       }
-      return acc;
-    }, []);
+    });
+    return result;
   };
-  return flattenTags(tagList.value);
+
+  return flattenTags(
+      tagList.value.filter((tag) => tag.type !== "DISCARDED") // 최상위 DISCARDED 태그 제외
+  );
 });
 
 // 태그 생성
@@ -113,7 +129,7 @@ const deleteTag = async () => {
   if (!confirm("정말 삭제하시겠습니까?")) return;
   try {
     await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
-      newParentTagId: selectedParentId.value,
+      newParentTagId: discardedTag.value.id,
     });
     alert("태그가 삭제되었습니다.");
   } catch (error) {
