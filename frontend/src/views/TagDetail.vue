@@ -25,8 +25,8 @@
     <!-- 🟢 태그의 스톱워치 컴포넌트 추가 -->
     <h3>스톱워치</h3>
 <!--    <Stopwatch :tagId="tag.id" />-->
-    <!-- Stopwatch 컴포넌트에 전체 tagData 전달 -->
-    <Stopwatch :tagData="tag" />
+    <!-- Stopwatch 컴포넌트에 tagData를 prop으로 전달하고 update-tag 이벤트를 수신 -->
+    <Stopwatch :tagData="tag" @update-tag="handleTagUpdate" />
 
     <router-link to="/">홈으로</router-link>
   </div>
@@ -48,6 +48,11 @@ const tag = ref(null);
 //   tagId: Number,
 //   memberId: Number,
 // });
+
+// 자식 컴포넌트에서 변경된 태그 정보를 받아 처리하는 메서드
+const handleTagUpdate = (updatedTag) => {
+  tag.value = updatedTag; // 자식에서 변경된 tag 데이터를 업데이트
+};
 
 const isModalOpen = ref(false); // 모달 상태 관리
 
@@ -94,12 +99,15 @@ onMounted(async () => {
   watch(
       () => route.params.id,  // 라우터 ID가 변경될 때
       (newId, oldId) => {
-        if (route.name === 'tag') {
-          console.log("🔄 라우터 ID 변경됨:", oldId, "->", newId);
-          fetchTagData(newId); // 새로운 ID로 데이터를 다시 불러옴
-        } else {
-          console.log("⏭ 다른 페이지 이동 → 데이터 요청 안 함");
-        }
+        // if (route.name === 'tag') {
+        //   console.log("🔄 라우터 ID 변경됨:", oldId, "->", newId);
+        //   fetchTagData(newId); // 새로운 ID로 데이터를 다시 불러옴
+        // } else {
+        //   console.log("⏭ 다른 페이지 이동 → 데이터 요청 안 함");
+        // }
+        // 일단 계속 서버에 데이터 요청하는 걸로 변경
+        console.log("🔄 라우터 ID 변경됨:", oldId, "->", newId);
+        fetchTagData(newId); // 새로운 ID로 데이터를 다시 불러옴
       },
       { immediate: true }
   );

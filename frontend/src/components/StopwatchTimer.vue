@@ -28,8 +28,14 @@ const props = defineProps({
   tagData: Object, // 부모에서 받은 태그 데이터
 });
 
+// 상위 컴포넌트로 데이터를 emit하기 위해 정의
+const emit = defineEmits(['update-tag']);
+
 // ✅ 태그별 스톱워치 상태 저장
 const stopwatchState = reactive({});
+
+// 로컬 상태로 tagData를 복사 이렇게 가능한 듯? 아래처럼 말고
+// const localTag = reactive({ ...props.tagData });
 
 // ✅ 특정 태그의 상태 가져오기 (없으면 초기화)
 const getStopwatchState = (id) => {
@@ -81,6 +87,11 @@ onMounted(() => {
   stopwatch.accumulatedTime = stopwatch.dailyTotalTime;
   stopwatch.tagTotalTimeCal = stopwatch.tagTotalTime;
   stopwatch.totalTimeCal = stopwatch.totalTime;
+
+  // ✅ 스톱워치 종료하지 않고 재접속 했을 경우
+  // if (stopwatch.isRunning) {
+  //   updateTimer();
+  // }
 })
 
 
@@ -144,11 +155,23 @@ const startStopwatch = async () => {
   console.log("before start dailyTotalTime : " + stopwatch.dailyTotalTime)
   stopwatch.isRunning = true;
   stopwatch.latestStartTime = Date.now();
+  // 변경된 tag 데이터를 상위 컴포넌트로 emit
+  // props는 읽기 전용이라 바로 바꾸는거 안됨
+  // props.tagData.state = stopwatch.isRunning;
+  // props.tagData.latestStartTime = stopwatch.latestStartTime;
+  emit('update-tag', {
+    state: stopwatch.isRunning,
+    latestStartTime: stopwatch.latestStartTime
+  });
+
   console.log("Updated latestStartTime:", stopwatch.latestStartTime);
+  console.log("startStopwatch isRunning: ", stopwatch.isRunning);
   updateTimer();
   // stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toLocaleTimeString();
   // stopwatch.latestStartTime = new Date(stopwatch.latestStartTime).toISOString();
   console.log("after start dailyTotalTime : " + stopwatch.dailyTotalTime)
+
+  console.log("start id prop : " + props.tagData.id);
 
   try {
     await axios.post(`/api/tag/${props.tagData.id}/start`, new Date(stopwatch.latestStartTime).toISOString(), {
@@ -173,8 +196,22 @@ const stopStopwatch = async () => {
   stopwatch.dailyTotalTime += delta;
   stopwatch.tagTotalTime += delta;
   stopwatch.totalTime += delta;
-  console.log("before end cal dailyTotalTime : " + stopwatch.dailyTotalTime)
 
+  console.log("before end cal dailyTotalTime : " + stopwatch.dailyTotalTime)
+  console.log("id : " + stopwatch.id + "id in props : " + props.tagData.id)
+
+  // 변경된 tag 데이터를 상위 컴포넌트로 emit
+  emit('update-tag', {
+    state: stopwatch.isRunning,
+    latestEndTime: stopwatch.latestEndTime,
+    elapsedTime: stopwatch.elapsedTime,
+    dailyTotalTime: stopwatch.dailyTotalTime,
+    tagTotalTime: stopwatch.tagTotalTime,
+    totalTime: stopwatch.totalTime
+  });
+
+  console.log("before end cal dailyTotalTime : " + stopwatch.dailyTotalTime)
+  console.log("id : " + stopwatch.id + "id in props : " + props.tagData.id)
   try {
     await axios.post(
         `/api/record/${props.tagData.id}/stop`,
@@ -195,6 +232,11 @@ const resetStopwatch = async () => {
   if (stopwatch.isRunning) return;
   stopwatch.timeElapsed = 0;
   stopwatch.elapsedTime = 0;
+
+  // 변경된 tag 데이터를 상위 컴포넌트로 emit
+  emit('update-tag', {
+    elapsedTime: stopwatch.elapsedTime
+  });
 
   try {
     await axios.post(
