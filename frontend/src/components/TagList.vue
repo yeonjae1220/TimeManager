@@ -12,12 +12,6 @@
           @navigate="navigateToDetail"
       />
     </ul>
-<!--    <p v-if="!tagData">로딩중...</p>-->
-<!--    <ul v-else>-->
-<!--&lt;!&ndash;      tagData를 TagItem 컴포넌트의 model 속성으로 전달&ndash;&gt;-->
-<!--      <TagItem v-if="tagData" :tag="tagData" @navigate="navigateToDetail" />-->
-<!--&lt;!&ndash;      <TagItem v-bind :tag="tagData.value" @navigate="navigateToDetail"></TagItem>&ndash;&gt;-->
-<!--    </ul>-->
   </div>
 </template>
 
@@ -49,15 +43,6 @@ const fetchTags = async () => {
 
 // ✅ `computed()`를 사용하여 Proxy(Array) 문제 해결
 const tagList = computed(() => tagData.value ?? []);
-
-// 추후 TagDto로 받아오는 정보 자체를 서버에서 조절할 수 도 있음
-// const transformData = (data) => {
-//   return {
-//     id: data.id,
-//     name: data.name,
-//     children: data.children ? data.children.map(transformData) : [] // children이 있으면 재귀적으로 변환
-//   }
-// }
 
 // 🟢 이벤트를 받아서 상세 페이지로 이동
 const navigateToDetail = (tagId) => {
