@@ -46,21 +46,34 @@
       </ul>
       <router-link to="/">홈으로</router-link>
     </div>
-
     <p v-else>로딩 중...</p>
+    <div>
+      <h2>tag log</h2>
+      <button @click="goToRecordsPage(tag.id)">log page</button>
+    </div>
   </div>
 </template>
 
 <script setup>
 // import {ref, onMounted, watch} from "vue";
 import {ref, onMounted, watch, reactive, watchEffect, computed} from "vue";
-import { useRoute } from "vue-router";
+import {useRoute, useRouter} from "vue-router";
 import { Menu } from "lucide-vue-next";
 import axios from "axios";
 import TagModal from "@/Modals/EditTagModal.vue";
 
+
 const route = useRoute();
 const tag = ref(null);
+
+
+const router = useRouter();
+// 현재 tag의 record 페이지 이동용
+// const props = defineProps(["tagId"]);
+const goToRecordsPage = (tagId) => {
+  router.push(`/records/${tagId}`);
+};
+
 
 const isModalOpen = ref(false); // 모달 상태 관리
 
@@ -212,7 +225,7 @@ const stopStopwatch = async () => {
         {elapsedTime: stopwatchState.elapsedTime,
           timestamps: {
             startTime: new Date(stopwatchState.latestStartTime).toISOString(),
-            endTime: new Date().toISOString()
+            endTime: new Date(stopwatchState.latestEndTime).toISOString()
           }},
         {headers: {"Content-Type": "application/json"}}
     );
