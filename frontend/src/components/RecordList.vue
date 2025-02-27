@@ -1,6 +1,7 @@
 <template>
   <div>
     <h3>TagId {{ tagId }} Log</h3>
+    <button @click="openAddRecordModal()" class="modalBtn"></button>
     <div v-if="loading">⏳ Loading...</div>
     <div v-else-if="error" class="error">{{ error }}</div>
     <ul v-else>
@@ -12,15 +13,23 @@
         </button>
       </li>
     </ul>
+    <AddRecordModal
+        v-if="isAddRecordModalOpen"
+        :isOpen="isAddRecordModalOpen"
+        :tagId="Number(tagId)"
+        @close="isAddRecordModalOpen = false"
+    />
+
+    <!-- EditRecordModal -->
+    <EditRecordModal
+        v-if="isEditRecordModalOpen"
+        :isOpen="isEditRecordModalOpen"
+        :recordData="selectedRecord"
+        @close="isEditRecordModalOpen = false"
+    />
   </div>
 
-  <!-- EditRecordModal -->
-  <EditRecordModal
-      v-if="isEditRecordModalOpen"
-      :isOpen="isEditRecordModalOpen"
-      :recordData="selectedRecord"
-      @close="isEditRecordModalOpen = false"
-  />
+
 </template>
 
 <script setup>
@@ -29,7 +38,8 @@ import axios from "axios";
 import { useRoute } from "vue-router";
 import EditRecordModal from "@/Modals/EditRecordModal.vue";
 import { Menu } from "lucide-vue-next";
-import { DateTime } from "luxon"; // Luxon 사용
+import { DateTime } from "luxon";
+import AddRecordModal from "@/Modals/AddRecordModal.vue"; // Luxon 사용
 
 const route = useRoute();
 const tagId = route.params.id;
@@ -38,6 +48,7 @@ const records = ref([]);
 const loading = ref(false);
 const error = ref(null);
 const isEditRecordModalOpen = ref(false);
+const isAddRecordModalOpen = ref(false);
 const selectedRecord = ref(null); // 선택된 record 저장
 
 // ✅ 데이터를 불러오는 함수
@@ -75,6 +86,10 @@ const openEditModal = (record) => {
   selectedRecord.value = record;
   isEditRecordModalOpen.value = true;
 };
+
+const openAddRecordModal = () => {
+  isAddRecordModalOpen.value = true;
+}
 
 // ✅ 컴포넌트 마운트 시 데이터 가져오기
 onMounted(fetchRecords);
