@@ -37,4 +37,4 @@ out/
 .vscode/
 
 # Vue.js
-/frontend/
+#/frontend/
