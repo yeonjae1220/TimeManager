@@ -15,6 +15,7 @@ import project.TimeManager.application.port.out.tag.LoadTagsByMemberPort;
 import project.TimeManager.application.port.out.tag.SaveTagPort;
 import project.TimeManager.application.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
+import project.TimeManager.domain.tag.model.TimerState;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -84,12 +85,17 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
         }
     }
 
-    public TagJpaEntity loadJpaEntity(Long tagId) {
-        return tagJpaRepository.findById(tagId)
-                .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + tagId));
+    @Override
+    public Optional<Tag> findRunningTagByMemberId(Long memberId) {
+        return tagJpaRepository.findByMemberId(memberId).stream()
+                .filter(t -> t.getTimerState() == TimerState.RUNNING)
+                .findFirst()
+                .map(tagMapper::toDomain);
     }
 
-    public List<TagJpaEntity> loadJpaEntitiesByMemberId(Long memberId) {
-        return tagJpaRepository.findByMemberId(memberId);
+    @Override
+    public Optional<TagResult> loadTagResult(Long tagId) {
+        return tagJpaRepository.findById(tagId)
+                .map(tagMapper::toResult);
     }
 }

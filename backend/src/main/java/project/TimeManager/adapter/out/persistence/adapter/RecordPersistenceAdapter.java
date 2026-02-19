@@ -34,9 +34,16 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
 
     @Override
     public Long saveRecord(Record domain) {
+        if (domain.getId() != null) {
+            RecordJpaEntity entity = recordJpaRepository.findById(domain.getId().value())
+                    .orElseThrow(() -> new EntityNotFoundException("Record not found: " + domain.getId().value()));
+            entity.setStartTime(domain.getTimeRange().start());
+            entity.setEndTime(domain.getTimeRange().end());
+            entity.setTotalTime(domain.getTotalTime());
+            return recordJpaRepository.save(entity).getId();
+        }
         TagJpaEntity tag = tagJpaRepository.getReferenceById(domain.getTagId().value());
-        RecordJpaEntity entity = recordMapper.toNewJpaEntity(domain, tag);
-        return recordJpaRepository.save(entity).getId();
+        return recordJpaRepository.save(recordMapper.toNewJpaEntity(domain, tag)).getId();
     }
 
     @Override
@@ -51,8 +58,4 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
                 .collect(Collectors.toList());
     }
 
-    public RecordJpaEntity loadJpaEntity(Long recordId) {
-        return recordJpaRepository.findById(recordId)
-                .orElseThrow(() -> new EntityNotFoundException("Record not found: " + recordId));
-    }
 }

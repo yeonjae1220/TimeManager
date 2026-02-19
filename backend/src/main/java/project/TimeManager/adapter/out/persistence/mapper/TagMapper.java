@@ -9,6 +9,9 @@ import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TagId;
 import project.TimeManager.domain.tag.model.TimerState;
 
+import java.util.List;
+import java.util.stream.Collectors;
+
 @Component
 public class TagMapper {
 
@@ -69,6 +72,9 @@ public class TagMapper {
     public TagResult toResult(TagJpaEntity entity) {
         Long parentId = entity.getParent() != null ? entity.getParent().getId() : null;
         boolean isRunning = entity.getTimerState() == TimerState.RUNNING;
+        List<Long> childrenList = entity.getChildren().stream()
+                .map(TagJpaEntity::getId)
+                .collect(Collectors.toList());
         return new TagResult(
                 entity.getId(),
                 entity.getName(),
@@ -83,7 +89,8 @@ public class TagMapper {
                 entity.getLatestStopTime(),
                 isRunning,
                 entity.getMember().getId(),
-                parentId
+                parentId,
+                childrenList
         );
     }
 }

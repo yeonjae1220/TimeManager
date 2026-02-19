@@ -4,6 +4,7 @@ import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.tag.model.TagType;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 public class TagResponse {
     private Long id;
@@ -20,6 +21,7 @@ public class TagResponse {
     private Boolean state;
     private Long memberId;
     private Long parentId;
+    private List<Long> childrenList;
 
     public static TagResponse from(TagResult result) {
         TagResponse r = new TagResponse();
@@ -37,6 +39,7 @@ public class TagResponse {
         r.state = result.getState();
         r.memberId = result.getMemberId();
         r.parentId = result.getParentId();
+        r.childrenList = result.getChildrenList();
         return r;
     }
 
@@ -54,4 +57,5 @@ public class TagResponse {
     public Boolean getState() { return state; }
     public Long getMemberId() { return memberId; }
     public Long getParentId() { return parentId; }
+    public List<Long> getChildrenList() { return childrenList; }
 }

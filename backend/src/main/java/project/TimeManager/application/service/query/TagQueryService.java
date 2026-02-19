@@ -6,9 +6,8 @@ import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.application.port.in.tag.GetTagListQuery;
 import project.TimeManager.application.port.in.tag.GetTagQuery;
+import project.TimeManager.application.port.out.tag.LoadTagPort;
 import project.TimeManager.application.port.out.tag.LoadTagsByMemberPort;
-import project.TimeManager.adapter.out.persistence.adapter.TagPersistenceAdapter;
-import project.TimeManager.adapter.out.persistence.mapper.TagMapper;
 import project.TimeManager.domain.shared.DomainException;
 
 import java.util.List;
@@ -19,14 +18,12 @@ import java.util.List;
 public class TagQueryService implements GetTagQuery, GetTagListQuery {
 
     private final LoadTagsByMemberPort loadTagsByMemberPort;
-    private final TagPersistenceAdapter tagPersistenceAdapter;
-    private final TagMapper tagMapper;
+    private final LoadTagPort loadTagPort;
 
     @Override
     public TagResult getTag(Long tagId) {
-        return tagMapper.toResult(
-                tagPersistenceAdapter.loadJpaEntity(tagId)
-        );
+        return loadTagPort.loadTagResult(tagId)
+                .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
     }
 
     @Override

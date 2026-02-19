@@ -12,14 +12,10 @@ import project.TimeManager.application.port.in.tag.StartTimerUseCase;
 import project.TimeManager.application.port.in.tag.StopTimerUseCase;
 import project.TimeManager.application.port.out.tag.LoadTagPort;
 import project.TimeManager.application.port.out.tag.SaveTagPort;
-import project.TimeManager.adapter.out.persistence.adapter.TagPersistenceAdapter;
-import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.domain.shared.DomainException;
 import project.TimeManager.domain.tag.model.Tag;
-import project.TimeManager.domain.tag.model.TimerState;
 
 import java.time.ZonedDateTime;
-import java.util.List;
 
 @Service
 @Transactional
@@ -29,7 +25,6 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
-    private final TagPersistenceAdapter tagPersistenceAdapter;
     private final RecordCommandService recordCommandService;
 
     @Override
@@ -38,21 +33,14 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
 
         // Stop any other running tag for this member
-        List<TagJpaEntity> memberTags = tagPersistenceAdapter.loadJpaEntitiesByMemberId(
-                tag.getMemberId().value());
-        for (TagJpaEntity other : memberTags) {
-            if (other.getTimerState() == TimerState.RUNNING && !other.getId().equals(command.tagId())) {
-                log.info("Auto-stopping running tag: {}", other.getId());
+        loadTagPort.findRunningTagByMemberId(tag.getMemberId().value()).ifPresent(runningTag -> {
+            if (!runningTag.getId().value().equals(command.tagId())) {
+                log.info("Auto-stopping running tag: {}", runningTag.getId().value());
                 ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
                 recordCommandService.stopAndSaveRecord(
-                        other.getId(),
-                        0L,
-                        other.getLatestStartTime(),
-                        endTime
-                );
-                break;
+                        runningTag.getId().value(), 0L, runningTag.getLatestStartTime(), endTime);
             }
-        }
+        });
 
         tag.start(command.startTime());
         saveTagPort.saveTag(tag);

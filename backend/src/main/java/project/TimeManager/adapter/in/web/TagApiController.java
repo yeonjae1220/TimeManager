@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.MoveTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.ResetTimerRequest;
+import project.TimeManager.adapter.in.web.dto.request.StartTimerRequest;
 import project.TimeManager.adapter.in.web.dto.request.StopTimerRequest;
 import project.TimeManager.adapter.in.web.dto.response.TagResponse;
 import project.TimeManager.adapter.in.web.dto.response.TagTreeResponse;
@@ -18,7 +19,6 @@ import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
 import project.TimeManager.application.port.in.tag.*;
 
-import java.time.ZonedDateTime;
 import java.util.List;
 
 @Slf4j
@@ -46,8 +46,8 @@ public class TagApiController {
     }
 
     @PostMapping("/{tagId}/start")
-    public ResponseEntity<Long> startStopwatch(@PathVariable Long tagId, @RequestBody ZonedDateTime startTime) {
-        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, startTime)));
+    public ResponseEntity<Long> startStopwatch(@PathVariable Long tagId, @RequestBody StartTimerRequest request) {
+        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime())));
     }
 
     @PostMapping("/{tagId}/reset")

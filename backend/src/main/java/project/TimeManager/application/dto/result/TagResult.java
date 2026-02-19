@@ -3,6 +3,7 @@ package project.TimeManager.application.dto.result;
 import project.TimeManager.domain.tag.model.TagType;
 
 import java.time.ZonedDateTime;
+import java.util.List;
 
 public class TagResult {
     private final Long id;
@@ -19,13 +20,14 @@ public class TagResult {
     private final Boolean state;
     private final Long memberId;
     private final Long parentId;
+    private final List<Long> childrenList;
 
     public TagResult(Long id, String name, TagType type,
                      Long elapsedTime, Long dailyGoalTime,
                      Long dailyElapsedTime, Long dailyTotalTime,
                      Long tagTotalTime, Long totalTime,
                      ZonedDateTime latestStartTime, ZonedDateTime latestStopTime,
-                     Boolean state, Long memberId, Long parentId) {
+                     Boolean state, Long memberId, Long parentId, List<Long> childrenList) {
         this.id = id;
         this.name = name;
         this.type = type;
@@ -40,6 +42,7 @@ public class TagResult {
         this.state = state;
         this.memberId = memberId;
         this.parentId = parentId;
+        this.childrenList = childrenList;
     }
 
     public Long getId() { return id; }
@@ -56,4 +59,5 @@ public class TagResult {
     public Boolean getState() { return state; }
     public Long getMemberId() { return memberId; }
     public Long getParentId() { return parentId; }
+    public List<Long> getChildrenList() { return childrenList; }
 }
