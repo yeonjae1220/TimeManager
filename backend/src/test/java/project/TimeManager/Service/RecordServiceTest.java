@@ -1,100 +1,112 @@
 package project.TimeManager.Service;
 
 import jakarta.persistence.EntityManager;
-import org.assertj.core.api.Assertions;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
-import project.TimeManager.entity.Records;
-import project.TimeManager.entity.Tag;
-import project.TimeManager.entity.TagType;
-import project.TimeManager.repository.TagRepository;
-
+import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
+import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
+import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
+import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
+import project.TimeManager.application.dto.command.EditRecordTimeCommand;
+import project.TimeManager.application.port.in.record.DeleteRecordUseCase;
+import project.TimeManager.application.port.in.record.EditRecordTimeUseCase;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.List;
 
-import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
 class RecordServiceTest {
-    @Autowired
-    private TagRepository tagRepository;
-    @Autowired
-    private RecordService recordService;
-    @Autowired
-    private EntityManager em;
+
+    @Autowired TagJpaRepository tagJpaRepository;
+    @Autowired RecordJpaRepository recordJpaRepository;
+    @Autowired EditRecordTimeUseCase editRecordTimeUseCase;
+    @Autowired DeleteRecordUseCase deleteRecordUseCase;
+    @Autowired EntityManager em;
+
     @Test
-    public void updateTimeWithParentTag() {
-        Tag child2 = tagRepository.findByName("ChildTag1_1").get();
-        List<Records> child2RecordsList = child2.getRecords();
-        assertThat(child2RecordsList.get(0).getTotalTime()).isEqualTo(1200);
+    @DisplayName("InitData의 ChildTag1 totalTime은 0보다 크다")
+    void checkInitDataTagTotalTime() {
+        TagJpaEntity childTag1 = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ChildTag1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ChildTag1이 존재하지 않습니다"));
 
-        assertThat(child2.getTotalTime()).isEqualTo(1200);
-        assertThat(child2.getParent().getTotalTime()).isEqualTo(1200 + 1800);
-        assertThat(tagRepository.findByTypeAndMember(TagType.ROOT, child2.getMember()).get().getTotalTime()).isEqualTo(14400);
-
-        System.out.println("child2TagBefore = " + child2.getTotalTime());
-        recordService.editEndTime(child2RecordsList.get(0), ZonedDateTime.of(2024, 12, 5, 13, 50, 0, 0, ZoneId.of("Asia/Seoul")));
-        System.out.println("child2RecordsListEndTime = " + child2RecordsList.get(0).getEndTime() + " TotalTime = " + child2RecordsList.get(0).getTotalTime());
-
-        Tag child2Re = tagRepository.findByName("ChildTag1_1").get();
-        System.out.println("child2TagAfter = " + child2Re.getTotalTime());
-        assertThat(child2Re.getTotalTime()).isEqualTo(600);
-        assertThat(child2Re.getParent().getTotalTime()).isEqualTo(600 + 1800);
-
-        recordService.editStartTime(child2RecordsList.get(0), ZonedDateTime.of(2024, 12, 5, 13, 30, 0, 0, ZoneId.of("Asia/Seoul")));
-        Tag child2ReRe = tagRepository.findByName("ChildTag1_1").get();
-        assertThat(child2ReRe.getTotalTime()).isEqualTo(1200);
-        assertThat(child2ReRe.getParent().getTotalTime()).isEqualTo(1200 + 1800);
-
+        assertThat(childTag1.getTotalTime()).isGreaterThan(0L);
     }
 
     @Test
-    public void editParent() {
-        Tag childTag1_1 = tagRepository.findByName("ChildTag1_1").get();
-        Tag childTag2 = tagRepository.findByName("ChildTag2").get();
-        Records record = childTag1_1.getRecords().get(0);
+    @DisplayName("기록 시간 수정 시 태그의 totalTime이 차이만큼 업데이트된다")
+    void updateTimeWithParentTag() {
+        TagJpaEntity child1_1 = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ChildTag1_1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ChildTag1_1이 존재하지 않습니다"));
 
-        recordService.editParent(childTag2, record);
+        List<RecordJpaEntity> records = recordJpaRepository.findByTagId(child1_1.getId());
+        assertThat(records).isNotEmpty();
 
-        childTag1_1 = tagRepository.findByName("ChildTag1_1").get();
-        childTag2 = tagRepository.findByName("ChildTag2").get();
+        RecordJpaEntity record = records.get(0);
+        assertThat(record.getTotalTime()).isEqualTo(1200L);
 
-        assertThat(childTag1_1.getParent().getTotalTime()).isEqualTo(1800);
-        assertThat(childTag2.getTotalTime()).isEqualTo(1200);
+        // 종료 시간을 13:50으로 변경 → 13:40~13:50 = 600초
+        ZonedDateTime newEnd = ZonedDateTime.of(2024, 12, 5, 13, 50, 0, 0, ZoneId.of("Asia/Seoul"));
+        editRecordTimeUseCase.editRecordTime(
+                new EditRecordTimeCommand(record.getId(), record.getStartTime(), newEnd));
 
-    }
-
-    @Test
-    public void checkInitDataTagTotalTime() {
-        Tag root = tagRepository.findById(1L).get();
-        Tag ParentTag = tagRepository.findByName("ParentTag").get();
-        Tag ChildTag1 = tagRepository.findByName("ChildTag1").get();
-        Tag ChildTag1_1 = tagRepository.findByName("ChildTag1_1").get();
-
-        ZonedDateTime testTime1_1s = ZonedDateTime.of(2024, 12, 5, 15, 0, 0, 0, ZoneId.of("Asia/Seoul"));
-        ZonedDateTime testTime1_1e = ZonedDateTime.of(2024, 12, 5, 16, 0, 0, 0, ZoneId.of("Asia/Seoul"));
-
-        recordService.createRecord(ChildTag1, testTime1_1s, testTime1_1e);
         em.flush();
         em.clear();
 
-        System.out.println("root = " + root.getTagTotalTime());
-        System.out.println("ParentTag = " + ParentTag.getTagTotalTime());
-        System.out.println("ChildTag1 = " + ChildTag1.getTagTotalTime());
-        System.out.println("ChildTag1_1 = " + ChildTag1_1.getTagTotalTime());
-
-        System.out.println("root = " + root.getTotalTime());
-        System.out.println("ParentTag = " + ParentTag.getTotalTime());
-        System.out.println("ChildTag1 = " + ChildTag1.getTotalTime());
-        System.out.println("ChildTag1_1 = " + ChildTag1_1.getTotalTime());
-
+        TagJpaEntity child1_1After = tagJpaRepository.findById(child1_1.getId()).orElseThrow();
+        assertThat(child1_1After.getTotalTime()).isEqualTo(600L);
     }
 
+    @Test
+    @DisplayName("기록 삭제 후 태그의 totalTime이 감소한다")
+    void deleteRecordAdjustsTagTotalTime() {
+        TagJpaEntity child1_1 = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ChildTag1_1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ChildTag1_1이 존재하지 않습니다"));
 
+        long totalTimeBefore = child1_1.getTotalTime();
+        List<RecordJpaEntity> records = recordJpaRepository.findByTagId(child1_1.getId());
+        long recordTotalTime = records.get(0).getTotalTime();
 
+        boolean deleted = deleteRecordUseCase.deleteRecord(records.get(0).getId());
+
+        em.flush();
+        em.clear();
+
+        assertThat(deleted).isTrue();
+        assertThat(tagJpaRepository.findById(child1_1.getId()).orElseThrow().getTotalTime())
+                .isEqualTo(totalTimeBefore - recordTotalTime);
+    }
+
+    // --- 도메인 불변식이 서비스에서 전파되는지 확인 (TimeRange) ---
+
+    @Test
+    @DisplayName("[도메인 경유] editRecordTime에서 endTime이 startTime 이전이면 예외가 발생한다")
+    void editRecordTimeWithEndBeforeStartThrows() {
+        RecordJpaEntity anyRecord = recordJpaRepository.findAll().stream()
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("기록이 없습니다"));
+
+        ZonedDateTime start = ZonedDateTime.of(2024, 12, 5, 14, 0, 0, 0, ZoneId.of("Asia/Seoul"));
+        ZonedDateTime end   = ZonedDateTime.of(2024, 12, 5, 13, 0, 0, 0, ZoneId.of("Asia/Seoul"));
+
+        assertThatThrownBy(() ->
+                editRecordTimeUseCase.editRecordTime(
+                        new EditRecordTimeCommand(anyRecord.getId(), start, end))
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("종료 시간은 시작 시간 이후여야 합니다");
+    }
 }

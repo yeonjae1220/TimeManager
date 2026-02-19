@@ -1,116 +1,90 @@
 package project.TimeManager.Service;
 
 import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
-import project.TimeManager.entity.Member;
-import project.TimeManager.entity.Tag;
-import project.TimeManager.repository.MemberRepository;
-import project.TimeManager.repository.TagRepository;
+import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
+import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
+import project.TimeManager.application.dto.command.CreateTagCommand;
+import project.TimeManager.application.dto.command.MoveTagCommand;
+import project.TimeManager.application.port.in.member.CreateMemberUseCase;
+import project.TimeManager.application.port.in.tag.CreateTagUseCase;
+import project.TimeManager.application.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.tag.model.TagType;
 
-import java.util.stream.Collectors;
+import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
-import static org.junit.jupiter.api.Assertions.*;
 @SpringBootTest
 @Transactional
 class TagServiceTest {
-    @Autowired
-    private TagService tagService;
-    @Autowired
-    private TagRepository tagRepository;
-    @Autowired
-    private MemberRepository memberRepository;
-    @Autowired
-    private EntityManager em;
+
+    @Autowired CreateTagUseCase createTagUseCase;
+    @Autowired MoveTagUseCase moveTagUseCase;
+    @Autowired TagJpaRepository tagJpaRepository;
+    @Autowired CreateMemberUseCase createMemberUseCase;
+    @Autowired EntityManager em;
 
     @Test
-    public void testCreatTag() {
-        Member testMember = new Member("testMember");
-        Tag parentTag = new Tag("testParentTag");
+    @DisplayName("태그 생성 시 CUSTOM 타입으로 생성되고, 이름/회원/부모가 올바르게 저장된다")
+    void testCreateTag() {
+        Long memberId = createMemberUseCase.createMember("testMember");
+        TagJpaEntity rootTag = tagJpaRepository.findByMemberId(memberId).stream()
+                .filter(t -> t.getType() == TagType.ROOT).findFirst().orElseThrow();
 
-        // 처음에 Save없는 코드 였고, tagRepository.findById일 때는 그냥 Save없이 해도 정상 작동 되었지만, Id로 바꾸니, 이게 db에 저장되기 전에는 Id값이 null이 들어와서 이렇게 save 해주고 진행하면 오류가 해결됨
-        memberRepository.save(testMember);
-        tagRepository.save(parentTag);
+        Long newTagId = createTagUseCase.createTag(
+                new CreateTagCommand("newCreateTag", memberId, rootTag.getId()));
 
-        Long memberId = testMember.getId();
-        Long parentTagId = parentTag.getId();
-        System.out.println("memberId = " + memberId + " parentTagId : " + parentTagId);
+        em.flush();
+        em.clear();
 
-        Tag newTag = tagRepository.findById(tagService.createTag("newCreateTag", memberId, parentTagId)).get();
+        TagJpaEntity newTag = tagJpaRepository.findById(newTagId).orElseThrow();
 
-        System.out.println("Tag Name: " + newTag.getName());
-        System.out.println("Tag Type: " + newTag.getType());
-        System.out.println("Member: " + newTag.getMember().getName());
-        System.out.println("Parent Tag: " + (newTag.getParent() != null ? newTag.getParent().getName() : "null"));
-        System.out.println("Children Tags: " + newTag.getChildren().stream().map(Tag::getName).collect(Collectors.toList()));
-        System.out.println("Total Time: " + newTag.getTotalTime());
-
+        assertThat(newTag.getName()).isEqualTo("newCreateTag");
+        assertThat(newTag.getType()).isEqualTo(TagType.CUSTOM);
+        assertThat(newTag.getMember().getName()).isEqualTo("testMember");
+        assertThat(newTag.getParent().getId()).isEqualTo(rootTag.getId());
+        assertThat(newTag.getTotalTime()).isZero();
     }
 
     @Test
-    public void updateParnetTagTest() {
-        Tag tag = tagRepository.findByName("ChildTag1_1").get();
-        Tag firstParent = tag.getParent();
-        Tag SecondParent = firstParent.getParent();
-        Tag discardTag = tagRepository.findById(2L).get();
+    @DisplayName("태그 이동 후 부모가 변경된다")
+    void updateParentTagTest() {
+        TagJpaEntity childTag1_1 = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ChildTag1_1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ChildTag1_1이 존재하지 않습니다"));
 
-        Tag newParentTage = tagRepository.findByName("ChildTag2").get();
+        TagJpaEntity childTag2 = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ChildTag2"))
+                .findFirst().orElseThrow();
 
-        Member member = tag.getMember();
+        moveTagUseCase.moveTag(new MoveTagCommand(childTag1_1.getId(), childTag2.getId()));
 
-        System.out.println("ChildTag1_1 totalTime" + tag.getTotalTime());
-        System.out.println("ChildTag1 totalTime" + firstParent.getTotalTime());
-        System.out.println("ParentTag totalTime" + SecondParent.getTotalTime());
-        System.out.println("discardTag totalTime" + discardTag.getTotalTime());
-        System.out.println("Child2 totalTime" + newParentTage.getTagTotalTime());
+        em.flush();
+        em.clear();
 
-        System.out.println("ChildTag1 Children" + firstParent.getChildren());
-        System.out.println("ChildTag2 Children" + newParentTage.getChildren());
-
-        tagService.updateParentTag(tag.getId(), newParentTage.getId());
-//        tagService.deleteTag(tag.getId(), discardTag.getId(), member);
-
-        // execute 후 flush clear까지 했는데도 바로 반영이 안됨
-        // 벌크 연산은 영속성 컨텍스트(1차 캐시)에 있는 엔티티는 변경되지 않는다고 함
-        // 그래서 다시 find로 db에서 조회
-        tag = tagRepository.findByName("ChildTag1_1").get();
-        firstParent = tagRepository.findByName("ChildTag1").get();
-        SecondParent = tagRepository.findByName("ParentTag").get();
-        discardTag = tagRepository.findById(2L).get();
-        newParentTage = tagRepository.findByName("ChildTag2").get();
-
-
-        System.out.println("ChildTag1_1 totalTime" + tag.getTotalTime());
-        System.out.println("ChildTag1 totalTime" + firstParent.getTotalTime());
-        System.out.println("ParentTag totalTime" + SecondParent.getTotalTime());
-        System.out.println("discardTag totalTime" + discardTag.getTotalTime());
-        System.out.println("ChildTag2 totalTime" + newParentTage.getTotalTime());
-
-        System.out.println("ChildTag1 Children" + firstParent.getChildren());
-        System.out.println("ChildTag2 Children" + newParentTage.getChildren());
-
+        TagJpaEntity movedTag = tagJpaRepository.findById(childTag1_1.getId()).orElseThrow();
+        assertThat(movedTag.getParent().getId()).isEqualTo(childTag2.getId());
     }
 
-    // 위의 테스트와 코드가 같은데,org.springframework.dao.DataIntegrityViolationException: could not execute statement [Referential integrity constraint violation: "FKQVOUK265S2XCVJ7RORHA95FKE: PUBLIC.RECORDS FOREIGN KEY(TAG_ID) REFERENCES PUBLIC.TAG(TAG_ID) (CAST(7 AS BIGINT))"; SQL statement:
-    // 오류 발생. 이유를 모르겠음
-//    @Test
-//    public void updateParnetTagTest2 () {
-//        Tag tag = tagRepository.findByName("ChildTag1_1").get();
-//        Tag parentTag = tag.getParent();
-//        Tag newParentTage = tagRepository.findByName("ChildTag2").get();
-//
-//        Member member = tag.getMember();
-//
-//        System.out.println("ChildTag1_1 totalTime" + tag.getTotalTime());
-//        System.out.println("ChildTag1 totalTime" + parentTag.getTotalTime());
-//        System.out.println("ChildTag2 totalTime" + newParentTage.getTotalTime());
-//
-//        tagService.deleteTag(tag.getId(), newParentTage.getId(), member);
-//
-//        System.out.println("ChildTag1_1 totalTime" + tag.getTotalTime());
-//        System.out.println("ChildTag1 totalTime" + parentTag.getTotalTime());
-//        System.out.println("ChildTag2 totalTime" + newParentTage.getTotalTime());
-//    }
+    // --- 비즈니스 규칙 테스트 (서비스 레이어) ---
+
+    @Test
+    @DisplayName("[비즈니스 규칙] 태그를 자기 자신으로 이동하면 서비스에서 예외가 발생한다")
+    void moveTagToSelfThrowsFromService() {
+        TagJpaEntity anyTag = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getType() == TagType.CUSTOM)
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("CUSTOM 태그가 없습니다"));
+
+        assertThatThrownBy(() ->
+                moveTagUseCase.moveTag(new MoveTagCommand(anyTag.getId(), anyTag.getId()))
+        )
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("자기 자신으로 이동할 수 없습니다");
+    }
 }

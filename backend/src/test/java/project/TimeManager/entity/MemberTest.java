@@ -1,190 +1,75 @@
 package project.TimeManager.entity;
 
 import jakarta.persistence.EntityManager;
-import lombok.RequiredArgsConstructor;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
-import project.TimeManager.repository.MemberRepository;
-import project.TimeManager.repository.TagRepository;
+import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
+import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
+import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepository;
+import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
+import project.TimeManager.application.port.in.member.CreateMemberUseCase;
+import project.TimeManager.domain.tag.model.TagType;
 
-import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @Transactional
-//@Commit
-@RequiredArgsConstructor
 class MemberTest {
 
-    @Autowired
-    EntityManager em;
-
-    @Autowired
-    MemberRepository memberRepository;
-    @Autowired
-    TagRepository tagRepository;
+    @Autowired EntityManager em;
+    @Autowired MemberJpaRepository memberJpaRepository;
+    @Autowired TagJpaRepository tagJpaRepository;
+    @Autowired CreateMemberUseCase createMemberUseCase;
 
     @Test
-    public void testEntity() {
-        Member member1 = new Member("member1");
-        Member member2 = new Member("member2");
-        em.persist(member1);
-        em.persist(member2);
+    @DisplayName("회원 생성 시 ROOT 태그와 DISCARDED 태그가 자동 생성된다")
+    void createNewMemberWithDefaultTags() {
+        Long memberId = createMemberUseCase.createMember("newMember");
 
-        Tag tag1 = new Tag("tag1", member1);
-        Tag tag2 = new Tag("tag2", member2);
-        em.persist(tag1);
-        em.persist(tag2);
+        MemberJpaEntity member = memberJpaRepository.findById(memberId).orElseThrow();
+        List<TagJpaEntity> tagList = tagJpaRepository.findByMemberId(memberId);
 
-        Records record1 = new Records(tag1, ZonedDateTime.now());
-        Records record2 = new Records(tag2, ZonedDateTime.now());
-        em.persist(record1);
-        em.persist(record2);
-
-        em.flush();
-        em.clear();
-
-//        List<Member> members = em.createQuery("select m from Member m")
-//                .getResultList();
-
-//        assertThat(members.get(0).getName()).isEqualTo("member1");
-//        assertThat(members.get(0).getTagList().get(0).getName()).isEqualTo("tag1");
-//        System.out.println(members.get(0).getTagList().get(0).getRecords().get(0).getStartTime());
-//
-//        assertThat(members.get(1).getName()).isEqualTo("member2");
-//        assertThat(members.get(1).getTagList().get(0).getName()).isEqualTo("tag2");
-//        System.out.println(members.get(1).getTagList().get(0).getRecords().get(0).getStartTime());
-
-
-
-    }
-
-    @Test
-    public void testPostPersist() {
-        Member member = new Member();
-        em.persist(member);
-        em.flush(); // `@PostPersist`가 호출되어야 함 -> 안하는데?
-    }
-
-    @Test
-    public void defaultTags() {
-        Member member1 = memberRepository.findByName("member1");
-        Long memberId = member1.getId();
-        List<Tag> tagList = member1.getTagList();
-        for (Tag tag : tagList) {
-            System.out.println("tag = " + tag);
-        }
-        // assertThat(member1.getTagList()).containsExactlyInAnyOrder(tagRepository.findByMemberIdAndTagName(memberId, "root").get(), tagRepository.findByMemberIdAndTagName(memberId, "discarded").get());
-//        assertThat(member1.getTagList()).containsExactlyInAnyOrder(tagRepository.findByTypeAndMember(TagType.ROOT, member1).get(), tagRepository.findByTypeAndMember(TagType.DISCARDED, member1).get());
-
-    }
-
-    @Test
-    public void createNewMemberWithDefaultTagFailed() {
-        // Given
-        Member newMember = new Member("newMember");
-        memberRepository.save(newMember);
-        em.persist(newMember); // 영속화
-        em.flush();
-        // em.clear();
-
-        Long newMemberId = newMember.getId();
-        Member persistedMember = em.find(Member.class, newMemberId); // 다시 조회
-
-        // When
-        List<Tag> tagList = persistedMember.getTagList();
-
-        // Then
-        assertThat(newMember.getName()).isEqualTo("newMember");
-
-        for (Tag tag : tagList) {
-            System.out.println("tagList = " + tag);
-        }
-
-//        Optional<Tag> rootTag = tagRepository.findByTypeAndMember(TagType.ROOT, newMember);
-//        Optional<Tag> discardedTag = tagRepository.findByTypeAndMember(TagType.DISCARDED, newMember);
-
-        // Optional<Tag> rootTag = tagRepository.findByName("root");
-        // Optional<Tag> discardedTag = tagRepository.findByName("discarded");
-        Optional<Tag> rootTag = tagRepository.findByTypeAndMember(TagType.ROOT, newMember);
-        Optional<Tag> discardedTag = tagRepository.findByTypeAndMember(TagType.DISCARDED, newMember);
-
-        assertThat(rootTag).isPresent();
-        assertThat(discardedTag).isPresent();
-
-        assertThat(newMember.getTagList()).containsExactlyInAnyOrder(rootTag.get(), discardedTag.get());
-    }
-
-    @Test
-    public void createNewMemberWithDefaultTagSuccess() {
-        // Given
-        Member newMember = new Member("newMember");
-        memberRepository.save(newMember); // persist 및 flush 호출
-
-        // When
-        Member persistedMember = memberRepository.findById(newMember.getId()).orElseThrow();
-        List<Tag> tagList = persistedMember.getTagList();
-
-        // Then
-        assertThat(newMember.getName()).isEqualTo("newMember");
-
-        for (Tag tag : tagList) {
-            System.out.println("tagList = " + tag);
-        }
-
-        assertThat(tagList).hasSize(2); // 태그가 2개인지 확인
-        assertThat(tagList.stream().map(Tag::getType))
+        assertThat(member.getName()).isEqualTo("newMember");
+        assertThat(tagList).hasSize(2);
+        assertThat(tagList.stream().map(TagJpaEntity::getType))
                 .containsExactlyInAnyOrder(TagType.ROOT, TagType.DISCARDED);
-
-//        Optional<Tag> rootTag = tagRepository.findByTypeAndMember(TagType.ROOT, newMember);
-//        Optional<Tag> discardedTag = tagRepository.findByTypeAndMember(TagType.DISCARDED, newMember);
-
-//        Optional<Tag> rootTag = tagRepository.findByName("root");
-//        Optional<Tag> discardedTag = tagRepository.findByName("discarded");
-//
-//        assertThat(rootTag).isPresent();
-//        assertThat(discardedTag).isPresent();
-//
-//        assertThat(newMember.getTagList()).containsExactlyInAnyOrder(rootTag.get(), discardedTag.get());
     }
 
     @Test
-    public void checkTagsInDatabase() {
-        // Given
-        Member newMember = new Member("newMember");
-        memberRepository.save(newMember);
+    @DisplayName("InitData로 생성된 member1은 ROOT, DISCARDED 태그를 가진다")
+    void checkInitDataDefaultTags() {
+        MemberJpaEntity member1 = memberJpaRepository.findAll().stream()
+                .filter(m -> m.getName().equals("member1"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("member1이 존재하지 않습니다"));
 
-        // When
-        List<Tag> allTags = tagRepository.findTagListByMemberId(newMember.getId());
+        List<TagJpaEntity> tags = tagJpaRepository.findByMemberId(member1.getId());
 
-        // Then
-        assertThat(allTags).hasSize(2); // 태그가 2개인지 확인
-        allTags.forEach(tag -> System.out.println("Tag in DB: " + tag.getName()));
+        assertThat(tags.stream().map(TagJpaEntity::getType))
+                .contains(TagType.ROOT, TagType.DISCARDED);
+    }
+
+    // --- 도메인 불변식 테스트 (Member.create) ---
+
+    @Test
+    @DisplayName("[도메인] Member: 이름이 blank이면 IllegalArgumentException이 발생한다")
+    void createMemberWithBlankNameThrows() {
+        assertThatThrownBy(() -> createMemberUseCase.createMember("  "))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("회원 이름은 필수입니다");
     }
 
     @Test
-    public void checkInitDataDefaultTag() {
-        //given
-        Member member1 = memberRepository.findByName("member1");
-        Long memberId = member1.getId();
-        List<Tag> tagList = member1.getTagList();
-        for (Tag tag : tagList) {
-            System.out.println("tag = " + tag);
-        }
-        //when
-
-        //then
+    @DisplayName("[도메인] Member: 이름이 null이면 IllegalArgumentException이 발생한다")
+    void createMemberWithNullNameThrows() {
+        assertThatThrownBy(() -> createMemberUseCase.createMember(null))
+                .isInstanceOf(IllegalArgumentException.class)
+                .hasMessageContaining("회원 이름은 필수입니다");
     }
-
-    /*
-    h2 Db에서 원래 Member에 List<Tag>나 Tag에서 List<Timer> 테이블에서 안보이나?
-
-     */
-
-
 }

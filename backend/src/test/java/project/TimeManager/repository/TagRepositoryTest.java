@@ -1,82 +1,82 @@
 package project.TimeManager.repository;
 
-import com.querydsl.jpa.impl.JPAQueryFactory;
-import jakarta.persistence.EntityManager;
+import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.transaction.annotation.Transactional;
-import project.TimeManager.entity.Tag;
-
+import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
+import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepository;
+import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
+import project.TimeManager.domain.tag.model.TagType;
 
 import java.util.List;
-import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
 @Transactional
 class TagRepositoryTest {
-    @Autowired
-    private TagRepository tagRepository;
-    @Autowired
-    private EntityManager em;
-    @Autowired
-    private JPAQueryFactory jpaQueryFactory;
 
-//    @BeforeEach
-//    void setup() {
-//        Tag parentTag = new Tag("ParentTag");
-//        tagRepository.save(parentTag);
-//        Tag childTag1 = new Tag("ChildTag1", parentTag);
-//        tagRepository.save(childTag1);
-//        Tag childTag2 = new Tag("ChildTag2", parentTag);
-//        tagRepository.save(childTag2);
-//        Tag childTag1_1 = new Tag("ChildTag1_1", childTag1);
-//        tagRepository.save(childTag1_1);
-//r
-//        // 영속성 컨텍스트 비우기 (캐시 방지)
-//        em.flush();
-//        em.clear();
-//    }
-
+    @Autowired TagJpaRepository tagJpaRepository;
+    @Autowired MemberJpaRepository memberJpaRepository;
 
     @Test
-    public void findChildrenByParentId() {
-        //given
-        Optional<Tag> optionalParentTag = tagRepository.findByName("ParentTag"); // 부모 태그 조회
-        assertThat(optionalParentTag).isPresent();
+    @DisplayName("전체 태그 수: 2명 × 기본 2개 + 커스텀 4개 = 8개")
+    void findAll() {
+        List<TagJpaEntity> allTags = tagJpaRepository.findAll();
 
-        Tag parentTag = optionalParentTag.get(); // Optional에서 값 가져오기
+        assertThat(allTags).hasSize(8);
+        assertThat(allTags).extracting("name")
+                .containsExactlyInAnyOrder(
+                        "root", "discarded",       // member1 기본 태그
+                        "root", "discarded",       // member2 기본 태그
+                        "ParentTag", "ChildTag1", "ChildTag2", "ChildTag1_1"
+                );
+    }
 
-        // When
-        List<Tag> children = tagRepository.findByParentId(parentTag.getId());
+    @Test
+    @DisplayName("ParentTag의 직계 자식은 ChildTag1, ChildTag2 두 개다")
+    void findChildrenByParentId() {
+        TagJpaEntity parentTag = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ParentTag"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ParentTag이 존재하지 않습니다"));
 
-          /*
-        이 방식으로 코드를 작성하면 get()을 호출하지 않고도 Optional의 값을 안전하게 사용할 수 있습니다. ifPresent()를 활용해 Optional이 비어있을 때 아무런 동작도 하지 않게 만들거나, orElseThrow()를 사용해 값이 없을 때 예외를 던질 수 있습니다.
-        optionalParentTag.ifPresent(parentTag -> {
-            List<Tag> children = tagRepository.findChildrenByParentId(parentTag.getId());
-         */
+        List<TagJpaEntity> children = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getParent() != null && t.getParent().getId().equals(parentTag.getId()))
+                .toList();
 
-        // Then
         assertThat(children).hasSize(2);
-        assertThat(children).extracting("name").containsExactlyInAnyOrder("ChildTag1", "ChildTag2");
-        }
-
-
-    @Test
-    public void findAll() {
-        List<Tag> allTag = tagRepository.findAll();
-        assertThat(allTag).extracting("name").containsExactlyInAnyOrder("root", "discarded", "root", "discarded","ParentTag", "ChildTag1", "ChildTag2", "ChildTag1_1");
-        // 맴버 2개가 있음, 디폴트로 2개씩 생긴 것 추가
+        assertThat(children).extracting("name")
+                .containsExactlyInAnyOrder("ChildTag1", "ChildTag2");
     }
 
     @Test
-    public void checkTotalTime() {
-        // given
-        Tag ParentTag = tagRepository.findByName("ParentTag").get(); // 부모 태그 조회
-        System.out.println("totalTime : " + ParentTag.getTagTotalTime());
-        assertThat(ParentTag.getTagTotalTime()).isNotEqualTo(0L);
+    @DisplayName("ParentTag의 totalTime은 하위 전체 기록의 합산 값이다")
+    void checkTotalTime() {
+        TagJpaEntity parentTag = tagJpaRepository.findAll().stream()
+                .filter(t -> t.getName().equals("ParentTag"))
+                .findFirst()
+                .orElseThrow(() -> new AssertionError("ParentTag이 존재하지 않습니다"));
+
+        // totalTime: 하위 전체 배치 누적 (t1=3600 + t2=7800 + t3=1800 + t4=1200 = 14400)
+        assertThat(parentTag.getTotalTime()).isEqualTo(14400L);
+        // tagTotalTime: ParentTag에 직접 생성된 기록만 (t1=3600 + t2=7800 = 11400)
+        assertThat(parentTag.getTagTotalTime()).isEqualTo(11400L);
     }
 
+    @Test
+    @DisplayName("findByMemberId로 특정 회원의 태그만 조회된다")
+    void findByMemberId() {
+        Long member1Id = memberJpaRepository.findAll().stream()
+                .filter(m -> m.getName().equals("member1"))
+                .findFirst().orElseThrow().getId();
+
+        List<TagJpaEntity> member1Tags = tagJpaRepository.findByMemberId(member1Id);
+
+        assertThat(member1Tags).hasSize(6); // root + discarded + ParentTag + ChildTag1 + ChildTag2 + ChildTag1_1
+        assertThat(member1Tags).extracting("name")
+                .containsExactlyInAnyOrder("root", "discarded", "ParentTag", "ChildTag1", "ChildTag2", "ChildTag1_1");
+    }
 }

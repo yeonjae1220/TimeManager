@@ -2,19 +2,17 @@ spring:
   profiles:
     active: test
   datasource:
-    url: jdbc:h2:tcp://localhost/~/timer
+    url: jdbc:h2:mem:testdb;DB_CLOSE_DELAY=-1;DB_CLOSE_ON_EXIT=FALSE
     username: sa
     password:
     driver-class-name: org.h2.Driver
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: create-drop
     properties:
       hibernate:
-        # show_sql: true
         format_sql: true
         spring.jpa.properties.hibernate.use_sql_comments: true
 
 logging.level:
   org.hibernate.SQL: debug
-  # org.hibernate.type: trace

@@ -16,18 +16,23 @@
 
 ## Project Structure
 
+헥사고날 아키텍처(Ports & Adapters)로 구성되어 있습니다.
+
 ```
 src/main/java/project/TimeManager/
-├── entity/                # 도메인 엔티티
-│   ├── Member.java        # 사용자
-│   ├── Tag.java           # 계층형 태그 (작업 단위)
-│   ├── Records.java       # 시간 기록
-│   ├── TagType.java       # ROOT / DISCARDED / CUSTOM
-│   └── State.java         # RUN / STOP
-├── repository/            # 데이터 접근 계층 (JPA + QueryDSL)
-├── Service/               # 비즈니스 로직
-├── controller/            # REST API 컨트롤러
-└── dto/                   # 데이터 전송 객체
+├── domain/                          # 순수 Java 도메인 모델 (프레임워크 의존성 없음)
+│   ├── member/model/
+│   ├── tag/model/                   # Tag, TagType, TimerState
+│   └── record/model/                # Record, TimeRange (값 객체)
+├── application/                     # 유스케이스 & 포트
+│   ├── port/in/                     # Inbound 포트 (UseCase/Query 인터페이스)
+│   ├── port/out/                    # Outbound 포트 (인프라 인터페이스)
+│   ├── service/command/             # 쓰기 서비스 (@Transactional)
+│   ├── service/query/               # 읽기 서비스 (readOnly=true)
+│   └── dto/                         # Command 객체 & Result 객체
+└── adapter/
+    ├── in/web/                      # REST 컨트롤러 + Request/Response DTO
+    └── out/persistence/             # JPA 엔티티, Repository, PersistenceAdapter
 ```
 
 ## Domain Model
@@ -56,6 +61,29 @@ ROOT (자동 생성)
 DISCARDED (자동 생성, 휴지통 역할)
 ```
 
+## API Endpoints
+
+### Tag API (`/api/tag`)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `GET` | `/{memberId}` | 회원의 전체 태그 트리 조회 |
+| `GET` | `/detail/{tagId}` | 태그 상세 조회 |
+| `POST` | `/{tagId}/start` | 스톱워치 시작 |
+| `POST` | `/{tagId}/reset` | 스톱워치 초기화 |
+| `POST` | `/{tagId}/create` | 하위 태그 생성 |
+| `PUT` | `/{tagId}/updateParent` | 태그 이동 (부모 변경 / 삭제) |
+
+### Record API (`/api/record`)
+
+| Method | Endpoint | 설명 |
+|--------|----------|------|
+| `POST` | `/{tagId}/stop` | 스톱워치 정지 및 기록 저장 |
+| `GET` | `/log/{tagId}` | 태그의 시간 기록 목록 조회 |
+| `POST` | `/create/{tagId}` | 수동 기록 생성 |
+| `PUT` | `/updateTime/{recordId}` | 기록 시간 수정 |
+| `DELETE` | `/delete/{recordId}` | 기록 삭제 |
+
 ## Key Features
 
 ### 스톱워치
@@ -73,5 +101,48 @@ DISCARDED (자동 생성, 휴지통 역할)
 - 태그 이동 (부모 변경) 시 시간 집계 자동 재계산
 - DISCARDED 태그로 이동하여 소프트 삭제
 
+## Getting Started
 
+### Prerequisites
 
+- Java 17+
+- H2 Database 실행
+
+### H2 Database 실행
+
+```bash
+# H2 데이터베이스를 TCP 모드로 실행해야 합니다
+# 접속 URL: jdbc:h2:tcp://localhost/~/timer
+```
+
+### Build & Run
+
+```bash
+# 빌드
+./gradlew build
+
+# 실행
+./gradlew bootRun
+```
+
+서버가 시작되면 `local` 프로파일에서 샘플 데이터(회원 2명, 태그, 기록)가 자동 생성됩니다.
+
+### Configuration
+
+`src/main/resources/application.yml`:
+
+```yaml
+spring:
+  datasource:
+    url: jdbc:h2:tcp://localhost/~/timer
+    username: sa
+  jpa:
+    hibernate:
+      ddl-auto: create    # 실행 시 스키마 재생성
+```
+
+### Test
+
+```bash
+./gradlew test
+```
