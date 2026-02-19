@@ -1,169 +1,122 @@
 <template>
   <li class="tag-item">
-    <div class="tag-box" @click="navigateToDetail">
-      <p>Tag 이름: {{ tagName }}</p> <!-- ✅ computed() 사용 -->
+    <div
+      class="tag-row"
+      :style="{ paddingLeft: `${40 + depth * 22}px` }"
+      @click="navigateToDetail"
+    >
+      <div class="tag-row-inner">
+        <span class="tag-indicator">
+          <svg v-if="tagChildren.length > 0" width="9" height="9" viewBox="0 0 9 9" fill="none">
+            <path d="M2 1.5L6 4.5 2 7.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+          <span v-else class="tag-bullet-dot"></span>
+        </span>
+        <span class="tag-name">{{ tagName }}</span>
+      </div>
+
+      <div class="tag-row-meta">
+        <span class="tag-sub-count mono" v-if="tagChildren.length > 0">
+          {{ tagChildren.length }} sub
+        </span>
+        <svg class="tag-arrow" width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M4.5 2.5l4 4-4 4" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+      </div>
     </div>
-    <ul v-if="tagChildren.length > 0" class="child-tags">
+
+    <ul v-if="tagChildren.length > 0">
       <TagItem
-          v-for="child in tagChildren"
-          :key="child.id"
-          :tag="child"
-          @navigate="$emit('navigate', $event)"
-      /> <!-- ✅ 부모로 이벤트 전달 -->
+        v-for="child in tagChildren"
+        :key="child.id"
+        :tag="child"
+        :depth="depth + 1"
+        @navigate="$emit('navigate', $event)"
+      />
     </ul>
   </li>
 </template>
 
 <script setup>
-import { computed, defineProps, defineEmits } from "vue";
+import { computed, defineProps, defineEmits } from 'vue';
 
-// ✅ props 정의
 const props = defineProps({
-  tag: {
-    type: Object,
-    required: true,
-  },
+  tag:   { type: Object, required: true },
+  depth: { type: Number, default: 0 },
 });
 
-// ✅ 이벤트 정의
-const emit = defineEmits(["navigate"]);
+const emit = defineEmits(['navigate']);
 
-// ✅ computed() 사용하여 안전하게 데이터 접근
-const tagName = computed(() => props.tag?.name ?? "이름 없음");
+const tagName     = computed(() => props.tag?.name ?? '—');
 const tagChildren = computed(() => props.tag?.children ?? []);
 
-// ✅ 클릭 시 상세 페이지로 이동
-const navigateToDetail = () => {
-  console.log("move tag detail, id = " + props.tag.id);
-  emit("navigate", props.tag.id); // ✅ this 대신 emit 사용
-};
-
-console.log("✅ TagItem에서 받은 tag:", props.tag);
-console.log("✅ TagItem에서 받은 tag.name:", tagName.value);
-console.log("✅ TagItem에서 받은 tag.children:", tagChildren.value);
+const navigateToDetail = () => emit('navigate', props.tag.id);
 </script>
 
+<style scoped>
+.tag-item { border-bottom: 1px solid var(--border-subtle); }
 
-<!--<script setup>-->
-<!--import { computed, defineProps } from "vue";-->
-
-<!--const props = defineProps({-->
-<!--  tag: {-->
-<!--    type: Object,-->
-<!--    required: true,-->
-<!--  },-->
-<!--});-->
-
-<!--// ✅ `computed()`로 안전하게 데이터 접근-->
-<!--const tagName = computed(() => props.tag?.name ?? "이름 없음");-->
-<!--const tagChildren = computed(() => props.tag?.children ?? []);-->
-
-<!--console.log("✅ TagItem에서 받은 tag:", props.tag);-->
-<!--console.log("✅ TagItem에서 받은 tag.name:", tagName.value);-->
-<!--console.log("✅ TagItem에서 받은 tag.children:", tagChildren.value);-->
-<!--</script>-->
-
-<!--<template>-->
-<!--  <li class="tag-item">-->
-<!--    <div class="tag-box">-->
-<!--&lt;!&ndash;      <p>Tag 객체: {{ tag }}</p>&ndash;&gt;-->
-<!--      <p>Tag 이름: {{ tagName }}</p> &lt;!&ndash; ✅ computed() 사용 &ndash;&gt;-->
-<!--    </div>-->
-<!--    <ul v-if="tagChildren.length > 0" class="child-tags">-->
-<!--      <TagItem-->
-<!--          v-for="child in tagChildren"-->
-<!--          :key="child.id"-->
-<!--          :tag="child"-->
-<!--          @navigate="$emit('navigate', $event)"-->
-<!--      />-->
-<!--    </ul>-->
-<!--  </li>-->
-<!--</template>-->
-
-
-
-
-
-
-
-
-
-<!--&lt;!&ndash;재귀적으로 태그를 렌더링&ndash;&gt;-->
-<!--&lt;!&ndash;태그를 클릭 시 상세 페이지로 이동하는 역할&ndash;&gt;-->
-<!--<template>-->
-<!--&lt;!&ndash;  태그를 리스트 항목(<li>)으로 렌더링&ndash;&gt;-->
-<!--  <li class="tag-item">-->
-<!--    &lt;!&ndash; 클릭하면 상세 페이지로 이동, navigateToDetail() 실행 &ndash;&gt;-->
-<!--    <div class="tag-box" @click="navigateToDetail">-->
-<!--      <p>Tag 객체: {{ tag }}</p>-->
-<!--      <p>Tag 이름: {{ name }}</p> &lt;!&ndash; ✅ name을 개별적으로 사용 &ndash;&gt;-->
-<!--    </div>-->
-<!--    &lt;!&ndash; 자식 태그 재귀적으로 렌더링, emit 문은 부모로 이벤트 전달 &ndash;&gt;-->
-<!--    <ul v-if="children && children.length > 0" class="child-tags">-->
-<!--      <TagItem-->
-<!--          v-for="child in children"-->
-<!--          :key="child.id"-->
-<!--          :tag="child"-->
-<!--          @navigate="$emit('navigate', $event)"-->
-<!--      />-->
-<!--    </ul>-->
-<!--  </li>-->
-<!--</template>-->
-
-<!--<script>-->
-<!--import { toRefs } from "vue";-->
-<!--export default {-->
-<!--  name: "TagItem",-->
-<!--  // props로 tag 데이터 받음-->
-<!--	// { id, name, children } 같은 트리 구조 데이터를 TagList.vue에서 전달받음-->
-<!--  props: {-->
-<!--    tag: {-->
-<!--      type: Object,-->
-<!--      required: true,-->
-<!--    },-->
-<!--  },-->
-
-<!--  setup(props) {-->
-<!--    // ✅ toRefs()를 사용하여 개별적인 반응형 변수로 변환-->
-<!--    const { id, name, children } = toRefs(props);-->
-
-<!--    const navigateToDetail = () => {-->
-<!--      // TagList.vue에서 이를 받아서 라우팅하면 상세 페이지로 이동 가능-->
-<!--      console.log("move tag detail, id = " + id.value);-->
-<!--      this.$emit("navigate", this.tag.id);-->
-<!--    };-->
-
-<!--    return {-->
-<!--      id,-->
-<!--      name,-->
-<!--      children,-->
-<!--      navigateToDetail,-->
-<!--    };-->
-<!--  },-->
-<!--  //-->
-<!--  // methods: {-->
-<!--  //   // TagList.vue에서 이를 받아서 라우팅하면 상세 페이지로 이동 가능-->
-<!--  //   navigateToDetail() {-->
-<!--  //     console.log("move tag detail, id = " + this.tag.id)-->
-<!--  //     this.$emit("navigate", this.tag.id);-->
-<!--  //   },-->
-<!--  // },-->
-
-<!--  mounted() {-->
-<!--    console.log("✅ `TagItem.vue`에서 받은 tag 데이터:", this.tag); //	Proxy(Object) 형태로 보이면 tag가 반응형 객체로 감싸졌을 가능성이 있음-->
-<!--    console.log("✅ TagItem에서 받은 tag.name:", this.tag.name); // undefined이면 tag 데이터가 올바르게 전달되지 않았을 가능성이 있음-->
-<!--    console.log("✅ `TagItem.vue`에서 받은 children 데이터:", this.tag.children); // undefined이면 children 속성이 제대로 설정되지 않았을 가능성이 있음-->
-<!--  },-->
-<!--};-->
-<!--</script>-->
-
-<style>
-.item {
+.tag-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 15px;
+  padding-bottom: 15px;
+  padding-right: 40px;
   cursor: pointer;
-  text-decoration: none;
-  color: blue;
+  transition: background var(--t);
+  margin: 0 -40px;
 }
-.item:hover {
-  text-decoration: underline;
+
+.tag-row:hover { background: var(--surface); }
+.tag-row:hover .tag-arrow { color: var(--text); transform: translateX(2px); }
+.tag-row:hover .tag-name  { color: var(--text); }
+
+.tag-row-inner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
+
+.tag-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 14px;
+  color: var(--text-3);
+  flex-shrink: 0;
+}
+
+.tag-bullet-dot {
+  width: 3px;
+  height: 3px;
+  background: var(--text-3);
+  border-radius: 50%;
+  display: block;
+}
+
+.tag-name {
+  font-size: 14px;
+  color: var(--text-2);
+  transition: color var(--t);
+  font-weight: 400;
+}
+
+.tag-row-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.tag-sub-count {
+  font-size: 10px;
+  color: var(--text-3);
+}
+
+.tag-arrow {
+  color: var(--text-3);
+  transition: all var(--t);
+}
+
+.mono { font-family: var(--font-mono); }
 </style>

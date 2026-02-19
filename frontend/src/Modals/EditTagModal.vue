@@ -1,167 +1,160 @@
 <template>
   <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-content">
-      <h2>태그 관리</h2>
+    <div class="modal-panel">
 
-      <!-- 태그 생성 -->
-      <input v-model="newTagName" placeholder="새 태그 이름 입력" />
-      <button @click="createTag">추가</button>
+      <div class="modal-header">
+        <h2 class="modal-title">Manage Tag</h2>
+        <button class="modal-close" @click="closeModal">×</button>
+      </div>
 
-      <!-- 부모 태그 변경 -->
-      <select v-model="selectedParentId">
-        <option v-for="tag in flatTagList" :key="tag.id" :value="tag.id">
-          {{ tag.indentation }}{{ tag.name }}
-        </option>
-      </select>
-      <button @click="updateParentTag">부모 태그 변경</button>
+      <!-- Create sub-tag -->
+      <div class="modal-section">
+        <span class="modal-section-label">New sub-tag</span>
+        <div class="field">
+          <label>Tag name</label>
+          <input v-model="newTagName" type="text" placeholder="Enter name…" @keydown.enter="createTag" />
+        </div>
+        <div class="section-action">
+          <button class="btn btn-primary" @click="createTag">Create</button>
+        </div>
+      </div>
 
-      <!-- 태그 삭제 -->
-      <button @click="deleteTag" class="delete-button">삭제</button>
+      <!-- Move parent -->
+      <div class="modal-section">
+        <span class="modal-section-label">Move to parent</span>
+        <div class="field">
+          <label>New parent</label>
+          <select v-model="selectedParentId">
+            <option value="" disabled>Select a tag…</option>
+            <option v-for="t in flatTagList" :key="t.id" :value="t.id">
+              {{ t.indentation }}{{ t.name }}
+            </option>
+          </select>
+        </div>
+        <div class="section-action">
+          <button class="btn btn-ghost" @click="updateParentTag">Move</button>
+        </div>
+      </div>
 
-      <button @click="closeModal">닫기</button>
+      <!-- Delete -->
+      <div class="modal-section danger-section">
+        <span class="modal-section-label">Danger zone</span>
+        <div class="danger-row">
+          <p class="danger-desc">Move this tag to the discard pile. This cannot be undone easily.</p>
+          <button class="btn btn-danger" @click="deleteTag">Discard tag</button>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
 
 <script setup>
-import { ref, defineProps, watchEffect, computed } from "vue";
-import axios from "axios";
+import { ref, defineProps, watchEffect, computed } from 'vue';
+import axios from 'axios';
 
 const props = defineProps({
-  isOpen: Boolean,
+  isOpen:  Boolean,
   tagData: Object,
 });
 
-const emit = defineEmits(["close"]);
+const emit = defineEmits(['close']);
 
-const newTagName = ref("");
-const selectedParentId = ref(null);
-const tagList = ref([]);
-const discardedTag = ref(null); // DISCARDED 태그 저장
+const newTagName      = ref('');
+const selectedParentId = ref('');
+const tagList         = ref([]);
+const discardedTag    = ref(null);
 
-console.log("tagData:", props.tagData);
-console.log("memberId:", props.tagData?.memberId);
-console.log("member:", props.tagData?.member);
-console.log("member.id:", props.tagData?.member?.id);
-
-// 태그 목록 불러오기
 const fetchTags = async () => {
   try {
-    console.log("fetch Tags memberId : " + props.tagData.memberId)
     const response = await axios.get(`/api/tag/${Number(props.tagData.memberId)}`);
     tagList.value = response.data;
-
-    // DISCARDED 태그 설정
-    discardedTag.value = tagList.value.find((tag) => tag.type === "DISCARDED") || null;
-
-    console.log("tagList.value:", tagList.value); // ✅ 이 부분 추가
+    discardedTag.value = tagList.value.find((t) => t.type === 'DISCARDED') || null;
   } catch (error) {
-    console.error("태그 목록 가져오기 실패", error);
+    console.error('태그 목록 가져오기 실패', error);
   }
 };
 
-// 모달이 열릴 때 태그 목록 갱신
-watchEffect(() => {
-  if (props.isOpen) fetchTags();
-});
-
-// 태그 목록 평탄화 (계층 구조 유지)
-
+watchEffect(() => { if (props.isOpen) fetchTags(); });
 
 const flatTagList = computed(() => {
-  const flattenTags = (tags, depth = 0) => {
+  const flatten = (tags, depth = 0) => {
     const result = [];
-
-    tags.forEach((tag) => {
-      if (tag.type === "DISCARDED") {
-        discardedTag.value = tag; // 단 하나의 DISCARDED 태그 저장
+    tags.forEach((t) => {
+      if (t.type === 'DISCARDED') {
+        discardedTag.value = t;
       } else {
-        result.push({ ...tag, indentation: "— ".repeat(depth) }); // 들여쓰기 추가
-        if (tag.children && tag.children.length > 0) {
-          result.push(...flattenTags(tag.children, depth + 1));
-        }
+        result.push({ ...t, indentation: '— '.repeat(depth) });
+        if (t.children?.length > 0) result.push(...flatten(t.children, depth + 1));
       }
     });
     return result;
   };
-
-  return flattenTags(
-      tagList.value.filter((tag) => tag.type !== "DISCARDED") // 최상위 DISCARDED 태그 제외
-  );
+  return flatten(tagList.value.filter((t) => t.type !== 'DISCARDED'));
 });
 
-// 태그 생성
 const createTag = async () => {
-  if (!newTagName.value) return alert("태그 이름을 입력하세요.");
+  if (!newTagName.value.trim()) return;
   try {
-    console.log("createTag memberId : " + props.tagData.memberId)
-    console.log("currentTagId : " + props.tagData.Id)
     await axios.post(`/api/tag/${Number(props.tagData.id)}/create`, {
-      tagName: newTagName.value,
-      memberId: props.tagData.memberId,
+      tagName:     newTagName.value,
+      memberId:    props.tagData.memberId,
       parentTagId: props.tagData.parentId,
     });
-    alert("태그가 추가되었습니다.");
-    newTagName.value = "";
-    fetchTags(); // 굳이 한번 더 할 필요가 있으려나?
+    newTagName.value = '';
+    fetchTags();
   } catch (error) {
-    console.error("태그 생성 실패", error);
+    console.error('태그 생성 실패', error);
   }
 };
 
-// 부모 태그 변경
 const updateParentTag = async () => {
-  if (!selectedParentId.value) return alert("새 부모 태그를 선택하세요.");
+  if (!selectedParentId.value) return;
   try {
-    console.log("selectedParentId : " + selectedParentId.value)
-    // props.tagData.id → props.tagData?.id 로 변경 후 처리 해줘야함 에러 방지 위해서
     await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
       newParentTagId: selectedParentId.value,
     });
-    alert("부모 태그가 변경되었습니다.");
+    closeModal();
   } catch (error) {
-    console.error("부모 태그 변경 실패", error);
+    console.error('부모 태그 변경 실패', error);
   }
 };
 
-// 태그 삭제
 const deleteTag = async () => {
-  if (!confirm("정말 삭제하시겠습니까?")) return;
+  if (!confirm('이 태그를 삭제하시겠습니까?')) return;
   try {
     await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
       newParentTagId: discardedTag.value.id,
     });
-    alert("태그가 삭제되었습니다.");
+    closeModal();
   } catch (error) {
-    console.error("태그 삭제 실패", error);
+    console.error('태그 삭제 실패', error);
   }
 };
 
-// 모달 닫기
-const closeModal = () => {
-  emit("close");
-};
+const closeModal = () => emit('close');
 </script>
 
-<style>
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.5);
+<style scoped>
+.section-action {
+  margin-top: 16px;
   display: flex;
-  justify-content: center;
-  align-items: center;
+  justify-content: flex-end;
 }
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
+
+.danger-section { border-bottom: none !important; }
+
+.danger-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
 }
-.delete-button {
-  background: red;
-  color: white;
+
+.danger-desc {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.6;
+  max-width: 220px;
 }
 </style>

@@ -1,102 +1,242 @@
 <template>
-  <div>
-    <h3>TagId {{ tagId }} Log</h3>
-    <button @click="openAddRecordModal()" class="modalBtn"></button>
-    <div v-if="loading">⏳ Loading...</div>
-    <div v-else-if="error" class="error">{{ error }}</div>
-    <ul v-else>
-      <li v-for="record in records" :key="record.id">
-        ⏱ {{ formatZonedDateTime(record.startTime) }} ~ {{ formatZonedDateTime(record.endTime) }}
-        {{ formatTotalTime(record.totalTime) }}
-        <button @click="openEditModal(record)" class="modalBtn">
-          <Menu name="menu" />
-        </button>
-      </li>
-    </ul>
-    <AddRecordModal
-        v-if="isAddRecordModalOpen"
-        :isOpen="isAddRecordModalOpen"
-        :tagId="Number(tagId)"
-        @close="isAddRecordModalOpen = false"
-    />
+  <div class="page">
+    <div class="topbar">
+      <span class="topbar-brand">timemgr</span>
+      <router-link :to="`/api/tag/detail/${tagId}`" class="topbar-back">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Tag
+      </router-link>
+    </div>
 
-    <!-- EditRecordModal -->
+    <header class="records-header">
+      <div>
+        <p class="records-eyebrow mono">tag · {{ tagId }}</p>
+        <h1 class="records-title">Sessions</h1>
+      </div>
+      <button class="btn btn-ghost add-btn" @click="openAddRecordModal">
+        <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+          <path d="M6 1v10M1 6h10" stroke="currentColor" stroke-width="1.3" stroke-linecap="round"/>
+        </svg>
+        Add record
+      </button>
+    </header>
+
+    <!-- Loading -->
+    <div v-if="loading" class="state-row">
+      <span class="dot stopped"></span>
+      <span class="mono">Loading…</span>
+    </div>
+
+    <!-- Error -->
+    <div v-else-if="error" class="state-row error-state">
+      <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+        <circle cx="7" cy="7" r="6" stroke="currentColor" stroke-width="1.1"/>
+        <path d="M7 4v4M7 9.5v.5" stroke="currentColor" stroke-width="1.2" stroke-linecap="round"/>
+      </svg>
+      <span>{{ error }}</span>
+    </div>
+
+    <!-- Empty -->
+    <div v-else-if="records.length === 0" class="state-row">
+      <span class="dot stopped"></span>
+      <span class="mono">No sessions recorded yet.</span>
+    </div>
+
+    <!-- Records Table -->
+    <div v-else class="records-list">
+      <div class="records-list-header">
+        <span class="col-label mono">Start</span>
+        <span class="col-label mono">End</span>
+        <span class="col-label mono">Duration</span>
+        <span></span>
+      </div>
+
+      <div
+        v-for="record in records"
+        :key="record.id"
+        class="record-row"
+      >
+        <span class="record-time mono">{{ formatZonedDateTime(record.startTime) }}</span>
+        <span class="record-time mono">{{ formatZonedDateTime(record.endTime) }}</span>
+        <span class="record-duration mono">{{ formatTotalTime(record.totalTime) }}</span>
+        <button class="record-edit-btn" @click="openEditModal(record)" title="Edit">
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path d="M9 2.5l1.5 1.5L4 10.5H2.5V9L9 2.5z" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
+    </div>
+
+    <!-- Modals -->
+    <AddRecordModal
+      v-if="isAddRecordModalOpen"
+      :isOpen="isAddRecordModalOpen"
+      :tagId="Number(tagId)"
+      @close="isAddRecordModalOpen = false"
+    />
     <EditRecordModal
-        v-if="isEditRecordModalOpen"
-        :isOpen="isEditRecordModalOpen"
-        :recordData="selectedRecord"
-        @close="isEditRecordModalOpen = false"
+      v-if="isEditRecordModalOpen"
+      :isOpen="isEditRecordModalOpen"
+      :recordData="selectedRecord"
+      @close="isEditRecordModalOpen = false"
     />
   </div>
-
-
 </template>
 
 <script setup>
-import { onMounted, ref } from "vue";
-import axios from "axios";
-import { useRoute } from "vue-router";
-import EditRecordModal from "@/Modals/EditRecordModal.vue";
-import { Menu } from "lucide-vue-next";
-import { DateTime } from "luxon";
-import AddRecordModal from "@/Modals/AddRecordModal.vue"; // Luxon 사용
+import { onMounted, ref } from 'vue';
+import axios from 'axios';
+import { useRoute } from 'vue-router';
+import EditRecordModal from '@/Modals/EditRecordModal.vue';
+import AddRecordModal  from '@/Modals/AddRecordModal.vue';
+import { DateTime } from 'luxon';
 
 const route = useRoute();
 const tagId = route.params.id;
 
-const records = ref([]);
-const loading = ref(false);
-const error = ref(null);
+const records              = ref([]);
+const loading              = ref(false);
+const error                = ref(null);
 const isEditRecordModalOpen = ref(false);
-const isAddRecordModalOpen = ref(false);
-const selectedRecord = ref(null); // 선택된 record 저장
+const isAddRecordModalOpen  = ref(false);
+const selectedRecord        = ref(null);
 
-// ✅ 데이터를 불러오는 함수
 const fetchRecords = async () => {
   loading.value = true;
-  error.value = null;
+  error.value   = null;
   try {
-    console.log("axios tagId = " + tagId);
     const response = await axios.get(`/api/record/log/${tagId}`);
     records.value = response.data;
-  } catch (err) {
-    error.value = "데이터를 불러오지 못했습니다.";
+  } catch {
+    error.value = '데이터를 불러오지 못했습니다.';
   } finally {
     loading.value = false;
   }
 };
 
-// ✅ `ZonedDateTime`을 로컬 시간대로 변환하여 표시
 const formatZonedDateTime = (isoString) => {
-  if (!isoString) return "시간 없음";
-  return DateTime.fromISO(isoString).toFormat("yyyy-MM-dd HH:mm:ss");
+  if (!isoString) return '—';
+  return DateTime.fromISO(isoString).toFormat('MM-dd  HH:mm');
 };
 
-// ✅ 초 단위를 "HH:mm:ss" 형식으로 변환하는 함수
 const formatTotalTime = (totalSeconds) => {
-  if (!totalSeconds) return "00:00:00";
-  const hours = Math.floor(totalSeconds / 3600);
-  const minutes = Math.floor((totalSeconds % 3600) / 60);
-  const seconds = totalSeconds % 60;
-  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+  if (!totalSeconds) return '00:00:00';
+  const h = Math.floor(totalSeconds / 3600);
+  const m = Math.floor((totalSeconds % 3600) / 60);
+  const s = totalSeconds % 60;
+  return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
 };
 
-// ✅ EditRecordModal 열기
 const openEditModal = (record) => {
-  selectedRecord.value = record;
+  selectedRecord.value       = record;
   isEditRecordModalOpen.value = true;
 };
 
-const openAddRecordModal = () => {
-  isAddRecordModalOpen.value = true;
-}
+const openAddRecordModal = () => { isAddRecordModalOpen.value = true; };
 
-// ✅ 컴포넌트 마운트 시 데이터 가져오기
 onMounted(fetchRecords);
 </script>
 
 <style scoped>
-.error {
-  color: red;
+.records-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 52px 0 28px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0;
 }
+
+.records-eyebrow {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.records-title {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.add-btn {
+  margin-bottom: 4px;
+  font-size: 11px;
+}
+
+/* States */
+.state-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+.error-state { color: var(--danger); }
+
+/* Table */
+.records-list { padding-top: 0; }
+
+.records-list-header {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px 36px;
+  gap: 16px;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.col-label {
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.record-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr 120px 36px;
+  gap: 16px;
+  align-items: center;
+  padding: 14px 0;
+  border-bottom: 1px solid var(--border-subtle);
+  transition: background var(--t);
+  margin: 0 -40px;
+  padding-left: 40px;
+  padding-right: 40px;
+}
+
+.record-row:hover { background: var(--surface); }
+.record-row:last-child { border-bottom: none; }
+
+.record-time {
+  font-size: 12px;
+  color: var(--text-2);
+}
+
+.record-duration {
+  font-size: 13px;
+  color: var(--text);
+}
+
+.record-edit-btn {
+  background: transparent;
+  color: var(--text-3);
+  padding: 6px;
+  border-radius: var(--radius);
+  display: flex;
+  align-items: center;
+  transition: color var(--t);
+  opacity: 0;
+}
+
+.record-row:hover .record-edit-btn { opacity: 1; }
+.record-edit-btn:hover { color: var(--text); }
+
+.mono { font-family: var(--font-mono); }
 </style>

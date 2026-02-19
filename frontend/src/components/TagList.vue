@@ -1,58 +1,110 @@
-<!-- src/views/TagList.vue -->
-<!--트리 구조를 렌더링-->
 <template>
-  <div>
-    <h1>Tag List</h1>
-    <p v-if="tagList.length === 0">로딩중...</p>
-    <ul v-else>
+  <div class="page">
+    <div class="topbar">
+      <span class="topbar-brand">timemgr</span>
+      <router-link to="/" class="topbar-back">
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+          <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
+        </svg>
+        Home
+      </router-link>
+    </div>
+
+    <header class="list-header">
+      <div class="list-header-left">
+        <p class="list-eyebrow mono">workspace</p>
+        <h1 class="list-title">Tags</h1>
+      </div>
+      <span class="list-count mono" v-if="tagList.length">{{ tagList.length }}</span>
+    </header>
+
+    <div v-if="tagList.length === 0" class="empty-state">
+      <span class="dot stopped"></span>
+      <span class="mono">Loading workspace…</span>
+    </div>
+
+    <ul v-else class="tag-tree">
       <TagItem
-          v-for="tag in tagList"
-          :key="tag.id"
-          :tag="tag"
-          @navigate="navigateToDetail"
+        v-for="tag in tagList"
+        :key="tag.id"
+        :tag="tag"
+        @navigate="navigateToDetail"
       />
     </ul>
   </div>
 </template>
 
 <script setup>
-import {ref, onMounted, computed} from "vue"; // ref는 반응형 변수 선언, onMounted는 컴포넌트가 마운트될 때 실행
-import { useRoute, useRouter} from "vue-router"; // 현재 URL의 id를 가져오기 위해 사용
-import axios from 'axios' // 백엔드 API 호출
-import TagItem from '@/components/TagItem.vue'
+import { ref, onMounted, computed } from 'vue';
+import { useRoute, useRouter } from 'vue-router';
+import axios from 'axios';
+import TagItem from '@/components/TagItem.vue';
 
-const tagsContainer = ref(null); // 데이터를 저장할 변수
 const route = useRoute();
 const router = useRouter();
-const memberId = route.params.id; // 🟢 URL에서 id 가져오기
+const memberId = route.params.id;
 
-let tagData = ref(null); // 태그 데이터 저장
+const tagData = ref(null);
 
-// 🟢 서버에서 태그 데이터 가져오기
 const fetchTags = async () => {
   try {
     const response = await axios.get(`/api/tag/${Number(memberId)}`);
-    console.log("서버에서 받은 태그 데이터:", response.data)
-    // tagData.value = transformData(response.data);
     tagData.value = response.data;
-    console.log("tagData.value:", tagData.value); // ✅ 이 부분 추가
   } catch (error) {
-    console.error("Error fetching tags:", error);
+    console.error('Error fetching tags:', error);
   }
 };
 
-// ✅ `computed()`를 사용하여 Proxy(Array) 문제 해결
 const tagList = computed(() => tagData.value ?? []);
 
-// 🟢 이벤트를 받아서 상세 페이지로 이동
 const navigateToDetail = (tagId) => {
-  console.log("✅ TagList.vue에서 받은 tagId:", tagId);
   router.push(`/api/tag/detail/${tagId}`);
 };
 
-onMounted(() => {
-  console.log("✅ onMounted 실행됨!"); // ✅ 여기가 실행되는지 확인
-  console.log("✅ treeContainer:", tagsContainer.value); // ✅ 요소가 존재하는지 확인
-  fetchTags(); // 컴포넌트가 마운트되면 fetchTags() 호출하여 서버에서 데이터 가져옴
-});
+onMounted(fetchTags);
 </script>
+
+<style scoped>
+.list-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 52px 0 28px;
+  border-bottom: 1px solid var(--border-subtle);
+  margin-bottom: 0;
+}
+
+.list-eyebrow {
+  font-size: 10px;
+  color: var(--text-2);
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+.list-title {
+  font-family: var(--font-serif);
+  font-size: 34px;
+  color: var(--text);
+  font-weight: 400;
+}
+
+.list-count {
+  font-size: 12px;
+  color: var(--text-3);
+  padding-bottom: 4px;
+}
+
+.empty-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 56px 0;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.tag-tree { padding: 4px 0; }
+
+.mono { font-family: var(--font-mono); }
+</style>

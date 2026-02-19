@@ -1,97 +1,90 @@
-<script setup>
-import {defineEmits, defineProps, ref} from "vue";
-import axios from "axios";
-import {DateTime} from "luxon";
-
-const props = defineProps({
-  isOpen: Boolean,
-  tagId: Number,
-});
-const emit = defineEmits(["close"]);
-
-const formattedStartTime = ref("");
-const formattedEndTime = ref("");
-const errorMessage = ref("");
-
-const createRecord = async () => {
-  if (!formattedStartTime.value || !formattedEndTime.value) {
-    errorMessage.value = "시작 시간과 종료 시간을 모두 입력하세요.";
-    return;
-  }
-
-  try {
-    // Vue의 datetime-local 값 → Luxon으로 ISO 8601 형식 변환
-    const recordTimeDto = {
-      newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
-      newEndTime: DateTime.fromFormat(formattedEndTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
-    };
-
-    await axios.post(`/api/record/create/${props.tagId}`, recordTimeDto, {
-      headers: { "Content-Type": "application/json" },
-    });
-
-    alert("레코드가 생성되었습니다.");
-    emit("close");
-  } catch (error) {
-    errorMessage.value = "레코드 생성에 실패했습니다.";
-  }
-};
-
-
-/*
-DateTime.fromISO().toFormat("yyyy-MM-dd'T'HH:mm")
-DateTime.fromISO(newRecord.endTime).toFormat("yyyy-MM-dd'T'HH:mm"
- */
-
-const closeModal = () => {
-  emit("close");
-};
-
-</script>
-
 <template>
   <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-content">
-      <h3>시간 설정</h3>
+    <div class="modal-panel">
 
-      <label>시작 시간:</label>
-      <input type="datetime-local" v-model="formattedStartTime" />
-
-      <label>종료 시간:</label>
-      <input type="datetime-local" v-model="formattedEndTime" />
-
-      <div v-if="errorMessage" class="error-message">{{ errorMessage }}</div>
-
-      <div class="modal-actions">
-        <button @click="createRecord">생성</button>
-        <button @click="closeModal">닫기</button>
+      <div class="modal-header">
+        <h2 class="modal-title">Add Session</h2>
+        <button class="modal-close" @click="closeModal">×</button>
       </div>
+
+      <div class="fields-stack">
+        <div class="field">
+          <label>Start time</label>
+          <input type="datetime-local" v-model="formattedStartTime" />
+        </div>
+        <div class="field">
+          <label>End time</label>
+          <input type="datetime-local" v-model="formattedEndTime" />
+        </div>
+
+        <p v-if="errorMessage" class="error-msg">{{ errorMessage }}</p>
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn btn-ghost" @click="closeModal">Cancel</button>
+        <button class="btn btn-primary" @click="createRecord">Create session</button>
+      </div>
+
     </div>
   </div>
 </template>
 
+<script setup>
+import { defineEmits, defineProps, ref } from 'vue';
+import axios from 'axios';
+import { DateTime } from 'luxon';
+
+const props = defineProps({
+  isOpen: Boolean,
+  tagId:  Number,
+});
+
+const emit = defineEmits(['close']);
+
+const formattedStartTime = ref('');
+const formattedEndTime   = ref('');
+const errorMessage       = ref('');
+
+const createRecord = async () => {
+  if (!formattedStartTime.value || !formattedEndTime.value) {
+    errorMessage.value = '시작 시간과 종료 시간을 모두 입력하세요.';
+    return;
+  }
+  try {
+    const recordTimeDto = {
+      newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
+      newEndTime:   DateTime.fromFormat(formattedEndTime.value,   "yyyy-MM-dd'T'HH:mm").toISO(),
+    };
+    await axios.post(`/api/record/create/${props.tagId}`, recordTimeDto, {
+      headers: { 'Content-Type': 'application/json' },
+    });
+    emit('close');
+  } catch {
+    errorMessage.value = '레코드 생성에 실패했습니다.';
+  }
+};
+
+const closeModal = () => emit('close');
+</script>
 
 <style scoped>
-/* 모달 스타일 */
-.modal-overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100%;
-  height: 100%;
-  background: rgba(0, 0, 0, 0.5);
+.fields-stack {
   display: flex;
-  align-items: center;
-  justify-content: center;
+  flex-direction: column;
+  gap: 24px;
 }
-.modal-content {
-  background: white;
-  padding: 20px;
-  border-radius: 8px;
+
+.error-msg {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--danger);
+  letter-spacing: 0.04em;
 }
-.modal-actions {
+
+.modal-footer {
   display: flex;
-  justify-content: space-between;
-  margin-top: 10px;
+  gap: 8px;
+  justify-content: flex-end;
+  padding-top: 28px;
 }
 </style>
