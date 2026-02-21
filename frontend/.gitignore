@@ -3,6 +3,9 @@ node_modules
 /dist
 
 
+# Claude Code
+CLAUDE.md
+
 # env files — never commit secrets
 .env
 .env.local
