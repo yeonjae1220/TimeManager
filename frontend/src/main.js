@@ -1,6 +1,7 @@
 import { createApp } from 'vue'
 import App from './App.vue'
 import router from './router';
+import './registerServiceWorker';
 
 /*
 라우터 플러그인 등록하기

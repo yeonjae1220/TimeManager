@@ -1,10 +1,42 @@
 <template>
   <div id="app">
     <router-view></router-view>
+
+    <!-- PWA 설치 배너 (브라우저가 설치 가능 상태일 때만 노출) -->
+    <transition name="install-slide">
+      <div v-if="installPrompt" class="install-banner">
+        <span class="install-banner-text mono">앱으로 설치</span>
+        <button class="install-banner-btn" @click="installApp">Install</button>
+        <button class="install-banner-close" @click="dismissInstall" title="닫기">✕</button>
+      </div>
+    </transition>
   </div>
 </template>
 
-<script setup></script>
+<script setup>
+import { ref, onMounted, onBeforeUnmount } from 'vue';
+
+const installPrompt = ref(null);
+
+const onBeforeInstall = (e) => {
+  e.preventDefault();
+  installPrompt.value = e;
+};
+
+const installApp = async () => {
+  if (!installPrompt.value) return;
+  installPrompt.value.prompt();
+  const { outcome } = await installPrompt.value.userChoice;
+  if (outcome === 'accepted') installPrompt.value = null;
+};
+
+const dismissInstall = () => {
+  installPrompt.value = null;
+};
+
+onMounted(() => window.addEventListener('beforeinstallprompt', onBeforeInstall));
+onBeforeUnmount(() => window.removeEventListener('beforeinstallprompt', onBeforeInstall));
+</script>
 
 <style>
 /* ─── Design Tokens ─────────────────────────────── */
@@ -12,12 +44,12 @@
   --bg:            #0c0c0c;
   --surface:       #141414;
   --surface-2:     #1b1b1b;
-  --border:        #252525;
-  --border-subtle: #1a1a1a;
+  --border:        #2a2a2a;
+  --border-subtle: #1e1e1e;
 
-  --text:   #dedad3;
-  --text-2: #5c5955;
-  --text-3: #2e2c2a;
+  --text:   #e2deda;
+  --text-2: #7e7a76;
+  --text-3: #4e4b48;
 
   --accent:     #c9a96e;
   --accent-dim: rgba(201,169,110,0.09);
@@ -305,4 +337,56 @@ ul, ol { list-style: none; }
 
 /* ─── Select option dark ─────────────────────────── */
 select option { background: #1b1b1b; color: var(--text); }
+
+/* ─── PWA Install Banner ─────────────────────────── */
+.install-banner {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 16px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+  z-index: 200;
+  white-space: nowrap;
+}
+
+.install-banner-text {
+  font-size: 11px;
+  color: var(--text-2);
+  letter-spacing: 0.06em;
+}
+
+.install-banner-btn {
+  padding: 5px 14px;
+  height: 28px;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  border-radius: var(--radius);
+  background: var(--accent-dim);
+  color: var(--accent);
+  border: 1px solid rgba(201,169,110,0.25);
+  font-family: var(--font-mono);
+  transition: all var(--t);
+}
+.install-banner-btn:hover { background: rgba(201,169,110,0.14); }
+
+.install-banner-close {
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  padding: 2px 4px;
+  transition: color var(--t);
+}
+.install-banner-close:hover { color: var(--text-2); }
+
+.install-slide-enter-active,
+.install-slide-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
+.install-slide-enter-from,
+.install-slide-leave-to   { opacity: 0; transform: translateX(-50%) translateY(12px); }
 </style>

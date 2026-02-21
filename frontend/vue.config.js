@@ -10,4 +10,25 @@ module.exports = defineConfig({
     proxy: 'http://localhost:8080' //서버 프로젝트 포트번호와 동일할 것
   },
 
+  pwa: {
+    name: 'TimeManager',
+    short_name: 'TimeMgr',
+    themeColor: '#0c0c0c',
+    appleMobileWebAppCapable: 'yes',
+    appleMobileWebAppStatusBarStyle: 'black-translucent',
+    manifestOptions: {
+      background_color: '#0c0c0c',
+      display: 'standalone',
+      start_url: '/',
+      icons: [
+        { src: '/icons/icon-192.png', sizes: '192x192', type: 'image/png' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png' },
+        { src: '/icons/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
+      ],
+    },
+    workboxPluginMode: 'InjectManifest',
+    workboxOptions: {
+      swSrc: 'src/sw.js',
+    },
+  },
 })

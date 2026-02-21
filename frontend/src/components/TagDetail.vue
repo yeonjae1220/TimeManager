@@ -103,6 +103,30 @@
         </button>
       </section>
 
+      <!-- ── Push Notification ── -->
+      <section class="notify-section" v-if="isPushSupported">
+        <button
+          class="notify-btn"
+          :class="{ subscribed: isPushSubscribed }"
+          @click="togglePushNotification"
+          :title="isPushSubscribed ? '알림 끄기' : '알림 켜기'"
+        >
+          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+            <path
+              v-if="!isPushSubscribed"
+              d="M6.5 1.5a4 4 0 0 1 4 4v2.5l.8 1.5H1.7l.8-1.5V5.5a4 4 0 0 1 4-4zM5 10.5a1.5 1.5 0 0 0 3 0"
+              stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"
+            />
+            <path
+              v-else
+              d="M6.5 1.5a4 4 0 0 1 4 4v2.5l.8 1.5H1.7l.8-1.5V5.5a4 4 0 0 1 4-4zM5 10.5a1.5 1.5 0 0 0 3 0M1.5 1.5l10 10"
+              stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"
+            />
+          </svg>
+          <span class="mono">{{ isPushSubscribed ? 'Notifications on' : 'Notify me' }}</span>
+        </button>
+      </section>
+
       <!-- ── Stats Grid ── -->
       <section class="stats-grid">
         <div class="stat-cell">
@@ -179,11 +203,32 @@ import { ref, onMounted, watch, reactive, watchEffect, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import axios from 'axios';
 import TagModal from '@/Modals/EditTagModal.vue';
+import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
 
 const route = useRoute();
 const tag = ref(null);
 const router = useRouter();
 const isModalOpen = ref(false);
+
+// Push notification state
+const isPushSubscribed = ref(false);
+const isPushSupported = 'serviceWorker' in navigator && 'PushManager' in window;
+
+onMounted(async () => {
+  const sub = await getCurrentSubscription();
+  isPushSubscribed.value = !!sub;
+});
+
+const togglePushNotification = async () => {
+  if (!tag.value) return;
+  if (isPushSubscribed.value) {
+    await unsubscribePush(tag.value.memberId);
+    isPushSubscribed.value = false;
+  } else {
+    const result = await subscribePush(tag.value.memberId);
+    isPushSubscribed.value = result === 'subscribed';
+  }
+};
 
 const goToRecordsPage = (tagId) => router.push(`/records/${tagId}`);
 
@@ -556,6 +601,37 @@ onMounted(() => {
 }
 .ctrl-stop.active:hover {
   color: var(--running);
+}
+
+/* ── Notify ── */
+.notify-section {
+  padding: 0 0 20px;
+}
+
+.notify-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 0 16px;
+  height: 32px;
+  font-size: 11px;
+  letter-spacing: 0.07em;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text-3);
+  border: 1px solid var(--border-subtle);
+  transition: all var(--t);
+}
+
+.notify-btn:hover {
+  color: var(--text-2);
+  border-color: var(--border);
+}
+
+.notify-btn.subscribed {
+  color: var(--accent);
+  border-color: rgba(201, 169, 110, 0.2);
+  background: var(--accent-dim);
 }
 
 /* ── Stats Grid ── */
