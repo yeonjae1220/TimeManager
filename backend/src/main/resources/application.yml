@@ -19,3 +19,13 @@ spring:
 logging.level:
   org.hibernate.SQL: debug
   # org.hibernate.type: trace
+
+# ── VAPID Push 알림 설정 ──────────────────────────────────────────────
+# 실제 키는 web-push 라이브러리 또는 아래 명령으로 생성:
+#   ./gradlew generateVapidKeys  (또는 npx web-push generate-vapid-keys)
+# 생성된 키를 아래에 입력하거나 환경변수로 주입하세요.
+push:
+  vapid:
+    publicKey: ${PUSH_VAPID_PUBLIC_KEY}
+    privateKey: ${PUSH_VAPID_PRIVATE_KEY}
+    subject: ${PUSH_VAPID_SUBJECT:mailto:admin@example.com}

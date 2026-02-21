@@ -36,3 +36,9 @@ out/
 ### VS Code ###
 .vscode/
 
+### Secrets — never commit ###
+src/main/resources/application-local.yml
+src/main/resources/application-local.yaml
+.env
+.env.*
+
