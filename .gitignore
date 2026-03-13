@@ -1,0 +1,20 @@
+# 시크릿
+.env
+
+# 백엔드 빌드 아티팩트
+backend/build/
+backend/.gradle/
+backend/.idea/
+backend/src/main/generated/
+
+# 프론트엔드
+frontend/node_modules/
+frontend/dist/
+frontend/bower_components/
+
+# OS
+.DS_Store
+
+# Claude Code
+CLAUDE.md
+.claude/

@@ -27,9 +27,13 @@
       <span class="list-count mono" v-if="tagList.length">{{ tagList.length }}</span>
     </header>
 
-    <div v-if="tagList.length === 0" class="empty-state">
+    <div v-if="isLoading" class="empty-state">
       <span class="dot stopped"></span>
       <span class="mono">Loading workspace…</span>
+    </div>
+    <div v-else-if="tagList.length === 0" class="empty-state">
+      <span class="dot stopped"></span>
+      <span class="mono">No tags yet. Create your first tag.</span>
     </div>
 
     <ul v-else class="tag-tree">
@@ -53,15 +57,19 @@ const router = useRouter();
 const memberId = route.params.id;
 
 const tagData = ref(null);
+const isLoading = ref(true);
 const editMode = ref(false);
 const draggedTagId = ref(null);
 
 const fetchTags = async () => {
+  isLoading.value = true;
   try {
     const response = await axios.get(`/api/tag/${Number(memberId)}`);
     tagData.value = response.data;
   } catch (error) {
     console.error('Error fetching tags:', error);
+  } finally {
+    isLoading.value = false;
   }
 };
 
