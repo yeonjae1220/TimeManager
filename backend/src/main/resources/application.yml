@@ -21,9 +21,12 @@ spring:
       host: ${REDIS_HOST:localhost}
       port: ${REDIS_PORT:6379}
 
-logging.level:
-  org.hibernate.SQL: debug
-  # org.hibernate.type: trace
+logging:
+  level:
+    org.hibernate.SQL: debug
+    # org.hibernate.type: trace
+  pattern:
+    console: "%d{HH:mm:ss.SSS} %-5level [%X{requestId:--}] [%X{memberId:--}] %logger{36} - %msg%n"
 
 # ── VAPID Push 알림 설정 ──────────────────────────────────────────────
 push:

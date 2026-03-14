@@ -5,6 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import project.TimeManager.domain.member.model.MemberId;
@@ -14,6 +15,7 @@ import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.UUID;
 
+@Slf4j
 @Component
 public class JwtTokenProviderImpl implements JwtTokenProvider, TokenGeneratorPort {
 
@@ -61,6 +63,7 @@ public class JwtTokenProviderImpl implements JwtTokenProvider, TokenGeneratorPor
                     .parseSignedClaims(token);
             return true;
         } catch (JwtException | IllegalArgumentException e) {
+            log.debug("JWT validation failed: {}", e.getMessage());
             return false;
         }
     }
