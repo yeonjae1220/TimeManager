@@ -19,7 +19,6 @@ import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
 
 import java.time.ZonedDateTime;
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Slf4j
 @RestController
@@ -48,7 +47,7 @@ public class RecordApiController {
     public ResponseEntity<List<RecordResponse>> getRecordsForTag(@PathVariable Long tagId) {
         List<RecordResponse> records = getRecordListQuery.getRecordsByTagId(tagId).stream()
                 .map(RecordResponse::from)
-                .collect(Collectors.toList());
+                .toList();
         return ResponseEntity.ok(records);
     }
 

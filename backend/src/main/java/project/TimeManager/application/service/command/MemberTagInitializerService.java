@@ -14,14 +14,17 @@ import project.TimeManager.domain.tag.model.TagId;
 @RequiredArgsConstructor
 public class MemberTagInitializerService implements InitializeMemberTagsPort {
 
+    private static final String ROOT_TAG_NAME = "root";
+    private static final String DISCARDED_TAG_NAME = "discarded";
+
     private final SaveTagPort saveTagPort;
 
     @Override
     public void initializeDefaultTags(MemberId memberId) {
-        Tag rootTag = Tag.createRootTag("root", memberId);
+        Tag rootTag = Tag.createRootTag(ROOT_TAG_NAME, memberId);
         Long rootTagId = saveTagPort.saveTag(rootTag);
 
-        Tag discardedTag = Tag.createDiscardedTag("discarded", memberId, TagId.of(rootTagId));
+        Tag discardedTag = Tag.createDiscardedTag(DISCARDED_TAG_NAME, memberId, TagId.of(rootTagId));
         saveTagPort.saveTag(discardedTag);
     }
 }

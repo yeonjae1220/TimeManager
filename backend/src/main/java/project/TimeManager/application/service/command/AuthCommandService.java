@@ -9,6 +9,7 @@ import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
 import project.TimeManager.application.dto.result.TokenPairResult;
 import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
 import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
@@ -26,6 +27,7 @@ import java.time.temporal.ChronoUnit;
 public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, LogoutUseCase {
 
     private static final long REFRESH_TOKEN_TTL_DAYS = 7L;
+    private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
     private final PasswordHasherPort passwordHasherPort;
@@ -35,20 +37,13 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
     @Override
     public TokenPairResult login(LoginCommand command) {
         var credentials = loadMemberCredentialsPort.findByEmail(command.email())
-                .orElseThrow(() -> new DomainException("이메일 또는 비밀번호가 올바르지 않습니다"));
+                .orElseThrow(() -> new DomainException(INVALID_CREDENTIALS_MSG));
 
         if (!passwordHasherPort.matches(command.password(), credentials.hashedPassword())) {
-            throw new DomainException("이메일 또는 비밀번호가 올바르지 않습니다");
+            throw new DomainException(INVALID_CREDENTIALS_MSG);
         }
 
-        String accessToken = tokenGeneratorPort.generateAccessToken(credentials.memberId());
-        String refreshToken = tokenGeneratorPort.generateRefreshToken();
-        Instant expiresAt = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
-
-        AuthSession session = AuthSession.create(credentials.memberId(), refreshToken, expiresAt);
-        tokenStorePort.save(session);
-
-        return new TokenPairResult(accessToken, refreshToken, credentials.memberId().value());
+        return issueTokenPair(credentials.memberId());
     }
 
     @Override
@@ -61,19 +56,29 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
             throw new DomainException("만료된 리프레시 토큰입니다");
         }
 
-        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId());
         String newRefreshToken = tokenGeneratorPort.generateRefreshToken();
-        Instant newExpiry = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
-
         tokenStorePort.delete(command.refreshToken());
-        session.rotate(newRefreshToken, newExpiry);
+        session.rotate(newRefreshToken, newExpiresAt());
         tokenStorePort.save(session);
 
+        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId());
         return new TokenPairResult(newAccessToken, newRefreshToken, session.getMemberId().value());
     }
 
     @Override
     public void logout(LogoutCommand command) {
         tokenStorePort.delete(command.refreshToken());
+    }
+
+    private TokenPairResult issueTokenPair(MemberId memberId) {
+        String accessToken = tokenGeneratorPort.generateAccessToken(memberId);
+        String refreshToken = tokenGeneratorPort.generateRefreshToken();
+        AuthSession session = AuthSession.create(memberId, refreshToken, newExpiresAt());
+        tokenStorePort.save(session);
+        return new TokenPairResult(accessToken, refreshToken, memberId.value());
+    }
+
+    private Instant newExpiresAt() {
+        return Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
     }
 }

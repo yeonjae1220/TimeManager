@@ -10,7 +10,6 @@ import project.TimeManager.domain.tag.model.TagId;
 import project.TimeManager.domain.tag.model.TimerState;
 
 import java.util.List;
-import java.util.stream.Collectors;
 
 @Component
 public class TagMapper {
@@ -38,21 +37,18 @@ public class TagMapper {
     }
 
     public void updateJpaEntity(TagJpaEntity entity, Tag domain) {
-        entity.setName(domain.getName());
-        entity.setType(domain.getType());
-        entity.setElapsedTime(domain.getElapsedTime());
-        entity.setDailyGoalTime(domain.getDailyGoalTime());
-        entity.setDailyElapsedTime(domain.getDailyElapsedTime());
-        entity.setDailyTotalTime(domain.getDailyTotalTime());
-        entity.setTagTotalTime(domain.getTagTotalTime());
-        entity.setTotalTime(domain.getTotalTime());
-        entity.setLatestStartTime(domain.getLatestStartTime());
-        entity.setLatestStopTime(domain.getLatestStopTime());
-        entity.setTimerState(domain.getTimerState());
+        applyFields(entity, domain);
     }
 
     public TagJpaEntity toNewJpaEntity(Tag domain, MemberJpaEntity member, TagJpaEntity parent) {
         TagJpaEntity entity = new TagJpaEntity();
+        applyFields(entity, domain);
+        entity.setMember(member);
+        entity.setParent(parent);
+        return entity;
+    }
+
+    private void applyFields(TagJpaEntity entity, Tag domain) {
         entity.setName(domain.getName());
         entity.setType(domain.getType());
         entity.setElapsedTime(domain.getElapsedTime());
@@ -64,9 +60,6 @@ public class TagMapper {
         entity.setLatestStartTime(domain.getLatestStartTime());
         entity.setLatestStopTime(domain.getLatestStopTime());
         entity.setTimerState(domain.getTimerState() != null ? domain.getTimerState() : TimerState.STOPPED);
-        entity.setMember(member);
-        entity.setParent(parent);
-        return entity;
     }
 
     public TagResult toResult(TagJpaEntity entity) {
@@ -74,7 +67,7 @@ public class TagMapper {
         boolean isRunning = entity.getTimerState() == TimerState.RUNNING;
         List<Long> childrenList = entity.getChildren().stream()
                 .map(TagJpaEntity::getId)
-                .collect(Collectors.toList());
+                .toList();
         return new TagResult(
                 entity.getId(),
                 entity.getName(),

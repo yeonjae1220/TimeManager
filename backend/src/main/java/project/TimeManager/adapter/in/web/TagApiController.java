@@ -46,7 +46,7 @@ public class TagApiController {
     }
 
     @PostMapping("/{tagId}/start")
-    public ResponseEntity<Long> startStopwatch(@PathVariable Long tagId, @RequestBody StartTimerRequest request) {
+    public ResponseEntity<Long> startStopwatch(@PathVariable Long tagId, @Valid @RequestBody StartTimerRequest request) {
         return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime())));
     }
 
