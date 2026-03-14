@@ -4,10 +4,12 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
 import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
@@ -25,7 +27,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
-    private final RecordCommandService recordCommandService;
+    private final CreateRecordUseCase createRecordUseCase;
 
     @Override
     public Long startTimer(StartTimerCommand command) {
@@ -37,8 +39,9 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
             if (!runningTag.getId().value().equals(command.tagId())) {
                 log.info("Auto-stopping running tag: {}", runningTag.getId().value());
                 ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
-                recordCommandService.stopAndSaveRecord(
-                        runningTag.getId().value(), 0L, runningTag.getLatestStartTime(), endTime);
+                runningTag.stop(endTime, 0L);
+                saveTagPort.saveTag(runningTag);
+                createRecordUseCase.createRecord(new CreateRecordCommand(runningTag.getId().value(), runningTag.getLatestStartTime(), endTime));
             }
         });
 
@@ -49,12 +52,11 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     @Override
     public Long stopTimer(StopTimerCommand command) {
-        return recordCommandService.stopAndSaveRecord(
-                command.tagId(),
-                command.elapsedTime(),
-                command.startTime(),
-                command.endTime()
-        );
+        Tag tag = loadTagPort.loadTag(command.tagId())
+                .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+        tag.stop(command.endTime(), command.elapsedTime());
+        saveTagPort.saveTag(tag);
+        return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime()));
     }
 
     @Override

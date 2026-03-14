@@ -10,10 +10,8 @@ import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
+import project.TimeManager.domain.port.out.member.InitializeMemberTagsPort;
 import project.TimeManager.domain.port.out.member.SaveMemberPort;
-import project.TimeManager.domain.port.out.tag.SaveTagPort;
-import project.TimeManager.domain.tag.model.Tag;
-import project.TimeManager.domain.tag.model.TagId;
 
 @Service
 @Transactional
@@ -21,7 +19,7 @@ import project.TimeManager.domain.tag.model.TagId;
 public class MemberCommandService implements RegisterMemberUseCase {
 
     private final SaveMemberPort saveMemberPort;
-    private final SaveTagPort saveTagPort;
+    private final InitializeMemberTagsPort initializeMemberTagsPort;
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
     private final PasswordHasherPort passwordHasherPort;
 
@@ -35,11 +33,7 @@ public class MemberCommandService implements RegisterMemberUseCase {
         Member member = Member.register(command.name(), command.email(), hashedPassword);
         Long memberId = saveMemberPort.saveMember(member);
 
-        Tag rootTag = Tag.createRootTag("root", MemberId.of(memberId));
-        Long rootTagId = saveTagPort.saveTag(rootTag);
-
-        Tag discardedTag = Tag.createDiscardedTag("discarded", MemberId.of(memberId), TagId.of(rootTagId));
-        saveTagPort.saveTag(discardedTag);
+        initializeMemberTagsPort.initializeDefaultTags(MemberId.of(memberId));
 
         return MemberId.of(memberId);
     }

@@ -19,7 +19,6 @@ import project.TimeManager.domain.record.model.Record;
 import project.TimeManager.domain.record.model.TimeRange;
 import project.TimeManager.domain.tag.model.Tag;
 
-import java.time.ZonedDateTime;
 import java.util.Optional;
 
 @Service
@@ -52,20 +51,6 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
 
         log.info("Record created: tagId={}, recordId={}, totalTime={}", command.tagId(), recordId, record.getTotalTime());
         return recordId;
-    }
-
-    /**
-     * 타이머를 정지하고 경과 시간을 저장한 뒤 기록을 생성한다.
-     * TimerCommandService에서 호출.
-     */
-    public Long stopAndSaveRecord(Long tagId, Long elapsedTime, ZonedDateTime startTime, ZonedDateTime endTime) {
-        Tag tag = loadTagPort.loadTag(tagId)
-                .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
-
-        tag.stop(endTime, elapsedTime);
-        saveTagPort.saveTag(tag);
-
-        return createRecord(new CreateRecordCommand(tagId, startTime, endTime));
     }
 
     @Override

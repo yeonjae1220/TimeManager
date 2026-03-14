@@ -15,7 +15,7 @@ import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
-import project.TimeManager.adapter.in.web.security.JwtTokenProvider;
+import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -30,7 +30,7 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
     private final PasswordHasherPort passwordHasherPort;
     private final TokenStorePort tokenStorePort;
-    private final JwtTokenProvider jwtTokenProvider;
+    private final TokenGeneratorPort tokenGeneratorPort;
 
     @Override
     public TokenPairResult login(LoginCommand command) {
@@ -41,8 +41,8 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
             throw new DomainException("이메일 또는 비밀번호가 올바르지 않습니다");
         }
 
-        String accessToken = jwtTokenProvider.generateAccessToken(credentials.memberId());
-        String refreshToken = jwtTokenProvider.generateRefreshToken();
+        String accessToken = tokenGeneratorPort.generateAccessToken(credentials.memberId());
+        String refreshToken = tokenGeneratorPort.generateRefreshToken();
         Instant expiresAt = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
 
         AuthSession session = AuthSession.create(credentials.memberId(), refreshToken, expiresAt);
@@ -61,8 +61,8 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
             throw new DomainException("만료된 리프레시 토큰입니다");
         }
 
-        String newAccessToken = jwtTokenProvider.generateAccessToken(session.getMemberId());
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken();
+        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId());
+        String newRefreshToken = tokenGeneratorPort.generateRefreshToken();
         Instant newExpiry = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
 
         tokenStorePort.delete(command.refreshToken());

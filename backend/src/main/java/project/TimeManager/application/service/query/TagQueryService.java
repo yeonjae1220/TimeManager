@@ -7,7 +7,7 @@ import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.port.in.tag.GetTagListQuery;
 import project.TimeManager.domain.port.in.tag.GetTagQuery;
-import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.LoadTagResultPort;
 import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
 
 import java.util.List;
@@ -18,11 +18,11 @@ import java.util.List;
 public class TagQueryService implements GetTagQuery, GetTagListQuery {
 
     private final LoadTagsByMemberPort loadTagsByMemberPort;
-    private final LoadTagPort loadTagPort;
+    private final LoadTagResultPort loadTagResultPort;
 
     @Override
     public TagResult getTag(Long tagId) {
-        return loadTagPort.loadTagResult(tagId)
+        return loadTagResultPort.loadTagResult(tagId)
                 .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
     }
 

@@ -4,7 +4,6 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
-import project.TimeManager.adapter.out.persistence.adapter.TagPersistenceAdapter;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
 import project.TimeManager.domain.exception.DomainException;
@@ -25,7 +24,6 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
     private final UpdateTagTimeBatchPort updateTagTimeBatchPort;
-    private final TagPersistenceAdapter tagPersistenceAdapter;
 
     @Override
     public Long createTag(CreateTagCommand command) {

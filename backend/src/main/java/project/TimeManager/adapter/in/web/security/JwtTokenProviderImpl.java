@@ -8,13 +8,14 @@ import io.jsonwebtoken.security.Keys;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
 
 import javax.crypto.SecretKey;
 import java.util.Date;
 import java.util.UUID;
 
 @Component
-public class JwtTokenProviderImpl implements JwtTokenProvider {
+public class JwtTokenProviderImpl implements JwtTokenProvider, TokenGeneratorPort {
 
     @Value("${jwt.secret}")
     private String secret;

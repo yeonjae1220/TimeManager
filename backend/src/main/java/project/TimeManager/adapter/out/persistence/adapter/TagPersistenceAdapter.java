@@ -11,6 +11,7 @@ import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepositor
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.LoadTagResultPort;
 import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort {
+public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort {
 
     private final TagJpaRepository tagJpaRepository;
     private final MemberJpaRepository memberJpaRepository;
