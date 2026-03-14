@@ -2,7 +2,7 @@
   <div class="page">
     <div class="topbar">
       <span class="topbar-brand">timemgr</span>
-      <router-link :to="`/api/tag/detail/${tagId}`" class="topbar-back">
+      <router-link :to="`/tags/${tagId}`" class="topbar-back">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
           <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -107,7 +107,7 @@ const fetchRecords = async () => {
   loading.value = true;
   error.value   = null;
   try {
-    const response = await apiClient.get(`/api/record/log/${tagId}`);
+    const response = await apiClient.get(`/api/v1/records?tagId=${tagId}`);
     records.value = response.data;
   } catch {
     error.value = '데이터를 불러오지 못했습니다.';

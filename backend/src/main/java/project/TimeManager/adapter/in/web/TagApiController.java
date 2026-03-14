@@ -19,12 +19,13 @@ import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
 import project.TimeManager.domain.port.in.tag.*;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/tag")
+@RequestMapping("/api/v1/tags")
 public class TagApiController {
 
     private final GetTagListQuery getTagListQuery;
@@ -35,42 +36,53 @@ public class TagApiController {
     private final CreateTagUseCase createTagUseCase;
     private final MoveTagUseCase moveTagUseCase;
 
-    @GetMapping("/{memberId}")
-    public List<TagTreeResponse> getUserTagsTree(@PathVariable Long memberId) {
+    @GetMapping
+    public List<TagTreeResponse> getUserTagsTree(@RequestParam Long memberId) {
         return TagTreeResponse.buildTree(getTagListQuery.getTagListByMemberId(memberId));
     }
 
-    @GetMapping("/detail/{tagId}")
+    @GetMapping("/{tagId}")
     public TagResponse getTagDetail(@PathVariable Long tagId) {
         return TagResponse.from(getTagQuery.getTag(tagId));
     }
 
-    @PostMapping("/{tagId}/start")
-    public ResponseEntity<Long> startStopwatch(@PathVariable Long tagId, @Valid @RequestBody StartTimerRequest request) {
-        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime())));
-    }
-
-    @PostMapping("/{tagId}/reset")
-    public ResponseEntity<Long> resetStopwatch(@PathVariable Long tagId,
-                                                @Valid @RequestBody ResetTimerRequest request) {
-        return ResponseEntity.ok(resetTimerUseCase.resetTimer(
-                new ResetTimerCommand(tagId, request.elapsedTime())
-        ));
-    }
-
-    @PostMapping("/{tagId}/create")
-    public ResponseEntity<Long> createTag(@PathVariable Long tagId,
-                                           @Valid @RequestBody CreateTagRequest request) {
-        return ResponseEntity.ok(createTagUseCase.createTag(
+    @PostMapping
+    public ResponseEntity<Long> createTag(@Valid @RequestBody CreateTagRequest request) {
+        return ResponseEntity.status(201).body(createTagUseCase.createTag(
                 new CreateTagCommand(request.tagName(), request.memberId(), request.parentTagId())
         ));
     }
 
-    @PutMapping("/{tagId}/updateParent")
+    @PatchMapping("/{tagId}")
     public ResponseEntity<Long> moveTag(@PathVariable Long tagId,
-                                         @Valid @RequestBody MoveTagRequest request) {
+                                        @Valid @RequestBody MoveTagRequest request) {
         return ResponseEntity.ok(moveTagUseCase.moveTag(
                 new MoveTagCommand(tagId, request.newParentTagId())
+        ));
+    }
+
+    @PostMapping("/{tagId}/timer/start")
+    public ResponseEntity<Long> startTimer(@PathVariable Long tagId,
+                                           @Valid @RequestBody StartTimerRequest request) {
+        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime())));
+    }
+
+    @PostMapping("/{tagId}/timer/stop")
+    public ResponseEntity<Long> stopTimer(@PathVariable Long tagId,
+                                          @Valid @RequestBody StopTimerRequest request) {
+        ZonedDateTime startTime = request.timestamps().startTime();
+        ZonedDateTime endTime = request.timestamps().endTime();
+        log.info("Stop timer: tagId={}, startTime={}, endTime={}", tagId, startTime, endTime);
+        return ResponseEntity.ok(stopTimerUseCase.stopTimer(
+                new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime)
+        ));
+    }
+
+    @PostMapping("/{tagId}/timer/reset")
+    public ResponseEntity<Long> resetTimer(@PathVariable Long tagId,
+                                           @Valid @RequestBody ResetTimerRequest request) {
+        return ResponseEntity.ok(resetTimerUseCase.resetTimer(
+                new ResetTimerCommand(tagId, request.elapsedTime())
         ));
     }
 }

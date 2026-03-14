@@ -90,7 +90,7 @@ const topInput    = ref(null);
 const fetchTags = async () => {
   isLoading.value = true;
   try {
-    const response = await apiClient.get(`/api/tag/${Number(memberId)}`);
+    const response = await apiClient.get(`/api/v1/tags?memberId=${Number(memberId)}`);
     tagData.value = response.data;
   } catch (error) {
     console.error('Error fetching tags:', error);
@@ -124,7 +124,7 @@ const cancelTopForm = () => {
 const submitTopTag = async () => {
   if (!topTagName.value.trim() || !rootTagId.value) return;
   try {
-    await apiClient.post(`/api/tag/${rootTagId.value}/create`, {
+    await apiClient.post(`/api/v1/tags`, {
       tagName:     topTagName.value.trim(),
       memberId:    Number(memberId),
       parentTagId: rootTagId.value,
@@ -137,13 +137,13 @@ const submitTopTag = async () => {
 };
 
 const navigateToDetail = (tagId) => {
-  router.push(`/api/tag/detail/${tagId}`);
+  router.push(`/tags/${tagId}`);
 };
 
 const handleDrop = async (newParentId, movedId) => {
   if (newParentId === movedId) return;
   try {
-    await apiClient.put(`/api/tag/${movedId}/updateParent`, { newParentTagId: newParentId });
+    await apiClient.patch(`/api/v1/tags/${movedId}`, { newParentTagId: newParentId });
     await fetchTags();
   } catch (error) {
     console.error('Drop failed:', error);

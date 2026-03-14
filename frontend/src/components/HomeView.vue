@@ -36,7 +36,7 @@ import { useAuthStore } from '@/stores/authStore';
 
 const router = useRouter();
 const authStore = useAuthStore();
-const goTagsPage = () => router.push(`/api/tag/${authStore.memberId}`);
+const goTagsPage = () => router.push(`/members/${authStore.memberId}/tags`);
 </script>
 
 <style scoped>

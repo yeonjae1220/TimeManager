@@ -3,7 +3,7 @@
 
     <!-- Topbar -->
     <div class="topbar">
-      <router-link :to="`/api/tag/${tag?.memberId ?? 1}`" class="topbar-back">
+      <router-link :to="`/members/${tag?.memberId ?? 1}/tags`" class="topbar-back">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
           <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
@@ -33,7 +33,7 @@
         </div>
         <h1 class="tag-title">{{ tag.name }}</h1>
         <div class="tag-breadcrumb" v-if="tag.parentId">
-          <router-link :to="'/api/tag/detail/' + tag.parentId" class="parent-link">
+          <router-link :to="'/tags/' + tag.parentId" class="parent-link">
             <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
               <path d="M8.5 5.5H2.5M5 2.5L2.5 5.5 5 8.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
             </svg>
@@ -165,7 +165,7 @@
             <router-link
               v-for="childId in tag.childrenList"
               :key="childId"
-              :to="'/api/tag/detail/' + childId"
+              :to="'/tags/' + childId"
               class="sub-tag-chip mono"
             >
               {{ childId }}
@@ -234,7 +234,7 @@ const goToRecordsPage = (tagId) => router.push(`/records/${tagId}`);
 
 const fetchTagData = async (tagId) => {
   try {
-    const response = await apiClient.get(`/api/tag/detail/${tagId}`);
+    const response = await apiClient.get(`/api/v1/tags/${tagId}`);
     tag.value = response.data;
 
     stopwatchState.isRunning        = tag.value.state || false;
@@ -321,7 +321,7 @@ const startStopwatch = async () => {
   updateTimer();
   try {
     await apiClient.post(
-      `/api/tag/${tag.value.id}/start`,
+      `/api/v1/tags/${tag.value.id}/timer/start`,
       { startTime: new Date(stopwatchState.latestStartTime).toISOString() },
       { headers: { 'Content-Type': 'application/json' } }
     );
@@ -342,7 +342,7 @@ const stopStopwatch = async () => {
   stopwatchState.totalTime      += delta;
   try {
     await apiClient.post(
-      `/api/record/${tag.value.id}/stop`,
+      `/api/v1/tags/${tag.value.id}/timer/stop`,
       {
         elapsedTime: stopwatchState.elapsedTime,
         timestamps: {
@@ -363,7 +363,7 @@ const resetStopwatch = async () => {
   stopwatchState.elapsedTime    = 0;
   try {
     await apiClient.post(
-      `/api/tag/${tag.value.id}/reset`,
+      `/api/v1/tags/${tag.value.id}/timer/reset`,
       { elapsedTime: stopwatchState.elapsedTime },
       { headers: { 'Content-Type': 'application/json' } }
     );

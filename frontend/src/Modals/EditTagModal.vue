@@ -51,7 +51,7 @@
 
 <script setup>
 import { ref, defineProps, watchEffect, computed } from 'vue';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 
 const props = defineProps({
   isOpen:  Boolean,
@@ -67,9 +67,10 @@ const discardedTag    = ref(null);
 
 const fetchTags = async () => {
   try {
-    const response = await axios.get(`/api/tag/${Number(props.tagData.memberId)}`);
+    const response = await apiClient.get(`/api/v1/tags?memberId=${Number(props.tagData.memberId)}`);
     tagList.value = response.data;
-    discardedTag.value = tagList.value.find((t) => t.type === 'DISCARDED') || null;
+    const flat = (tags) => tags.flatMap(t => [t, ...(t.children ? flat(t.children) : [])]);
+    discardedTag.value = flat(tagList.value).find((t) => t.type === 'DISCARDED') || null;
   } catch (error) {
     console.error('태그 목록 가져오기 실패', error);
   }
@@ -81,8 +82,8 @@ const flatTagList = computed(() => {
   const flatten = (tags, depth = 0) => {
     const result = [];
     tags.forEach((t) => {
-      if (t.type === 'DISCARDED') {
-        discardedTag.value = t;
+      if (t.type === 'ROOT' || t.type === 'DISCARDED') {
+        if (t.children?.length > 0) result.push(...flatten(t.children, depth));
       } else {
         result.push({ ...t, indentation: '— '.repeat(depth) });
         if (t.children?.length > 0) result.push(...flatten(t.children, depth + 1));
@@ -90,16 +91,16 @@ const flatTagList = computed(() => {
     });
     return result;
   };
-  return flatten(tagList.value.filter((t) => t.type !== 'DISCARDED'));
+  return flatten(tagList.value);
 });
 
 const createTag = async () => {
   if (!newTagName.value.trim()) return;
   try {
-    await axios.post(`/api/tag/${Number(props.tagData.id)}/create`, {
+    await apiClient.post(`/api/v1/tags`, {
       tagName:     newTagName.value,
       memberId:    props.tagData.memberId,
-      parentTagId: props.tagData.parentId,
+      parentTagId: props.tagData.id,
     });
     newTagName.value = '';
     fetchTags();
@@ -111,7 +112,7 @@ const createTag = async () => {
 const updateParentTag = async () => {
   if (!selectedParentId.value) return;
   try {
-    await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
+    await apiClient.patch(`/api/v1/tags/${Number(props.tagData.id)}`, {
       newParentTagId: selectedParentId.value,
     });
     closeModal();
@@ -123,7 +124,7 @@ const updateParentTag = async () => {
 const deleteTag = async () => {
   if (!confirm('이 태그를 삭제하시겠습니까?')) return;
   try {
-    await axios.put(`/api/tag/${Number(props.tagData.id)}/updateParent`, {
+    await apiClient.patch(`/api/v1/tags/${Number(props.tagData.id)}`, {
       newParentTagId: discardedTag.value.id,
     });
     closeModal();

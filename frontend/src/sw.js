@@ -21,11 +21,8 @@ precacheAndRoute(self.__WB_MANIFEST);
 // ── Phase 1: API 호출 — NetworkFirst ─────────────────────────────────
 // 네트워크 우선; 실패 시 캐시 응답 반환 (오프라인 대비)
 registerRoute(
-  ({ url }) => url.pathname.startsWith('/api/') &&
-    !url.pathname.startsWith('/api/record/create/') &&
-    !url.pathname.startsWith('/api/record/updateTime/') &&
-    !url.pathname.startsWith('/api/record/delete/') &&
-    !url.pathname.startsWith('/api/record/') /* stop endpoint */,
+  ({ url }) => url.pathname.startsWith('/api/v1/') &&
+    !url.pathname.startsWith('/api/v1/records'),
   new NetworkFirst({
     cacheName: 'api-cache',
     networkTimeoutSeconds: 5,
@@ -43,26 +40,26 @@ const bgSyncPlugin = new BackgroundSyncPlugin('recordQueue', {
   maxRetentionTime: 24 * 60, // 24시간(분 단위) 보관
 });
 
-// POST /api/record/create/*  — 레코드 생성
+// POST /api/v1/records  — 레코드 생성
 registerRoute(
   ({ url, request }) =>
-    url.pathname.startsWith('/api/record/create/') && request.method === 'POST',
+    url.pathname === '/api/v1/records' && request.method === 'POST',
   new NetworkFirst({ plugins: [bgSyncPlugin] }),
   'POST'
 );
 
-// PUT /api/record/updateTime/*  — 레코드 수정
+// PUT /api/v1/records/*  — 레코드 수정
 registerRoute(
   ({ url, request }) =>
-    url.pathname.startsWith('/api/record/updateTime/') && request.method === 'PUT',
+    url.pathname.startsWith('/api/v1/records/') && request.method === 'PUT',
   new NetworkFirst({ plugins: [bgSyncPlugin] }),
   'PUT'
 );
 
-// DELETE /api/record/delete/*  — 레코드 삭제
+// DELETE /api/v1/records/*  — 레코드 삭제
 registerRoute(
   ({ url, request }) =>
-    url.pathname.startsWith('/api/record/delete/') && request.method === 'DELETE',
+    url.pathname.startsWith('/api/v1/records/') && request.method === 'DELETE',
   new NetworkFirst({ plugins: [bgSyncPlugin] }),
   'DELETE'
 );

@@ -156,7 +156,7 @@ const cancelAdd = () => {
 const submitAdd = async () => {
   if (!newTagName.value.trim()) return;
   try {
-    await apiClient.post(`/api/tag/${props.tag.id}/create`, {
+    await apiClient.post(`/api/v1/tags`, {
       tagName:     newTagName.value.trim(),
       memberId:    props.tag.memberId,
       parentTagId: props.tag.id,
@@ -171,11 +171,11 @@ const submitAdd = async () => {
 const discardTag = async () => {
   if (!confirm('이 태그를 삭제하시겠습니까?')) return;
   try {
-    const res = await apiClient.get(`/api/tag/${props.tag.memberId}`);
+    const res = await apiClient.get(`/api/v1/tags?memberId=${props.tag.memberId}`);
     const flat = (tags) => tags.flatMap(t => [t, ...(t.children ? flat(t.children) : [])]);
     const discarded = flat(res.data).find(t => t.type === 'DISCARDED');
     if (!discarded) { alert('삭제 태그를 찾을 수 없습니다.'); return; }
-    await apiClient.put(`/api/tag/${props.tag.id}/updateParent`, { newParentTagId: discarded.id });
+    await apiClient.patch(`/api/v1/tags/${props.tag.id}`, { newParentTagId: discarded.id });
     injOnRefresh();
   } catch (e) {
     console.error('태그 삭제 실패:', e);

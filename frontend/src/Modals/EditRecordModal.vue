@@ -32,7 +32,7 @@
 
 <script setup>
 import { defineProps, ref, watch, defineEmits } from 'vue';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { DateTime } from 'luxon';
 
 const props = defineProps({
@@ -62,7 +62,7 @@ watch(
 
 const updateRecord = async () => {
   try {
-    await axios.put(`/api/record/updateTime/${Number(props.recordData.id)}`, {
+    await apiClient.put(`/api/v1/records/${Number(props.recordData.id)}`, {
       newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
       newEndTime:   DateTime.fromFormat(formattedEndTime.value,   "yyyy-MM-dd'T'HH:mm").toISO(),
     });
@@ -75,7 +75,7 @@ const updateRecord = async () => {
 const deleteRecord = async () => {
   if (!confirm('이 세션을 삭제하시겠습니까?')) return;
   try {
-    await axios.delete(`/api/record/delete/${props.recordData.id}`);
+    await apiClient.delete(`/api/v1/records/${props.recordData.id}`);
     closeModal();
   } catch (error) {
     console.error('레코드 삭제 실패', error);

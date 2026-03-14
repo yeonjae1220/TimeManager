@@ -10,13 +10,12 @@ import project.TimeManager.domain.port.in.notification.SavePushSubscriptionUseCa
 
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/push")
+@RequestMapping("/api/v1/push/subscriptions")
 public class NotificationApiController {
 
     private final SavePushSubscriptionUseCase savePushSubscriptionUseCase;
 
-    /** POST /api/push/subscribe/{memberId} */
-    @PostMapping("/subscribe/{memberId}")
+    @PostMapping("/{memberId}")
     public ResponseEntity<Void> subscribe(
             @PathVariable Long memberId,
             @Valid @RequestBody PushSubscribeRequest request) {
@@ -24,8 +23,7 @@ public class NotificationApiController {
         return ResponseEntity.noContent().build();
     }
 
-    /** DELETE /api/push/unsubscribe/{memberId} */
-    @DeleteMapping("/unsubscribe/{memberId}")
+    @DeleteMapping("/{memberId}")
     public ResponseEntity<Void> unsubscribe(
             @PathVariable Long memberId,
             @RequestBody PushUnsubscribeRequest request) {

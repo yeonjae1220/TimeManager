@@ -10,8 +10,8 @@ const routes = [
     { path: "/login", name: 'login', component: LoginView },
     { path: "/register", name: 'register', component: RegisterView },
     { path: "/", name: 'home', component: HomeView, meta: { requiresAuth: true } },
-    { path: "/api/tag/detail/:id", name: 'tag', component: TagDetail, props: true, meta: { requiresAuth: true } },
-    { path: "/api/tag/:id", name: 'tags', component: TagList, meta: { requiresAuth: true } },
+    { path: "/tags/:id", name: 'tag', component: TagDetail, props: true, meta: { requiresAuth: true } },
+    { path: "/members/:id/tags", name: 'tags', component: TagList, meta: { requiresAuth: true } },
     { path: "/records/:id", name: 'records', component: RecordList, props: true, meta: { requiresAuth: true } },
 ];
 

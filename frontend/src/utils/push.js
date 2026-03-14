@@ -53,7 +53,7 @@ export async function subscribePush(memberId) {
     });
   }
 
-  await axios.post(`/api/push/subscribe/${memberId}`, subscription.toJSON(), {
+  await axios.post(`/api/v1/push/subscriptions/${memberId}`, subscription.toJSON(), {
     headers: { 'Content-Type': 'application/json' },
   });
 
@@ -69,7 +69,7 @@ export async function unsubscribePush(memberId) {
   const subscription = await getCurrentSubscription();
   if (!subscription) return;
 
-  await axios.delete(`/api/push/unsubscribe/${memberId}`, {
+  await axios.delete(`/api/v1/push/subscriptions/${memberId}`, {
     data: { endpoint: subscription.endpoint },
     headers: { 'Content-Type': 'application/json' },
   });

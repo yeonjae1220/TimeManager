@@ -10,7 +10,7 @@ export function useAuth() {
         const response = await authApi.login(email, password);
         const { accessToken, refreshToken, memberId } = response.data;
         authStore.setAuth({ accessToken, refreshToken, memberId });
-        await router.push(`/api/tag/${memberId}`);
+        await router.push(`/members/${memberId}/tags`);
     }
 
     async function logout() {

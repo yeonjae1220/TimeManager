@@ -31,7 +31,7 @@
 
 <script setup>
 import { defineEmits, defineProps, ref } from 'vue';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { DateTime } from 'luxon';
 
 const props = defineProps({
@@ -52,10 +52,11 @@ const createRecord = async () => {
   }
   try {
     const recordTimeDto = {
+      tagId:        props.tagId,
       newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
       newEndTime:   DateTime.fromFormat(formattedEndTime.value,   "yyyy-MM-dd'T'HH:mm").toISO(),
     };
-    await axios.post(`/api/record/create/${props.tagId}`, recordTimeDto, {
+    await apiClient.post(`/api/v1/records`, recordTimeDto, {
       headers: { 'Content-Type': 'application/json' },
     });
     emit('close');
