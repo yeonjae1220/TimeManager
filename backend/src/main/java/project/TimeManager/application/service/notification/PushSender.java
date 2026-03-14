@@ -41,7 +41,9 @@ public class PushSender {
 
     @PostConstruct
     public void init() throws Exception {
-        Security.addProvider(new BouncyCastleProvider());
+        if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
+            Security.addProvider(new BouncyCastleProvider());
+        }
         pushService = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject);
     }
 
