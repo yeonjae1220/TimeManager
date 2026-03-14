@@ -18,7 +18,6 @@ import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TimerState;
 
-import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -68,18 +67,7 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
 
     @Override
     public void updateTagTimeBatch(Long startTagId, Long deltaTime) {
-        List<Long> ancestorIds = new ArrayList<>();
-        Long currentId = startTagId;
-
-        while (currentId != null) {
-            Optional<TagJpaEntity> tagOpt = tagJpaRepository.findById(currentId);
-            if (tagOpt.isEmpty()) break;
-            TagJpaEntity tag = tagOpt.get();
-            ancestorIds.add(tag.getId());
-            if (tag.getType().stopsCascade()) break;
-            currentId = tag.getParentId();
-        }
-
+        List<Long> ancestorIds = tagJpaRepository.findAncestorIds(startTagId);
         if (!ancestorIds.isEmpty()) {
             log.info("updateTagTimeBatch: tagIds={}, deltaTime={}", ancestorIds, deltaTime);
             tagJpaRepository.updateTagTimesBatch(ancestorIds, deltaTime);
@@ -88,9 +76,7 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
 
     @Override
     public Optional<Tag> findRunningTagByMemberId(Long memberId) {
-        return tagJpaRepository.findByMemberId(memberId).stream()
-                .filter(t -> t.getTimerState() == TimerState.RUNNING)
-                .findFirst()
+        return tagJpaRepository.findRunningByMemberId(memberId, TimerState.RUNNING)
                 .map(tagMapper::toDomain);
     }
 

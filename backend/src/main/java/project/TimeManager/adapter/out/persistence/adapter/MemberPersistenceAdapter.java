@@ -1,6 +1,5 @@
 package project.TimeManager.adapter.out.persistence.adapter;
 
-import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
@@ -43,8 +42,4 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
                 ));
     }
 
-    public MemberJpaEntity loadJpaEntity(Long memberId) {
-        return memberJpaRepository.findById(memberId)
-                .orElseThrow(() -> new EntityNotFoundException("Member not found: " + memberId));
-    }
 }

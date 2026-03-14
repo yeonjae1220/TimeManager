@@ -14,7 +14,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Table(name = "tag")
+@Table(name = "tag", indexes = @Index(name = "idx_tag_timer_state", columnList = "timerState"))
 @Getter
 @Setter
 @NoArgsConstructor
