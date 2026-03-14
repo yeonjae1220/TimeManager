@@ -1,9 +1,9 @@
 package project.TimeManager.adapter.in.web.dto.request;
 
+import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.PositiveOrZero;
 import java.time.ZonedDateTime;
-import java.util.Map;
 
 public record StopTimerRequest(
         @NotNull(message = "elapsedTime은 필수입니다")
@@ -11,5 +11,14 @@ public record StopTimerRequest(
         Long elapsedTime,
 
         @NotNull(message = "timestamps는 필수입니다")
-        Map<String, ZonedDateTime> timestamps
-) {}
+        @Valid
+        Timestamps timestamps
+) {
+    public record Timestamps(
+            @NotNull(message = "startTime은 필수입니다")
+            ZonedDateTime startTime,
+
+            @NotNull(message = "endTime은 필수입니다")
+            ZonedDateTime endTime
+    ) {}
+}

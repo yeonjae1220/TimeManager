@@ -36,8 +36,8 @@ public class RecordApiController {
     @PostMapping("/{tagId}/stop")
     public ResponseEntity<Long> stopStopwatch(@PathVariable Long tagId,
                                                @Valid @RequestBody StopTimerRequest request) {
-        ZonedDateTime startTime = request.timestamps().get("startTime");
-        ZonedDateTime endTime = request.timestamps().get("endTime");
+        ZonedDateTime startTime = request.timestamps().startTime();
+        ZonedDateTime endTime = request.timestamps().endTime();
         log.info("Stop timer: tagId={}, startTime={}, endTime={}", tagId, startTime, endTime);
         return ResponseEntity.ok(stopTimerUseCase.stopTimer(
                 new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime)
@@ -69,11 +69,10 @@ public class RecordApiController {
     }
 
     @PostMapping("/create/{tagId}")
-    public ResponseEntity<String> createRecord(@PathVariable Long tagId,
-                                                @Valid @RequestBody EditRecordTimeRequest request) {
-        createRecordUseCase.createRecord(
+    public ResponseEntity<Long> createRecord(@PathVariable Long tagId,
+                                              @Valid @RequestBody EditRecordTimeRequest request) {
+        return ResponseEntity.ok(createRecordUseCase.createRecord(
                 new CreateRecordCommand(tagId, request.newStartTime(), request.newEndTime())
-        );
-        return ResponseEntity.ok("Record created successfully.");
+        ));
     }
 }

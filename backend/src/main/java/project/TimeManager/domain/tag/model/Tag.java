@@ -7,6 +7,8 @@ import java.time.ZonedDateTime;
 
 public class Tag {
 
+    private static final ZonedDateTime EPOCH = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault());
+
     private TagId id;
     private String name;
     private TagType type;
@@ -83,9 +85,8 @@ public class Tag {
         this.tagTotalTime = 0L;
         this.totalTime = 0L;
         this.timerState = TimerState.STOPPED;
-        ZonedDateTime epoch = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault());
-        this.latestStartTime = epoch;
-        this.latestStopTime = epoch;
+        this.latestStartTime = EPOCH;
+        this.latestStopTime = EPOCH;
         return this;
     }
 
