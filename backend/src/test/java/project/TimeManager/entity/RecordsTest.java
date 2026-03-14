@@ -4,14 +4,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.CreateTagCommand;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.in.record.CreateRecordUseCase;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.application.service.notification.PushSender;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.record.model.TimeRange;
 import project.TimeManager.domain.tag.model.TagType;
 
@@ -25,11 +28,17 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 class RecordsTest {
 
+    @MockBean PushSender pushSender;
     @Autowired RecordJpaRepository recordJpaRepository;
     @Autowired TagJpaRepository tagJpaRepository;
-    @Autowired CreateMemberUseCase createMemberUseCase;
+    @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired CreateTagUseCase createTagUseCase;
     @Autowired CreateRecordUseCase createRecordUseCase;
+
+    private Long registerMember(String name) {
+        return registerMemberUseCase.register(
+                new RegisterMemberCommand(name, name + "@test.com", "password123")).value();
+    }
 
     @Test
     @DisplayName("InitData로 생성된 모든 기록은 totalTime이 0보다 크다")
@@ -41,7 +50,7 @@ class RecordsTest {
     @Test
     @DisplayName("기록 생성 시 시작-종료 시간 차이가 totalTime으로 저장된다")
     void createRecordCalculatesTotalTimeCorrectly() {
-        Long memberId = createMemberUseCase.createMember("recordTestMember");
+        Long memberId = registerMember("recordTestMember");
         Long rootId = tagJpaRepository.findByMemberId(memberId).stream()
                 .filter(t -> t.getType() == TagType.ROOT).findFirst().orElseThrow().getId();
         Long tagId = createTagUseCase.createTag(new CreateTagCommand("testTag", memberId, rootId));
@@ -54,8 +63,6 @@ class RecordsTest {
         assertThat(recordJpaRepository.findById(recordId).orElseThrow().getTotalTime())
                 .isEqualTo(3600L);
     }
-
-    // --- 도메인 불변식 테스트 (TimeRange value object) ---
 
     @Test
     @DisplayName("[도메인] TimeRange: endTime이 startTime 이전이면 예외가 발생한다")

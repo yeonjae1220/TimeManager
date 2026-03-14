@@ -9,15 +9,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
+import project.TimeManager.application.service.notification.PushSender;
 import project.TimeManager.adapter.out.persistence.entity.QMemberJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.QTagJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.CreateTagCommand;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.tag.model.TagType;
 
 import java.util.List;
@@ -29,10 +32,12 @@ import static org.assertj.core.api.Assertions.assertThat;
 public class QuerydslBasicTest {
 
     @Autowired EntityManager em;
-    @Autowired CreateMemberUseCase createMemberUseCase;
+    @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired CreateTagUseCase createTagUseCase;
     @Autowired TagJpaRepository tagJpaRepository;
     @PersistenceUnit EntityManagerFactory emf;
+
+    @MockBean PushSender pushSender;
 
     JPAQueryFactory queryFactory;
     Long testMemberId1;
@@ -41,12 +46,17 @@ public class QuerydslBasicTest {
     private static final QMemberJpaEntity member = QMemberJpaEntity.memberJpaEntity;
     private static final QTagJpaEntity tag = QTagJpaEntity.tagJpaEntity;
 
+    private Long registerMember(String name) {
+        return registerMemberUseCase.register(
+                new RegisterMemberCommand(name, name + "@test.com", "password123")).value();
+    }
+
     @BeforeEach
     void before() {
         queryFactory = new JPAQueryFactory(em);
 
-        testMemberId1 = createMemberUseCase.createMember("testMember1");
-        testMemberId2 = createMemberUseCase.createMember("testMember2");
+        testMemberId1 = registerMember("testMember1");
+        testMemberId2 = registerMember("testMember2");
 
         Long root1Id = tagJpaRepository.findByMemberId(testMemberId1).stream()
                 .filter(t -> t.getType() == TagType.ROOT).findFirst().orElseThrow().getId();

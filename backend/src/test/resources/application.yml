@@ -13,6 +13,21 @@ spring:
       hibernate:
         format_sql: true
         spring.jpa.properties.hibernate.use_sql_comments: true
+  data:
+    redis:
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
 
 logging.level:
   org.hibernate.SQL: debug
+
+push:
+  vapid:
+    publicKey: ${PUSH_VAPID_PUBLIC_KEY:BDummyPublicKeyForTestingOnly1234567890ABCDEFGHIJKLMNOPQRSTUVWXYZabcde}
+    privateKey: ${PUSH_VAPID_PRIVATE_KEY:DummyPrivateKeyForTestingOnly1234567890ABCDEFG}
+    subject: ${PUSH_VAPID_SUBJECT:mailto:test@example.com}
+
+jwt:
+  secret: ${JWT_SECRET:dGVzdC1zZWNyZXQta2V5LWZvci11bml0LXRlc3Rpbmctb25seS0xMjM0NTY3OA==}
+  access-token-ttl-minutes: 15
+  refresh-token-ttl-minutes: 10080

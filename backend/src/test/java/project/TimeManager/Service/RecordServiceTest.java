@@ -5,14 +5,16 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
-import project.TimeManager.application.port.in.record.DeleteRecordUseCase;
-import project.TimeManager.application.port.in.record.EditRecordTimeUseCase;
+import project.TimeManager.application.service.notification.PushSender;
+import project.TimeManager.domain.port.in.record.DeleteRecordUseCase;
+import project.TimeManager.domain.port.in.record.EditRecordTimeUseCase;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
@@ -25,6 +27,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 class RecordServiceTest {
 
+    @MockBean PushSender pushSender;
     @Autowired TagJpaRepository tagJpaRepository;
     @Autowired RecordJpaRepository recordJpaRepository;
     @Autowired EditRecordTimeUseCase editRecordTimeUseCase;
@@ -54,10 +57,10 @@ class RecordServiceTest {
         assertThat(records).isNotEmpty();
 
         RecordJpaEntity record = records.get(0);
-        assertThat(record.getTotalTime()).isEqualTo(1200L);
+        long originalTotal = record.getTotalTime();
 
-        // 종료 시간을 13:50으로 변경 → 13:40~13:50 = 600초
-        ZonedDateTime newEnd = ZonedDateTime.of(2024, 12, 5, 13, 50, 0, 0, ZoneId.of("Asia/Seoul"));
+        // 종료 시간을 30분 단축
+        ZonedDateTime newEnd = record.getStartTime().plusMinutes(30);
         editRecordTimeUseCase.editRecordTime(
                 new EditRecordTimeCommand(record.getId(), record.getStartTime(), newEnd));
 
@@ -65,7 +68,8 @@ class RecordServiceTest {
         em.clear();
 
         TagJpaEntity child1_1After = tagJpaRepository.findById(child1_1.getId()).orElseThrow();
-        assertThat(child1_1After.getTotalTime()).isEqualTo(600L);
+        long expectedDelta = 1800L - originalTotal; // 1800초로 변경
+        assertThat(child1_1After.getTotalTime()).isEqualTo(child1_1.getTotalTime() + expectedDelta);
     }
 
     @Test
@@ -78,6 +82,7 @@ class RecordServiceTest {
 
         long totalTimeBefore = child1_1.getTotalTime();
         List<RecordJpaEntity> records = recordJpaRepository.findByTagId(child1_1.getId());
+        assertThat(records).isNotEmpty();
         long recordTotalTime = records.get(0).getTotalTime();
 
         boolean deleted = deleteRecordUseCase.deleteRecord(records.get(0).getId());
@@ -89,8 +94,6 @@ class RecordServiceTest {
         assertThat(tagJpaRepository.findById(child1_1.getId()).orElseThrow().getTotalTime())
                 .isEqualTo(totalTimeBefore - recordTotalTime);
     }
-
-    // --- 도메인 불변식이 서비스에서 전파되는지 확인 (TimeRange) ---
 
     @Test
     @DisplayName("[도메인 경유] editRecordTime에서 endTime이 startTime 이전이면 예외가 발생한다")

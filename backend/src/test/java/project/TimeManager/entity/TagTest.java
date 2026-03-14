@@ -5,12 +5,15 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.CreateTagCommand;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.application.service.notification.PushSender;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.tag.model.TagType;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -19,15 +22,21 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class TagTest {
 
+    @MockBean PushSender pushSender;
     @Autowired EntityManager em;
     @Autowired TagJpaRepository tagJpaRepository;
-    @Autowired CreateMemberUseCase createMemberUseCase;
+    @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired CreateTagUseCase createTagUseCase;
+
+    private Long registerMember(String name) {
+        return registerMemberUseCase.register(
+                new RegisterMemberCommand(name, name + "@test.com", "password123")).value();
+    }
 
     @Test
     @DisplayName("태그 생성 후 부모-자식 관계가 올바르게 설정된다")
     void EntitySetParentChild() {
-        Long memberId = createMemberUseCase.createMember("tagTestMember");
+        Long memberId = registerMember("tagTestMember");
         Long rootId = tagJpaRepository.findByMemberId(memberId).stream()
                 .filter(t -> t.getType() == TagType.ROOT)
                 .findFirst().orElseThrow().getId();

@@ -4,11 +4,13 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
+import project.TimeManager.application.service.notification.PushSender;
 
 import java.util.List;
 
@@ -18,6 +20,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 @Transactional
 class RecordsRepositoryTest {
 
+    @MockBean PushSender pushSender;
     @Autowired RecordJpaRepository recordJpaRepository;
     @Autowired TagJpaRepository tagJpaRepository;
 

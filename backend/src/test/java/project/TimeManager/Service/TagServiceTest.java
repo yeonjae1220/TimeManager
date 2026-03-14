@@ -5,14 +5,17 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
-import project.TimeManager.application.port.in.tag.MoveTagUseCase;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.application.service.notification.PushSender;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
+import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
 import project.TimeManager.domain.tag.model.TagType;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -22,16 +25,22 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 @Transactional
 class TagServiceTest {
 
+    @MockBean PushSender pushSender;
     @Autowired CreateTagUseCase createTagUseCase;
     @Autowired MoveTagUseCase moveTagUseCase;
     @Autowired TagJpaRepository tagJpaRepository;
-    @Autowired CreateMemberUseCase createMemberUseCase;
+    @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired EntityManager em;
+
+    private Long registerMember(String name) {
+        return registerMemberUseCase.register(
+                new RegisterMemberCommand(name, name + "@test.com", "password123")).value();
+    }
 
     @Test
     @DisplayName("태그 생성 시 CUSTOM 타입으로 생성되고, 이름/회원/부모가 올바르게 저장된다")
     void testCreateTag() {
-        Long memberId = createMemberUseCase.createMember("testMember");
+        Long memberId = registerMember("testMember");
         TagJpaEntity rootTag = tagJpaRepository.findByMemberId(memberId).stream()
                 .filter(t -> t.getType() == TagType.ROOT).findFirst().orElseThrow();
 
@@ -71,8 +80,6 @@ class TagServiceTest {
         assertThat(movedTag.getParent().getId()).isEqualTo(childTag2.getId());
     }
 
-    // --- 비즈니스 규칙 테스트 (서비스 레이어) ---
-
     @Test
     @DisplayName("[비즈니스 규칙] 태그를 자기 자신으로 이동하면 서비스에서 예외가 발생한다")
     void moveTagToSelfThrowsFromService() {
@@ -85,6 +92,6 @@ class TagServiceTest {
                 moveTagUseCase.moveTag(new MoveTagCommand(anyTag.getId(), anyTag.getId()))
         )
                 .isInstanceOf(IllegalArgumentException.class)
-                .hasMessageContaining("자기 자신으로 이동할 수 없습니다");
+                .hasMessageContaining("cannot be moved to itself");
     }
 }
