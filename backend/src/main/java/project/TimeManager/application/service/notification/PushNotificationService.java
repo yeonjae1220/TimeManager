@@ -10,10 +10,10 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Service;
 import project.TimeManager.adapter.in.web.dto.request.PushSubscribeRequest;
-import project.TimeManager.application.port.in.notification.SavePushSubscriptionUseCase;
-import project.TimeManager.application.port.out.notification.LoadPushSubscriptionsPort;
-import project.TimeManager.application.port.out.notification.SavePushSubscriptionPort;
 import project.TimeManager.domain.notification.model.PushSubscription;
+import project.TimeManager.domain.port.in.notification.SavePushSubscriptionUseCase;
+import project.TimeManager.domain.port.out.notification.LoadPushSubscriptionsPort;
+import project.TimeManager.domain.port.out.notification.SavePushSubscriptionPort;
 
 import jakarta.annotation.PostConstruct;
 import java.security.Security;

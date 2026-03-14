@@ -4,11 +4,11 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.result.TagResult;
-import project.TimeManager.application.port.in.tag.GetTagListQuery;
-import project.TimeManager.application.port.in.tag.GetTagQuery;
-import project.TimeManager.application.port.out.tag.LoadTagPort;
-import project.TimeManager.application.port.out.tag.LoadTagsByMemberPort;
-import project.TimeManager.domain.shared.DomainException;
+import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.port.in.tag.GetTagListQuery;
+import project.TimeManager.domain.port.in.tag.GetTagQuery;
+import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
 
 import java.util.List;
 

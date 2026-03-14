@@ -5,8 +5,9 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.context.annotation.Profile;
 import org.springframework.stereotype.Component;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.out.member.LoadMemberPort;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.out.member.LoadMemberPort;
 
 @Profile("docker")
 @Component
@@ -14,13 +15,13 @@ import project.TimeManager.application.port.out.member.LoadMemberPort;
 @Slf4j
 public class InitDockerData {
 
-    private final CreateMemberUseCase createMemberUseCase;
+    private final RegisterMemberUseCase registerMemberUseCase;
     private final LoadMemberPort loadMemberPort;
 
     @PostConstruct
     public void init() {
         if (loadMemberPort.loadMember(1L).isEmpty()) {
-            Long memberId = createMemberUseCase.createMember("admin");
+            Long memberId = registerMemberUseCase.register(new RegisterMemberCommand("admin", "admin@admin.com", "admin1234")).value();
             log.info("Docker init: created default member (id={})", memberId);
         }
     }

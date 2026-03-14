@@ -201,7 +201,7 @@
 <script setup>
 import { ref, onMounted, watch, reactive, watchEffect, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import TagModal from '@/Modals/EditTagModal.vue';
 import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
 
@@ -234,7 +234,7 @@ const goToRecordsPage = (tagId) => router.push(`/records/${tagId}`);
 
 const fetchTagData = async (tagId) => {
   try {
-    const response = await axios.get(`/api/tag/detail/${tagId}`);
+    const response = await apiClient.get(`/api/tag/detail/${tagId}`);
     tag.value = response.data;
 
     stopwatchState.isRunning        = tag.value.state || false;
@@ -320,7 +320,7 @@ const startStopwatch = async () => {
   stopwatchState.latestStartTime = Date.now();
   updateTimer();
   try {
-    await axios.post(
+    await apiClient.post(
       `/api/tag/${tag.value.id}/start`,
       { startTime: new Date(stopwatchState.latestStartTime).toISOString() },
       { headers: { 'Content-Type': 'application/json' } }
@@ -341,7 +341,7 @@ const stopStopwatch = async () => {
   stopwatchState.tagTotalTime   += delta;
   stopwatchState.totalTime      += delta;
   try {
-    await axios.post(
+    await apiClient.post(
       `/api/record/${tag.value.id}/stop`,
       {
         elapsedTime: stopwatchState.elapsedTime,
@@ -362,7 +362,7 @@ const resetStopwatch = async () => {
   stopwatchState.elapsedTimeCal = 0;
   stopwatchState.elapsedTime    = 0;
   try {
-    await axios.post(
+    await apiClient.post(
       `/api/tag/${tag.value.id}/reset`,
       { elapsedTime: stopwatchState.elapsedTime },
       { headers: { 'Content-Type': 'application/json' } }

@@ -7,13 +7,13 @@ import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.adapter.TagPersistenceAdapter;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
-import project.TimeManager.application.port.in.tag.MoveTagUseCase;
-import project.TimeManager.application.port.out.tag.LoadTagPort;
-import project.TimeManager.application.port.out.tag.SaveTagPort;
-import project.TimeManager.application.port.out.tag.UpdateTagTimeBatchPort;
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
-import project.TimeManager.domain.shared.DomainException;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
+import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.SaveTagPort;
+import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 
 @Service

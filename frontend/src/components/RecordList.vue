@@ -87,7 +87,7 @@
 
 <script setup>
 import { onMounted, ref } from 'vue';
-import axios from 'axios';
+import apiClient from '@/utils/apiClient';
 import { useRoute } from 'vue-router';
 import EditRecordModal from '@/Modals/EditRecordModal.vue';
 import AddRecordModal  from '@/Modals/AddRecordModal.vue';
@@ -107,7 +107,7 @@ const fetchRecords = async () => {
   loading.value = true;
   error.value   = null;
   try {
-    const response = await axios.get(`/api/record/log/${tagId}`);
+    const response = await apiClient.get(`/api/record/log/${tagId}`);
     records.value = response.data;
   } catch {
     error.value = '데이터를 불러오지 못했습니다.';

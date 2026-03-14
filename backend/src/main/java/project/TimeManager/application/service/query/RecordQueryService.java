@@ -4,8 +4,8 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.result.RecordResult;
-import project.TimeManager.application.port.in.record.GetRecordListQuery;
-import project.TimeManager.application.port.out.record.LoadRecordsByTagPort;
+import project.TimeManager.domain.port.in.record.GetRecordListQuery;
+import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 
 import java.util.List;
 

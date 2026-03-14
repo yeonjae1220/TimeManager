@@ -10,10 +10,10 @@ import project.TimeManager.adapter.out.persistence.mapper.TagMapper;
 import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.result.TagResult;
-import project.TimeManager.application.port.out.tag.LoadTagPort;
-import project.TimeManager.application.port.out.tag.LoadTagsByMemberPort;
-import project.TimeManager.application.port.out.tag.SaveTagPort;
-import project.TimeManager.application.port.out.tag.UpdateTagTimeBatchPort;
+import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
+import project.TimeManager.domain.port.out.tag.SaveTagPort;
+import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TimerState;
 

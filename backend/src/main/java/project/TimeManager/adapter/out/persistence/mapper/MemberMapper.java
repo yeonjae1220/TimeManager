@@ -11,12 +11,16 @@ public class MemberMapper {
     public Member toDomain(MemberJpaEntity entity) {
         return Member.reconstitute(
                 MemberId.of(entity.getId()),
-                entity.getName()
+                entity.getName(),
+                entity.getEmail(),
+                entity.getPassword()
         );
     }
 
     public MemberJpaEntity toNewJpaEntity(Member domain) {
         MemberJpaEntity entity = new MemberJpaEntity(domain.getName());
+        entity.setEmail(domain.getEmail());
+        entity.setPassword(domain.getHashedPassword());
         return entity;
     }
 }

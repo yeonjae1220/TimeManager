@@ -17,7 +17,7 @@ import project.TimeManager.application.dto.command.MoveTagCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
-import project.TimeManager.application.port.in.tag.*;
+import project.TimeManager.domain.port.in.tag.*;
 
 import java.util.List;
 

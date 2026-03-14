@@ -5,7 +5,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.PushSubscribeRequest;
 import project.TimeManager.adapter.in.web.dto.request.PushUnsubscribeRequest;
-import project.TimeManager.application.port.in.notification.SavePushSubscriptionUseCase;
+import project.TimeManager.domain.port.in.notification.SavePushSubscriptionUseCase;
 
 @RestController
 @RequiredArgsConstructor

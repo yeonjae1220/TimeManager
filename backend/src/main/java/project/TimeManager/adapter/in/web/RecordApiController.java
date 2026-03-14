@@ -11,11 +11,11 @@ import project.TimeManager.adapter.in.web.dto.response.RecordResponse;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
-import project.TimeManager.application.port.in.record.CreateRecordUseCase;
-import project.TimeManager.application.port.in.record.DeleteRecordUseCase;
-import project.TimeManager.application.port.in.record.EditRecordTimeUseCase;
-import project.TimeManager.application.port.in.record.GetRecordListQuery;
-import project.TimeManager.application.port.in.tag.StopTimerUseCase;
+import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
+import project.TimeManager.domain.port.in.record.DeleteRecordUseCase;
+import project.TimeManager.domain.port.in.record.EditRecordTimeUseCase;
+import project.TimeManager.domain.port.in.record.GetRecordListQuery;
+import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
 
 import java.time.ZonedDateTime;
 import java.util.List;

@@ -10,9 +10,10 @@ import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepositor
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.CreateTagCommand;
-import project.TimeManager.application.port.in.member.CreateMemberUseCase;
-import project.TimeManager.application.port.in.record.CreateRecordUseCase;
-import project.TimeManager.application.port.in.tag.CreateTagUseCase;
+import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
+import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
+import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.tag.model.TagType;
 
 import java.time.ZoneId;
@@ -34,15 +35,15 @@ public class InitTestData {
     @RequiredArgsConstructor
     static class InitTestDataService {
 
-        private final CreateMemberUseCase createMemberUseCase;
+        private final RegisterMemberUseCase registerMemberUseCase;
         private final CreateTagUseCase createTagUseCase;
         private final CreateRecordUseCase createRecordUseCase;
         private final MemberJpaRepository memberJpaRepository;
         private final TagJpaRepository tagJpaRepository;
 
         public void init() {
-            Long memberId1 = createMemberUseCase.createMember("member1");
-            createMemberUseCase.createMember("member2");
+            Long memberId1 = registerMemberUseCase.register(new RegisterMemberCommand("member1", "member1@test.com", "password123")).value();
+            registerMemberUseCase.register(new RegisterMemberCommand("member2", "member2@test.com", "password123"));
 
             MemberJpaEntity member1 = memberJpaRepository.findById(memberId1).orElseThrow();
             TagJpaEntity rootTag = tagJpaRepository.findByTypeAndMember(TagType.ROOT, member1).orElseThrow();

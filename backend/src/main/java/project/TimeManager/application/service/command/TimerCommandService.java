@@ -7,12 +7,12 @@ import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
-import project.TimeManager.application.port.in.tag.ResetTimerUseCase;
-import project.TimeManager.application.port.in.tag.StartTimerUseCase;
-import project.TimeManager.application.port.in.tag.StopTimerUseCase;
-import project.TimeManager.application.port.out.tag.LoadTagPort;
-import project.TimeManager.application.port.out.tag.SaveTagPort;
-import project.TimeManager.domain.shared.DomainException;
+import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
+import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
+import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
+import project.TimeManager.domain.port.out.tag.LoadTagPort;
+import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.tag.model.Tag;
 
 import java.time.ZonedDateTime;

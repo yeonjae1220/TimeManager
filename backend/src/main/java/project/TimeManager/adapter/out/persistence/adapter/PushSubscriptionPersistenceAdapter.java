@@ -5,9 +5,9 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.adapter.out.persistence.entity.PushSubscriptionJpaEntity;
 import project.TimeManager.adapter.out.persistence.repository.PushSubscriptionRepository;
-import project.TimeManager.application.port.out.notification.LoadPushSubscriptionsPort;
-import project.TimeManager.application.port.out.notification.SavePushSubscriptionPort;
 import project.TimeManager.domain.notification.model.PushSubscription;
+import project.TimeManager.domain.port.out.notification.LoadPushSubscriptionsPort;
+import project.TimeManager.domain.port.out.notification.SavePushSubscriptionPort;
 
 import java.util.List;
 

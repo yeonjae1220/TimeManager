@@ -32,9 +32,11 @@
 
 <script setup>
 import { useRouter } from 'vue-router';
+import { useAuthStore } from '@/stores/authStore';
 
 const router = useRouter();
-const goTagsPage = () => router.push('/api/tag/1');
+const authStore = useAuthStore();
+const goTagsPage = () => router.push(`/api/tag/${authStore.memberId}`);
 </script>
 
 <style scoped>

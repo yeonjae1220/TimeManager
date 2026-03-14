@@ -9,9 +9,9 @@ import project.TimeManager.adapter.out.persistence.mapper.RecordMapper;
 import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.result.RecordResult;
-import project.TimeManager.application.port.out.record.LoadRecordPort;
-import project.TimeManager.application.port.out.record.LoadRecordsByTagPort;
-import project.TimeManager.application.port.out.record.SaveRecordPort;
+import project.TimeManager.domain.port.out.record.LoadRecordPort;
+import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
+import project.TimeManager.domain.port.out.record.SaveRecordPort;
 import project.TimeManager.domain.record.model.Record;
 
 import java.util.List;
