@@ -7,6 +7,7 @@ import org.springframework.ui.Model;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.port.in.member.GetMemberQuery;
 
@@ -26,7 +27,7 @@ public class MemberController {
     @GetMapping("/{memberId}")
     public String findMember(@PathVariable Long memberId, Model model) {
         Member member = getMemberQuery.getMember(memberId)
-                .orElseThrow(() -> new RuntimeException("Member not found: " + memberId));
+                .orElseThrow(() -> new DomainException("Member not found: " + memberId));
         model.addAttribute("member", member);
         return "mindmap";
     }

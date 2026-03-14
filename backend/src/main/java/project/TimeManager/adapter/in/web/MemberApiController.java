@@ -25,6 +25,6 @@ public class MemberApiController {
     public ResponseEntity<Map<String, Long>> register(@Valid @RequestBody RegisterMemberRequest request) {
         MemberId memberId = registerMemberUseCase.register(
                 new RegisterMemberCommand(request.name(), request.email(), request.password()));
-        return ResponseEntity.ok(Map.of("memberId", memberId.value()));
+        return ResponseEntity.status(201).body(Map.of("memberId", memberId.value()));
     }
 }
