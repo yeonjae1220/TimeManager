@@ -21,11 +21,7 @@ public class AuthSession {
     }
 
     public static AuthSession reconstitute(MemberId memberId, String refreshToken, Instant expiresAt) {
-        AuthSession session = new AuthSession();
-        session.memberId = memberId;
-        session.refreshToken = refreshToken;
-        session.expiresAt = expiresAt;
-        return session;
+        return create(memberId, refreshToken, expiresAt);
     }
 
     public boolean isExpired() {
