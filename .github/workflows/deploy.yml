@@ -1,0 +1,122 @@
+name: CI/CD Deploy
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ghcr.io/yeonjae1220/timemanager
+
+jobs:
+  build-and-test:
+    name: Build and Test
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x backend/gradlew
+
+      - name: Build and test with Gradle
+        working-directory: backend
+        run: ./gradlew build --no-daemon
+
+  build-and-push:
+    name: Build and Push Docker Image
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+          cache: gradle
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x backend/gradlew
+
+      - name: Build JAR
+        working-directory: backend
+        run: ./gradlew bootJar --no-daemon
+
+      - name: Log in to GitHub Container Registry
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.IMAGE_NAME }}
+          tags: |
+            type=raw,value=latest
+            type=sha,format=short
+
+      - name: Build and push Docker image
+        uses: docker/build-push-action@v5
+        with:
+          context: backend
+          file: backend/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+
+  deploy:
+    name: Deploy to Lenovo Server
+    runs-on: ubuntu-latest
+    needs: build-and-push
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LENOVO_HOST }}
+          port: ${{ secrets.LENOVO_PORT }}
+          username: ${{ secrets.LENOVO_USER }}
+          key: ${{ secrets.LENOVO_SSH_KEY }}
+          script: |
+            # Pull latest image using k3s containerd
+            echo "${{ secrets.GITHUB_TOKEN }}" | sudo k3s ctr images pull \
+              --user yeonjae1220 \
+              ghcr.io/yeonjae1220/timemanager:latest
+
+            # Ensure imagePullPolicy is Always
+            sudo kubectl patch deployment backend \
+              -n timemanager \
+              -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"Always"}]}}}}'
+
+            # Update image and restart deployment
+            sudo kubectl set image deployment/backend \
+              backend=ghcr.io/yeonjae1220/timemanager:latest \
+              -n timemanager
+
+            sudo kubectl rollout restart deployment/backend -n timemanager
+
+            sudo kubectl rollout status deployment/backend \
+              -n timemanager --timeout=300s
