@@ -15,8 +15,9 @@ frontend/bower_components/
 # OS
 .DS_Store
 
-# Markdown
+# Markdown (Claude context files — not for GitHub)
 *.md
+!.github/README.md
 
 # Claude Code
 .claude/
