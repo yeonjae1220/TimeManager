@@ -102,21 +102,27 @@ jobs:
           username: ${{ secrets.LENOVO_USER }}
           key: ${{ secrets.LENOVO_SSH_KEY }}
           script: |
-            # Pull latest image using k3s containerd
-            echo "${{ secrets.GITHUB_TOKEN }}" | sudo k3s ctr images pull \
-              --user yeonjae1220 \
+            set -e
+
+            # Refresh GHCR imagePullSecret so kubelet can pull the image
+            sudo kubectl create secret docker-registry ghcr-secret \
+              --docker-server=ghcr.io \
+              --docker-username=yeonjae1220 \
+              --docker-password=${{ secrets.GITHUB_TOKEN }} \
+              -n timemanager \
+              --dry-run=client -o yaml | sudo kubectl apply -f -
+
+            # Pre-pull image into k3s containerd cache (user:password format — no TTY needed)
+            sudo k3s ctr images pull \
+              --user "yeonjae1220:${{ secrets.GITHUB_TOKEN }}" \
               ghcr.io/yeonjae1220/timemanager:latest
 
-            # Ensure imagePullPolicy is Always
+            # Patch imagePullSecret into deployment if not already set
             sudo kubectl patch deployment backend \
               -n timemanager \
-              -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"Always"}]}}}}'
+              -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-secret"}],"containers":[{"name":"backend","imagePullPolicy":"Always"}]}}}}'
 
-            # Update image and restart deployment
-            sudo kubectl set image deployment/backend \
-              backend=ghcr.io/yeonjae1220/timemanager:latest \
-              -n timemanager
-
+            # Restart to pick up new image
             sudo kubectl rollout restart deployment/backend -n timemanager
 
             sudo kubectl rollout status deployment/backend \
