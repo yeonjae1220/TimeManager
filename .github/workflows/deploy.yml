@@ -125,5 +125,16 @@ jobs:
             # Restart to pick up new image
             sudo kubectl rollout restart deployment/backend -n timemanager
 
-            sudo kubectl rollout status deployment/backend \
-              -n timemanager --timeout=300s
+            if ! sudo kubectl rollout status deployment/backend \
+              -n timemanager --timeout=300s; then
+              echo "=== Pod status ==="
+              sudo kubectl get pods -n timemanager -l app=backend -o wide
+              echo "=== Recent events ==="
+              sudo kubectl get events -n timemanager --sort-by='.lastTimestamp' | tail -20
+              echo "=== Pod logs (new pod) ==="
+              NEW_POD=$(sudo kubectl get pods -n timemanager -l app=backend \
+                --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+              sudo kubectl logs "$NEW_POD" -n timemanager --tail=50 2>/dev/null || true
+              sudo kubectl describe pod "$NEW_POD" -n timemanager | tail -30
+              exit 1
+            fi
