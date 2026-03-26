@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import project.TimeManager.domain.member.model.OAuthProvider;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -28,6 +29,13 @@ public class MemberJpaEntity {
 
     @Column(name = "password")
     private String password;
+
+    @Column(name = "provider", nullable = false, length = 30)
+    @Enumerated(EnumType.STRING)
+    private OAuthProvider provider = OAuthProvider.LOCAL;
+
+    @Column(name = "provider_id")
+    private String providerId;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();

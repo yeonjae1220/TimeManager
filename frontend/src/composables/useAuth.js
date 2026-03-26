@@ -26,5 +26,12 @@ export function useAuth() {
         await router.push('/login');
     }
 
-    return { login, logout, register };
+    async function googleLogin(code, redirectUri) {
+        const response = await authApi.googleLogin(code, redirectUri);
+        const { accessToken, refreshToken, memberId } = response.data;
+        authStore.setAuth({ accessToken, refreshToken, memberId });
+        await router.push(`/members/${memberId}/tags`);
+    }
+
+    return { login, logout, register, googleLogin };
 }

@@ -7,12 +7,16 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import project.TimeManager.adapter.in.web.dto.request.GoogleLoginRequest;
 import project.TimeManager.adapter.in.web.dto.request.LoginRequest;
 import project.TimeManager.adapter.in.web.dto.request.RefreshTokenRequest;
+import project.TimeManager.application.dto.command.auth.GoogleLoginCommand;
 import project.TimeManager.application.dto.command.auth.LoginCommand;
 import project.TimeManager.application.dto.command.auth.LogoutCommand;
 import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
+import project.TimeManager.application.dto.result.GoogleLoginResult;
 import project.TimeManager.application.dto.result.TokenPairResult;
+import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
 import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
@@ -25,6 +29,7 @@ public class AuthApiController {
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final LogoutUseCase logoutUseCase;
+    private final GoogleLoginUseCase googleLoginUseCase;
 
     @PostMapping("/login")
     public ResponseEntity<TokenPairResult> login(@Valid @RequestBody LoginRequest request) {
@@ -42,5 +47,12 @@ public class AuthApiController {
     public ResponseEntity<Void> logout(@Valid @RequestBody RefreshTokenRequest request) {
         logoutUseCase.logout(new LogoutCommand(request.refreshToken()));
         return ResponseEntity.noContent().build();
+    }
+
+    @PostMapping("/google")
+    public ResponseEntity<GoogleLoginResult> googleLogin(@Valid @RequestBody GoogleLoginRequest request) {
+        GoogleLoginResult result = googleLoginUseCase.loginWithGoogle(
+                new GoogleLoginCommand(request.code(), request.redirectUri()));
+        return ResponseEntity.ok(result);
     }
 }

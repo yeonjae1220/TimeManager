@@ -39,6 +39,10 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
         var credentials = loadMemberCredentialsPort.findByEmail(command.email())
                 .orElseThrow(() -> new DomainException(INVALID_CREDENTIALS_MSG));
 
+        if (credentials.hashedPassword() == null) {
+            throw new DomainException("소셜 로그인 계정입니다. Google 로그인을 사용해 주세요");
+        }
+
         if (!passwordHasherPort.matches(command.password(), credentials.hashedPassword())) {
             throw new DomainException(INVALID_CREDENTIALS_MSG);
         }

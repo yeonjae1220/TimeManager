@@ -9,4 +9,6 @@ export const authApi = {
         apiClient.post('/api/v1/auth/refresh', { refreshToken }),
     logout: (refreshToken) =>
         apiClient.post('/api/v1/auth/logout', { refreshToken }),
+    googleLogin: (code, redirectUri) =>
+        apiClient.post('/api/v1/auth/google', { code, redirectUri }),
 };

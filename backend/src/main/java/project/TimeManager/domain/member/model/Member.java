@@ -6,6 +6,8 @@ public class Member {
     private String name;
     private String email;
     private String hashedPassword;
+    private OAuthProvider provider;
+    private String providerId;
 
     private Member() {}
 
@@ -32,6 +34,29 @@ public class Member {
         member.name = name;
         member.email = email;
         member.hashedPassword = hashedPassword;
+        member.provider = OAuthProvider.LOCAL;
+        return member;
+    }
+
+    public static Member registerWithOAuth(String name, String email, OAuthProvider provider, String providerId) {
+        if (name == null || name.isBlank()) {
+            throw new IllegalArgumentException("회원 이름은 필수입니다");
+        }
+        if (email == null || email.isBlank()) {
+            throw new IllegalArgumentException("이메일은 필수입니다");
+        }
+        if (provider == null || provider == OAuthProvider.LOCAL) {
+            throw new IllegalArgumentException("registerWithOAuth는 소셜 로그인 전용입니다");
+        }
+        if (providerId == null || providerId.isBlank()) {
+            throw new IllegalArgumentException("providerId는 필수입니다");
+        }
+        Member member = new Member();
+        member.name = name;
+        member.email = email;
+        member.hashedPassword = null;
+        member.provider = provider;
+        member.providerId = providerId;
         return member;
     }
 
@@ -48,6 +73,19 @@ public class Member {
         member.name = name;
         member.email = email;
         member.hashedPassword = hashedPassword;
+        member.provider = OAuthProvider.LOCAL;
+        return member;
+    }
+
+    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
+                                      OAuthProvider provider, String providerId) {
+        Member member = new Member();
+        member.id = id;
+        member.name = name;
+        member.email = email;
+        member.hashedPassword = hashedPassword;
+        member.provider = provider != null ? provider : OAuthProvider.LOCAL;
+        member.providerId = providerId;
         return member;
     }
 
@@ -55,4 +93,6 @@ public class Member {
     public String getName() { return name; }
     public String getEmail() { return email; }
     public String getHashedPassword() { return hashedPassword; }
+    public OAuthProvider getProvider() { return provider; }
+    public String getProviderId() { return providerId; }
 }
