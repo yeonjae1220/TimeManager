@@ -6,6 +6,10 @@ COPY package*.json ./
 RUN npm ci
 
 COPY . .
+
+ARG VUE_APP_GOOGLE_CLIENT_ID
+ENV VUE_APP_GOOGLE_CLIENT_ID=$VUE_APP_GOOGLE_CLIENT_ID
+
 RUN npx vue-cli-service build
 
 # ── Stage 2: Serve with Nginx ─────────────────────────────────────────────────
