@@ -2,6 +2,10 @@
   <div class="page home-page">
     <div class="topbar">
       <span class="topbar-brand">timemgr</span>
+      <div class="topbar-actions">
+        <button class="btn btn-ghost topbar-btn" @click="goProfile">Profile</button>
+        <button class="btn btn-ghost topbar-btn" @click="handleLogout">Sign out</button>
+      </div>
     </div>
 
     <div class="home-body">
@@ -33,14 +37,29 @@
 <script setup>
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
+import { useAuth } from '@/composables/useAuth';
 
 const router = useRouter();
 const authStore = useAuthStore();
+const { logout } = useAuth();
+
 const goTagsPage = () => router.push(`/members/${authStore.memberId}/tags`);
+const goProfile = () => router.push('/profile');
+const handleLogout = () => logout();
 </script>
 
 <style scoped>
 .home-page { position: relative; }
+
+.topbar-actions { display: flex; gap: 8px; align-items: center; }
+
+.topbar-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
+}
 
 .home-body {
   display: flex;

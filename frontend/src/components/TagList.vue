@@ -9,6 +9,7 @@
           </svg>
           Home
         </router-link>
+        <router-link to="/profile" class="topbar-back">Profile</router-link>
         <button
           class="edit-toggle"
           :class="{ 'edit-toggle--active': editMode }"

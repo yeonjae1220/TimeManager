@@ -6,6 +6,7 @@ import RecordList from "@/components/RecordList.vue";
 import LoginView from "@/views/LoginView.vue";
 import RegisterView from "@/views/RegisterView.vue";
 import OAuthCallbackView from "@/views/OAuthCallbackView.vue";
+import ProfileView from "@/views/ProfileView.vue";
 
 const routes = [
     { path: "/login", name: 'login', component: LoginView },
@@ -15,6 +16,7 @@ const routes = [
     { path: "/tags/:id", name: 'tag', component: TagDetail, props: true, meta: { requiresAuth: true } },
     { path: "/members/:id/tags", name: 'tags', component: TagList, meta: { requiresAuth: true } },
     { path: "/records/:id", name: 'records', component: RecordList, props: true, meta: { requiresAuth: true } },
+    { path: "/profile", name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
 ];
 
 const router = createRouter({
