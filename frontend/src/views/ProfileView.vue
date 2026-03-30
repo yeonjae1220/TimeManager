@@ -96,7 +96,31 @@
       <!-- Danger Zone -->
       <div class="profile-section profile-danger">
         <span class="profile-section-label">danger zone</span>
-        <button class="btn btn-danger" @click="handleLogout">Sign out</button>
+        <div class="danger-actions">
+          <button class="btn btn-danger" @click="handleLogout">Sign out</button>
+          <button class="btn btn-danger" @click="showDeleteConfirm = true">회원 탈퇴</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Delete confirm modal -->
+    <div v-if="showDeleteConfirm" class="modal-overlay" @click.self="showDeleteConfirm = false">
+      <div class="modal-panel">
+        <div class="modal-header">
+          <span class="modal-title">계정을 삭제하시겠습니까?</span>
+          <button class="modal-close" @click="showDeleteConfirm = false">✕</button>
+        </div>
+        <p class="delete-warning">
+          모든 태그와 기록이 영구적으로 삭제됩니다.<br>이 작업은 되돌릴 수 없습니다.
+        </p>
+        <p v-if="deleteError" class="form-error">{{ deleteError }}</p>
+        <div class="modal-footer">
+          <button class="btn btn-ghost" @click="showDeleteConfirm = false">취소</button>
+          <button class="btn btn-danger" :disabled="deleting" @click="handleDeleteAccount">
+            <span v-if="deleting">...</span>
+            <span v-else>탈퇴 확인</span>
+          </button>
+        </div>
       </div>
     </div>
   </div>
@@ -125,6 +149,10 @@ const pwForm = reactive({ current: '', next: '', confirm: '' });
 const pwError = ref('');
 const pwSuccess = ref(false);
 const pwSaving = ref(false);
+
+const showDeleteConfirm = ref(false);
+const deleteError = ref('');
+const deleting = ref(false);
 
 async function loadProfile() {
   if (!authStore.memberId) {
@@ -190,6 +218,20 @@ async function changePassword() {
 
 async function handleLogout() {
   await logout();
+}
+
+async function handleDeleteAccount() {
+  deleteError.value = '';
+  deleting.value = true;
+  try {
+    await memberApi.deleteMember(authStore.memberId);
+    authStore.clearAuth();
+    await router.push('/');
+  } catch (e) {
+    deleteError.value = e.response?.data?.error || '탈퇴 처리 중 오류가 발생했습니다';
+  } finally {
+    deleting.value = false;
+  }
 }
 
 onMounted(loadProfile);
@@ -324,6 +366,19 @@ onMounted(loadProfile);
 
 /* Danger zone */
 .profile-danger { border-bottom: none; }
+
+.danger-actions {
+  display: flex;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.delete-warning {
+  font-size: 13px;
+  color: var(--text-2);
+  line-height: 1.7;
+  margin-bottom: 20px;
+}
 
 /* Skeleton */
 .profile-skeleton {

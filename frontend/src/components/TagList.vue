@@ -9,7 +9,7 @@
           </svg>
           Home
         </router-link>
-        <router-link to="/profile" class="topbar-back">Profile</router-link>
+        <router-link to="/profile" class="btn btn-ghost profile-btn">Profile</router-link>
         <button
           class="edit-toggle"
           :class="{ 'edit-toggle--active': editMode }"
@@ -167,6 +167,14 @@ onMounted(fetchTags);
   display: flex;
   align-items: center;
   gap: 16px;
+}
+
+.profile-btn {
+  height: 28px;
+  padding: 0 12px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  letter-spacing: 0.06em;
 }
 
 .edit-toggle {

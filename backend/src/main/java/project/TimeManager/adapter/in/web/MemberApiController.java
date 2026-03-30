@@ -12,6 +12,7 @@ import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
 import project.TimeManager.application.dto.command.member.UpdateMemberProfileCommand;
 import project.TimeManager.application.dto.result.MemberProfileResult;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.port.in.member.DeleteMemberUseCase;
 import project.TimeManager.domain.port.in.member.GetMemberProfileUseCase;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.in.member.UpdateMemberProfileUseCase;
@@ -26,6 +27,7 @@ public class MemberApiController {
     private final RegisterMemberUseCase registerMemberUseCase;
     private final GetMemberProfileUseCase getMemberProfileUseCase;
     private final UpdateMemberProfileUseCase updateMemberProfileUseCase;
+    private final DeleteMemberUseCase deleteMemberUseCase;
 
     @PostMapping
     public ResponseEntity<Map<String, Long>> register(@Valid @RequestBody RegisterMemberRequest request) {
@@ -55,5 +57,16 @@ public class MemberApiController {
         MemberProfileResult result = updateMemberProfileUseCase.updateProfile(
                 new UpdateMemberProfileCommand(id, request.name(), request.newPassword(), request.currentPassword()));
         return ResponseEntity.ok(result);
+    }
+
+    @DeleteMapping("/{id}")
+    public ResponseEntity<Void> deleteMember(
+            @PathVariable Long id,
+            @AuthenticationPrincipal Long principalId) {
+        if (!principalId.equals(id)) {
+            return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
+        }
+        deleteMemberUseCase.deleteMember(id);
+        return ResponseEntity.noContent().build();
     }
 }

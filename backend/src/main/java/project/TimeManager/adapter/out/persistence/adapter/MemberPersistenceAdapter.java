@@ -9,6 +9,7 @@ import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
+import project.TimeManager.domain.port.out.member.DeleteMemberPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.member.SaveMemberPort;
 import project.TimeManager.domain.port.out.member.UpdateMemberPort;
@@ -18,7 +19,7 @@ import java.util.Optional;
 
 @Component
 @RequiredArgsConstructor
-public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort, LoadMemberCredentialsPort, UpdateMemberPort {
+public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort, LoadMemberCredentialsPort, UpdateMemberPort, DeleteMemberPort {
 
     private final MemberJpaRepository memberJpaRepository;
     private final MemberMapper memberMapper;
@@ -61,6 +62,11 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
             entity.setPassword(newHashedPassword);
         }
         memberJpaRepository.save(entity);
+    }
+
+    @Override
+    public void deleteMember(Long memberId) {
+        memberJpaRepository.deleteById(memberId);
     }
 
 }
