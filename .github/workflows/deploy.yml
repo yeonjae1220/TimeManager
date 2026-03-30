@@ -160,22 +160,27 @@ jobs:
             sudo kubectl create secret docker-registry ghcr-secret \
               --docker-server=ghcr.io \
               --docker-username=yeonjae1220 \
-              --docker-password=${{ secrets.GITHUB_TOKEN }} \
+              --docker-password="${GH_TOKEN}" \
               -n timemanager \
               --dry-run=client -o yaml | sudo kubectl apply -f -
 
             # Pre-pull image into k3s containerd cache (user:password format — no TTY needed)
             sudo k3s ctr images pull \
-              --user "yeonjae1220:${{ secrets.GITHUB_TOKEN }}" \
+              --user "yeonjae1220:${GH_TOKEN}" \
               ghcr.io/yeonjae1220/timemanager:latest
 
-            # Patch imagePullSecret into deployment if not already set
+            # Patch imagePullSecret into deployments if not already set
             sudo kubectl patch deployment backend \
               -n timemanager \
               -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-secret"}],"containers":[{"name":"backend","imagePullPolicy":"Always"}]}}}}'
 
-            # Restart to pick up new image
+            sudo kubectl patch deployment frontend \
+              -n timemanager \
+              -p '{"spec":{"template":{"spec":{"imagePullSecrets":[{"name":"ghcr-secret"}],"containers":[{"name":"frontend","imagePullPolicy":"Always"}]}}}}'
+
+            # Restart both deployments to pick up new images
             sudo kubectl rollout restart deployment/backend -n timemanager
+            sudo kubectl rollout restart deployment/frontend -n timemanager
 
             if ! sudo kubectl rollout status deployment/backend \
               -n timemanager --timeout=300s; then
@@ -185,6 +190,17 @@ jobs:
               sudo kubectl get events -n timemanager --sort-by='.lastTimestamp' | tail -20
               echo "=== Pod logs (new pod) ==="
               NEW_POD=$(sudo kubectl get pods -n timemanager -l app=backend \
+                --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
+              sudo kubectl logs "$NEW_POD" -n timemanager --tail=50 2>/dev/null || true
+              sudo kubectl describe pod "$NEW_POD" -n timemanager | tail -30
+              exit 1
+            fi
+
+            if ! sudo kubectl rollout status deployment/frontend \
+              -n timemanager --timeout=300s; then
+              echo "=== Frontend pod status ==="
+              sudo kubectl get pods -n timemanager -l app=frontend -o wide
+              NEW_POD=$(sudo kubectl get pods -n timemanager -l app=frontend \
                 --sort-by=.metadata.creationTimestamp -o jsonpath='{.items[-1].metadata.name}')
               sudo kubectl logs "$NEW_POD" -n timemanager --tail=50 2>/dev/null || true
               sudo kubectl describe pod "$NEW_POD" -n timemanager | tail -30
