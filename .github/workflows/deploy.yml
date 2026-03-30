@@ -155,16 +155,16 @@ jobs:
               -n timemanager \
               --dry-run=client -o yaml | sudo kubectl apply -f -
 
-            # Ensure imagePullPolicy is Always (images are public — no imagePullSecrets needed)
-            sudo kubectl patch deployment backend \
-              -n timemanager \
-              -p '{"spec":{"template":{"spec":{"containers":[{"name":"backend","imagePullPolicy":"Always"}]}}}}'
+            # Update images to latest (public GHCR — no imagePullSecrets needed)
+            sudo kubectl set image deployment/backend \
+              backend=ghcr.io/yeonjae1220/timemanager:latest \
+              -n timemanager
 
-            sudo kubectl patch deployment frontend \
-              -n timemanager \
-              -p '{"spec":{"template":{"spec":{"containers":[{"name":"frontend","imagePullPolicy":"Always"}]}}}}'
+            sudo kubectl set image deployment/frontend \
+              frontend=ghcr.io/yeonjae1220/timemanager-frontend:latest \
+              -n timemanager
 
-            # Restart both deployments to pick up new images
+            # Restart both deployments to force pull of latest tag
             sudo kubectl rollout restart deployment/backend -n timemanager
             sudo kubectl rollout restart deployment/frontend -n timemanager
 
