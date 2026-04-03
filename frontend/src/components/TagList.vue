@@ -45,13 +45,19 @@
         @keydown.enter="submitTopTag"
         @keydown.esc="cancelTopForm"
       />
-      <button class="add-confirm" @click="submitTopTag">Add</button>
+      <button class="add-confirm" @click="submitTopTag" :disabled="isLoading || !rootTagId">Add</button>
       <button class="add-cancel" @click="cancelTopForm">✕</button>
     </div>
+    <p v-if="showTopForm && errorMessage" class="top-add-error mono">{{ errorMessage }}</p>
 
     <div v-if="isLoading" class="empty-state">
       <span class="dot stopped"></span>
       <span class="mono">Loading workspace…</span>
+    </div>
+    <div v-else-if="fetchError" class="empty-state">
+      <span class="dot stopped"></span>
+      <span class="mono">태그 목록을 불러오지 못했습니다.</span>
+      <button class="create-first-btn mono" @click="fetchTags">새로고침</button>
     </div>
     <div v-else-if="tagList.length === 0" class="empty-state">
       <span class="dot stopped"></span>
@@ -87,14 +93,18 @@ const draggedTagId = ref(null);
 const showTopForm = ref(false);
 const topTagName  = ref('');
 const topInput    = ref(null);
+const errorMessage = ref('');
+const fetchError  = ref(false);
 
 const fetchTags = async () => {
   isLoading.value = true;
+  fetchError.value = false;
   try {
     const response = await apiClient.get(`/api/v1/tags?memberId=${Number(memberId)}`);
     tagData.value = response.data;
   } catch (error) {
     console.error('Error fetching tags:', error);
+    fetchError.value = true;
   } finally {
     isLoading.value = false;
   }
@@ -120,10 +130,16 @@ const openTopForm = async () => {
 const cancelTopForm = () => {
   showTopForm.value = false;
   topTagName.value  = '';
+  errorMessage.value = '';
 };
 
 const submitTopTag = async () => {
-  if (!topTagName.value.trim() || !rootTagId.value) return;
+  if (!topTagName.value.trim()) return;
+  if (!rootTagId.value) {
+    errorMessage.value = '태그 목록을 불러오는 중입니다. 잠시 후 다시 시도해 주세요.';
+    return;
+  }
+  errorMessage.value = '';
   try {
     await apiClient.post(`/api/v1/tags`, {
       tagName:     topTagName.value.trim(),
@@ -134,6 +150,7 @@ const submitTopTag = async () => {
     await fetchTags();
   } catch (e) {
     console.error('태그 생성 실패:', e);
+    errorMessage.value = '태그 생성에 실패했습니다. 다시 시도해 주세요.';
   }
 };
 
@@ -289,6 +306,7 @@ onMounted(fetchTags);
   flex-shrink: 0;
 }
 .add-confirm:hover { background: var(--accent-dim); }
+.add-confirm:disabled { opacity: 0.4; cursor: not-allowed; }
 
 .add-cancel {
   background: transparent;
@@ -301,6 +319,13 @@ onMounted(fetchTags);
   margin-right: 32px;
 }
 .add-cancel:hover { color: var(--text-2); }
+
+.top-add-error {
+  font-size: 11px;
+  color: var(--danger, #e05252);
+  padding: 4px 0 4px 40px;
+  margin: 0;
+}
 
 .empty-state {
   display: flex;
