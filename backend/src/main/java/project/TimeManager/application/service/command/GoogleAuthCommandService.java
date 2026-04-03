@@ -15,6 +15,7 @@ import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.out.auth.GoogleOAuthPort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
+import project.TimeManager.domain.port.out.member.InitializeMemberTagsPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.member.SaveMemberPort;
 
@@ -32,6 +33,7 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
     private final GoogleOAuthPort googleOAuthPort;
     private final LoadMemberPort loadMemberPort;
     private final SaveMemberPort saveMemberPort;
+    private final InitializeMemberTagsPort initializeMemberTagsPort;
     private final TokenGeneratorPort tokenGeneratorPort;
     private final TokenStorePort tokenStorePort;
 
@@ -56,6 +58,7 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
                     profile.name(), profile.email(), OAuthProvider.GOOGLE, profile.googleId());
             Long savedId = saveMemberPort.saveMember(newMember);
             memberId = MemberId.of(savedId);
+            initializeMemberTagsPort.initializeDefaultTags(memberId);
             isNewMember = true;
         }
 
