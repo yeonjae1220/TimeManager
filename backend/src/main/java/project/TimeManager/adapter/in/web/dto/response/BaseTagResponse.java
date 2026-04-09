@@ -18,6 +18,8 @@ public abstract class BaseTagResponse {
     protected Long totalTime;
     protected ZonedDateTime latestStartTime;
     protected ZonedDateTime latestStopTime;
+    protected Long latestStartTimeMs;
+    protected Long latestStopTimeMs;
     protected Boolean state;
     protected Long memberId;
     protected Long parentId;
@@ -34,6 +36,10 @@ public abstract class BaseTagResponse {
         r.totalTime = result.getTotalTime();
         r.latestStartTime = result.getLatestStartTime();
         r.latestStopTime = result.getLatestStopTime();
+        r.latestStartTimeMs = result.getLatestStartTime() != null
+                ? result.getLatestStartTime().toInstant().toEpochMilli() : 0L;
+        r.latestStopTimeMs = result.getLatestStopTime() != null
+                ? result.getLatestStopTime().toInstant().toEpochMilli() : 0L;
         r.state = result.getState();
         r.memberId = result.getMemberId();
         r.parentId = result.getParentId();
@@ -50,6 +56,8 @@ public abstract class BaseTagResponse {
     public Long getTotalTime() { return totalTime; }
     public ZonedDateTime getLatestStartTime() { return latestStartTime; }
     public ZonedDateTime getLatestStopTime() { return latestStopTime; }
+    public Long getLatestStartTimeMs() { return latestStartTimeMs; }
+    public Long getLatestStopTimeMs() { return latestStopTimeMs; }
     public Boolean getState() { return state; }
     public Long getMemberId() { return memberId; }
     public Long getParentId() { return parentId; }

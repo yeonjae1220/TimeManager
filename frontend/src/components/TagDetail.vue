@@ -238,18 +238,18 @@ const fetchTagData = async (tagId) => {
     tag.value = response.data;
 
     stopwatchState.isRunning        = tag.value.state || false;
-    stopwatchState.latestStartTime  = toEpochMs(tag.value.latestStartTime);
-    stopwatchState.latestEndTime    = toEpochMs(tag.value.latestStopTime);
-    stopwatchState.elapsedTime      = tag.value.elapsedTime;
-    stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime;
-    stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime;
-    stopwatchState.tagTotalTime     = tag.value.tagTotalTime;
-    stopwatchState.totalTime        = tag.value.totalTime;
+    stopwatchState.latestStartTime  = tag.value.latestStartTimeMs || 0;
+    stopwatchState.latestEndTime    = tag.value.latestStopTimeMs || 0;
+    stopwatchState.elapsedTime      = tag.value.elapsedTime || 0;
+    stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime || 0;
+    stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime || 0;
+    stopwatchState.tagTotalTime     = tag.value.tagTotalTime || 0;
+    stopwatchState.totalTime        = tag.value.totalTime || 0;
 
-    stopwatchState.elapsedTimeCal    = tag.value.elapsedTime;
-    stopwatchState.dailyTotalTimeCal = tag.value.dailyTotalTime;
-    stopwatchState.tagTotalTimeCal   = tag.value.tagTotalTime;
-    stopwatchState.totalTimeCal      = tag.value.totalTime;
+    stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
+    stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
+    stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
+    stopwatchState.totalTimeCal      = stopwatchState.totalTime;
 
     if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
       cancelAnimationFrame(stopwatchState.rAF_ID);
@@ -290,13 +290,6 @@ watchEffect(() => {
   const date = new Date(stopwatchState.latestEndTime);
   formattedEndTime.value = date.getFullYear() === 1970 ? '—' : date.toLocaleTimeString();
 });
-
-const toEpochMs = (value) => {
-  if (!value) return 0;
-  if (typeof value === 'number') return value;
-  const ms = new Date(value).getTime();
-  return Number.isFinite(ms) ? ms : 0;
-};
 
 const formatTime = (seconds) => {
   if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
