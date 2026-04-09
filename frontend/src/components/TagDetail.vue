@@ -199,7 +199,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, watch, reactive, watchEffect, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch, reactive, watchEffect, computed } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagModal from '@/Modals/EditTagModal.vue';
@@ -238,8 +238,8 @@ const fetchTagData = async (tagId) => {
     tag.value = response.data;
 
     stopwatchState.isRunning        = tag.value.state || false;
-    stopwatchState.latestStartTime  = tag.value.latestStartTime;
-    stopwatchState.latestEndTime    = tag.value.latestStopTime;
+    stopwatchState.latestStartTime  = toEpochMs(tag.value.latestStartTime);
+    stopwatchState.latestEndTime    = toEpochMs(tag.value.latestStopTime);
     stopwatchState.elapsedTime      = tag.value.elapsedTime;
     stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime;
     stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime;
@@ -250,6 +250,11 @@ const fetchTagData = async (tagId) => {
     stopwatchState.dailyTotalTimeCal = tag.value.dailyTotalTime;
     stopwatchState.tagTotalTimeCal   = tag.value.tagTotalTime;
     stopwatchState.totalTimeCal      = tag.value.totalTime;
+
+    if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
+      cancelAnimationFrame(stopwatchState.rAF_ID);
+      updateTimer();
+    }
   } catch (error) {
     console.error('태그 데이터를 불러오는 중 오류 발생:', error);
   }
@@ -286,7 +291,15 @@ watchEffect(() => {
   formattedEndTime.value = date.getFullYear() === 1970 ? '—' : date.toLocaleTimeString();
 });
 
+const toEpochMs = (value) => {
+  if (!value) return 0;
+  if (typeof value === 'number') return value;
+  const ms = new Date(value).getTime();
+  return Number.isFinite(ms) ? ms : 0;
+};
+
 const formatTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
   const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
   const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
   const s = String(Math.floor(seconds % 60)).padStart(2, '0');
@@ -372,24 +385,19 @@ const resetStopwatch = async () => {
   }
 };
 
-onMounted(() => {
-  if (history.state.tag) {
-    tag.value = history.state.tag;
-  }
-
-  onMounted(() => {
-    if (history.state.tag) {
-      tag.value = history.state.tag;
-    } else {
-      fetchTagData(route.params.id);
+watch(
+  () => route.params.id,
+  (newId) => {
+    if (newId) {
+      cancelAnimationFrame(stopwatchState.rAF_ID);
+      fetchTagData(newId);
     }
-  });
+  },
+  { immediate: true }
+);
 
-  watch(
-    () => route.params.id,
-    (newId) => { fetchTagData(newId); },
-    { immediate: true }
-  );
+onBeforeUnmount(() => {
+  cancelAnimationFrame(stopwatchState.rAF_ID);
 });
 </script>
 
