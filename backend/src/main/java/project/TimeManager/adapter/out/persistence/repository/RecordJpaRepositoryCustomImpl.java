@@ -28,4 +28,15 @@ public class RecordJpaRepositoryCustomImpl implements RecordJpaRepositoryCustom 
                 .orderBy(record.startTime.desc())
                 .fetch();
     }
+
+    @Override
+    public Long sumTotalTimeByTagIdAndStartTimeAfter(Long tagId, java.time.ZonedDateTime after) {
+        Long sum = jpaQueryFactory
+                .select(record.totalTime.sum())
+                .from(record)
+                .where(record.tag.id.eq(tagId)
+                        .and(record.startTime.goe(after)))
+                .fetchOne();
+        return sum != null ? sum : 0L;
+    }
 }

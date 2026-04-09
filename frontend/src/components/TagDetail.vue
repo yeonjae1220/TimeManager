@@ -310,9 +310,10 @@ const formattedTagTotalTime = computed(() => formatTime(stopwatchState.tagTotalT
 const formattedTotalTime    = computed(() => formatTime(stopwatchState.totalTimeCal));
 
 const updateTimer = () => {
-  if (!stopwatchState.latestStartTime) return;
+  if (stopwatchState.latestStartTime <= 0) return;
   const currentTime = Date.now();
   const deltaTime = Math.floor((currentTime - stopwatchState.latestStartTime) / 1000);
+  if (deltaTime < 0) return;
   stopwatchState.elapsedTimeCal    = deltaTime + stopwatchState.elapsedTime;
   stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime + deltaTime;
   stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime + deltaTime;
@@ -346,6 +347,10 @@ const stopStopwatch = async () => {
   stopwatchState.dailyTotalTime += delta;
   stopwatchState.tagTotalTime   += delta;
   stopwatchState.totalTime      += delta;
+  stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
+  stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
+  stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
+  stopwatchState.totalTimeCal      = stopwatchState.totalTime;
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/stop`,

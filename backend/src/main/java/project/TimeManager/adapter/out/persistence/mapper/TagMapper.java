@@ -1,18 +1,26 @@
 package project.TimeManager.adapter.out.persistence.mapper;
 
+import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Component;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
+import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TagId;
 import project.TimeManager.domain.tag.model.TimerState;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Component
+@RequiredArgsConstructor
 public class TagMapper {
+
+    private final RecordJpaRepository recordJpaRepository;
 
     public Tag toDomain(TagJpaEntity entity) {
         TagId parentId = entity.getParent() != null
@@ -68,6 +76,11 @@ public class TagMapper {
         List<Long> childrenList = entity.getChildren().stream()
                 .map(TagJpaEntity::getId)
                 .toList();
+
+        ZonedDateTime startOfToday = LocalDate.now().atStartOfDay(ZoneId.systemDefault());
+        Long dailyTotalTime = recordJpaRepository.sumTotalTimeByTagIdAndStartTimeAfter(
+                entity.getId(), startOfToday);
+
         return new TagResult(
                 entity.getId(),
                 entity.getName(),
@@ -75,7 +88,7 @@ public class TagMapper {
                 entity.getElapsedTime(),
                 entity.getDailyGoalTime(),
                 entity.getDailyElapsedTime(),
-                entity.getDailyTotalTime(),
+                dailyTotalTime,
                 entity.getTagTotalTime(),
                 entity.getTotalTime(),
                 entity.getLatestStartTime(),
