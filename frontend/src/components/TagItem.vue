@@ -7,6 +7,7 @@
       :class="{
         'tag-row--drag-over': isDragOver,
         'tag-row--dragging': injDraggedTagId === tag.id,
+        'tag-row--live': showLiveIndicator,
       }"
       :draggable="editMode"
       :style="{ paddingLeft: `${40 + depth * 22}px` }"
@@ -50,6 +51,10 @@
         </template>
         <template v-else>
           <span v-if="hasChildren" class="tag-sub-count mono">{{ tagChildren.length }} sub</span>
+          <span v-if="showLiveIndicator" class="live-badge">
+            <span class="dot running"></span>
+            <span class="live-label mono">live</span>
+          </span>
           <button class="icon-btn add-btn" title="Add child tag" @click.stop="openAddForm">
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M6.5 2v9M2 6.5h9" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>
@@ -135,6 +140,21 @@ const rowRef   = ref(null);
 const tagName     = computed(() => props.tag?.name ?? '—');
 const tagChildren = computed(() => props.tag?.children ?? []);
 const hasChildren = computed(() => tagChildren.value.length > 0);
+
+// ── Live indicator logic ──────────────────────────────────────────
+const hasRunningDescendant = (children) => {
+  for (const child of children) {
+    if (child.state === true) return true;
+    if (child.children?.length && hasRunningDescendant(child.children)) return true;
+  }
+  return false;
+};
+
+const showLiveIndicator = computed(() => {
+  if (props.tag?.state === true) return true;
+  if (hasChildren.value && !isExpanded.value && hasRunningDescendant(tagChildren.value)) return true;
+  return false;
+});
 
 // ── Row actions ────────────────────────────────────────────────────
 const onRowClick = () => injOnNavigate(props.tag.id);
@@ -377,6 +397,28 @@ onUnmounted(() => {
 }
 
 .tag-row--dragging { opacity: 0.35; }
+
+.tag-row--live {
+  background: var(--running-dim);
+  border-left: 2px solid var(--running);
+}
+
+.live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: 20px;
+  border: 1px solid rgba(111, 207, 151, 0.2);
+  background: var(--running-dim);
+  flex-shrink: 0;
+}
+
+.live-label {
+  font-size: 9px;
+  color: var(--running);
+  letter-spacing: 0.1em;
+}
 
 /* ── Chevron ──────────────────────────────────────── */
 .chevron-btn {

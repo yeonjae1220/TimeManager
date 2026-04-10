@@ -210,6 +210,34 @@ const tag = ref(null);
 const router = useRouter();
 const isModalOpen = ref(false);
 
+// ── Wake Lock (prevent screen sleep while timer is running) ──
+const wakeLock = ref(null);
+
+const requestWakeLock = async () => {
+  if (!('wakeLock' in navigator)) return;
+  try {
+    wakeLock.value = await navigator.wakeLock.request('screen');
+    wakeLock.value.addEventListener('release', () => { wakeLock.value = null; });
+  } catch (e) {
+    console.warn('Wake Lock 요청 실패:', e);
+  }
+};
+
+const releaseWakeLock = async () => {
+  if (wakeLock.value) {
+    await wakeLock.value.release();
+    wakeLock.value = null;
+  }
+};
+
+const handleVisibilityChange = () => {
+  if (document.visibilityState === 'visible' && stopwatchState.isRunning) {
+    requestWakeLock();
+  }
+};
+
+document.addEventListener('visibilitychange', handleVisibilityChange);
+
 // Push notification state
 const isPushSubscribed = ref(false);
 const isPushSupported = 'serviceWorker' in navigator && 'PushManager' in window;
@@ -254,6 +282,7 @@ const fetchTagData = async (tagId) => {
     if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
       cancelAnimationFrame(stopwatchState.rAF_ID);
       updateTimer();
+      requestWakeLock();
     }
   } catch (error) {
     console.error('태그 데이터를 불러오는 중 오류 발생:', error);
@@ -326,6 +355,7 @@ const startStopwatch = async () => {
   stopwatchState.isRunning       = true;
   stopwatchState.latestStartTime = Date.now();
   updateTimer();
+  requestWakeLock();
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/start`,
@@ -341,6 +371,7 @@ const stopStopwatch = async () => {
   if (!stopwatchState.isRunning) return;
   stopwatchState.isRunning = false;
   cancelAnimationFrame(stopwatchState.rAF_ID);
+  releaseWakeLock();
   stopwatchState.latestEndTime = Date.now();
   const delta = Math.floor((stopwatchState.latestEndTime - stopwatchState.latestStartTime) / 1000);
   stopwatchState.elapsedTime    += delta;
@@ -396,6 +427,8 @@ watch(
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(stopwatchState.rAF_ID);
+  releaseWakeLock();
+  document.removeEventListener('visibilitychange', handleVisibilityChange);
 });
 </script>
 
