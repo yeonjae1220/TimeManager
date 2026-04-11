@@ -467,10 +467,20 @@ watch(
   { immediate: true }
 );
 
+// 온라인 복귀 시 서버 데이터로 자동 갱신
+const handleOnline = () => {
+  const tagId = route.params.id;
+  if (tagId) {
+    fetchTagData(tagId);
+  }
+};
+window.addEventListener('online', handleOnline);
+
 onBeforeUnmount(() => {
   cancelAnimationFrame(stopwatchState.rAF_ID);
   releaseWakeLock();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
+  window.removeEventListener('online', handleOnline);
 });
 </script>
 

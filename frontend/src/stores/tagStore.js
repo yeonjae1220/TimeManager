@@ -4,12 +4,16 @@ import apiClient from '@/utils/apiClient';
 
 const cacheKey = (memberId) => `tags-${memberId}`;
 
+// 온라인 복귀 시 자동 갱신을 위한 전역 리스너
+let onlineListenerRegistered = false;
+
 export const useTagStore = defineStore('tag', {
     state: () => ({
         tagTree: [],
         lastFetchedAt: null,
         isRefreshing: false,
         fetchError: false,
+        _activeMemberId: null,
     }),
     getters: {
         rootTag: (state) => state.tagTree.find((t) => t.type === 'ROOT') ?? null,
@@ -21,6 +25,17 @@ export const useTagStore = defineStore('tag', {
     actions: {
         async loadTags(memberId) {
             this.fetchError = false;
+            this._activeMemberId = memberId;
+
+            // 온라인 복귀 시 자동 갱신 리스너 등록 (1회)
+            if (!onlineListenerRegistered) {
+                onlineListenerRegistered = true;
+                window.addEventListener('online', () => {
+                    if (this._activeMemberId) {
+                        this.refreshTags(this._activeMemberId);
+                    }
+                });
+            }
 
             // 1. IndexedDB 캐시에서 즉시 로드
             try {

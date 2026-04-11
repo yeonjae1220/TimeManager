@@ -1,5 +1,17 @@
 <template>
   <div id="app">
+    <!-- 오프라인/온라인 상태 배너 -->
+    <transition name="net-banner">
+      <div v-if="!isOnline" class="net-banner net-banner--offline">
+        <span class="net-dot"></span>
+        <span class="mono">오프라인 — 변경사항은 연결 시 자동 동기화됩니다</span>
+      </div>
+      <div v-else-if="showReconnected" class="net-banner net-banner--online" key="online">
+        <span class="net-dot net-dot--online"></span>
+        <span class="mono">연결됨 · 동기화 중…</span>
+      </div>
+    </transition>
+
     <router-view></router-view>
 
     <!-- PWA 설치 배너 (브라우저가 설치 가능 상태일 때만 노출) -->
@@ -14,7 +26,21 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount } from 'vue';
+import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { useNetworkStatus } from '@/composables/useNetworkStatus';
+
+const { isOnline } = useNetworkStatus();
+const showReconnected = ref(false);
+let reconnectTimer = null;
+
+// 오프라인 → 온라인 전환 시 "연결됨" 배너를 3초간 표시
+watch(isOnline, (online, wasOnline) => {
+  if (online && wasOnline === false) {
+    showReconnected.value = true;
+    clearTimeout(reconnectTimer);
+    reconnectTimer = setTimeout(() => { showReconnected.value = false; }, 3000);
+  }
+});
 
 const installPrompt = ref(null);
 
@@ -389,4 +415,50 @@ select option { background: #1b1b1b; color: var(--text); }
 .install-slide-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
 .install-slide-enter-from,
 .install-slide-leave-to   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+
+/* ─── Network Status Banner ─────────────────────── */
+.net-banner {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 11px;
+  letter-spacing: 0.04em;
+  z-index: 300;
+}
+
+.net-banner--offline {
+  background: rgba(176,86,86,0.15);
+  border-bottom: 1px solid rgba(176,86,86,0.2);
+  color: var(--danger);
+}
+
+.net-banner--online {
+  background: rgba(111,207,151,0.1);
+  border-bottom: 1px solid rgba(111,207,151,0.15);
+  color: var(--running);
+}
+
+.net-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--danger);
+  flex-shrink: 0;
+}
+
+.net-dot--online {
+  background: var(--running);
+  box-shadow: 0 0 6px var(--running);
+}
+
+.net-banner-enter-active,
+.net-banner-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
+.net-banner-enter-from   { opacity: 0; transform: translateY(-100%); }
+.net-banner-leave-to     { opacity: 0; transform: translateY(-100%); }
 </style>
