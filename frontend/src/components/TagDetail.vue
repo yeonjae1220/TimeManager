@@ -204,6 +204,7 @@ import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagModal from '@/Modals/EditTagModal.vue';
 import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
+import { saveTimerState, loadTimerState, clearTimerState } from '@/utils/timerPersistence.js';
 
 const route = useRoute();
 const tag = ref(null);
@@ -260,6 +261,19 @@ const togglePushNotification = async () => {
 
 const goToRecordsPage = (tagId) => router.push(`/records/${tagId}`);
 
+const hydrateStopwatchState = () => {
+  stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
+  stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
+  stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
+  stopwatchState.totalTimeCal      = stopwatchState.totalTime;
+
+  if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
+    cancelAnimationFrame(stopwatchState.rAF_ID);
+    updateTimer();
+    requestWakeLock();
+  }
+};
+
 const fetchTagData = async (tagId) => {
   try {
     const response = await apiClient.get(`/api/v1/tags/${tagId}`);
@@ -274,18 +288,24 @@ const fetchTagData = async (tagId) => {
     stopwatchState.tagTotalTime     = tag.value.tagTotalTime || 0;
     stopwatchState.totalTime        = tag.value.totalTime || 0;
 
-    stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
-    stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
-    stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
-    stopwatchState.totalTimeCal      = stopwatchState.totalTime;
-
-    if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
-      cancelAnimationFrame(stopwatchState.rAF_ID);
-      updateTimer();
-      requestWakeLock();
-    }
+    hydrateStopwatchState();
+    clearTimerState();
   } catch (error) {
     console.error('태그 데이터를 불러오는 중 오류 발생:', error);
+    // 오프라인 시 로컬 저장된 타이머 상태에서 복원
+    const saved = loadTimerState(Number(tagId));
+    if (saved) {
+      tag.value = tag.value || { id: Number(tagId), name: '...', memberId: null };
+      stopwatchState.isRunning       = saved.isRunning;
+      stopwatchState.latestStartTime = saved.latestStartTime;
+      stopwatchState.latestEndTime   = saved.latestEndTime;
+      stopwatchState.elapsedTime     = saved.elapsedTime;
+      stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
+      stopwatchState.dailyGoalTime   = saved.dailyGoalTime;
+      stopwatchState.tagTotalTime    = saved.tagTotalTime;
+      stopwatchState.totalTime       = saved.totalTime;
+      hydrateStopwatchState();
+    }
   }
 };
 
@@ -356,6 +376,7 @@ const startStopwatch = async () => {
   stopwatchState.latestStartTime = Date.now();
   updateTimer();
   requestWakeLock();
+  saveTimerState(tag.value.id, stopwatchState);
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/start`,
@@ -363,7 +384,8 @@ const startStopwatch = async () => {
       { headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('스톱워치 시작 실패:', error);
+    // BackgroundSync가 온라인 복귀 시 자동 재전송
+    console.warn('스톱워치 시작 요청 큐잉됨 (오프라인):', error.message);
   }
 };
 
@@ -382,6 +404,7 @@ const stopStopwatch = async () => {
   stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
   stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
   stopwatchState.totalTimeCal      = stopwatchState.totalTime;
+  saveTimerState(tag.value.id, stopwatchState);
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/stop`,
@@ -394,8 +417,10 @@ const stopStopwatch = async () => {
       },
       { headers: { 'Content-Type': 'application/json' } }
     );
+    clearTimerState();
   } catch (error) {
-    console.error('스톱워치 종료 실패:', error);
+    // BackgroundSync가 온라인 복귀 시 자동 재전송
+    console.warn('스톱워치 종료 요청 큐잉됨 (오프라인):', error.message);
   }
 };
 
@@ -403,6 +428,7 @@ const resetStopwatch = async () => {
   if (stopwatchState.isRunning) return;
   stopwatchState.elapsedTimeCal = 0;
   stopwatchState.elapsedTime    = 0;
+  clearTimerState();
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/reset`,
@@ -410,7 +436,8 @@ const resetStopwatch = async () => {
       { headers: { 'Content-Type': 'application/json' } }
     );
   } catch (error) {
-    console.error('스톱워치 리셋 실패:', error);
+    // BackgroundSync가 온라인 복귀 시 자동 재전송
+    console.warn('스톱워치 리셋 요청 큐잉됨 (오프라인):', error.message);
   }
 };
 

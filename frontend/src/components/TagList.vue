@@ -26,6 +26,7 @@
         <h1 class="list-title">Tags</h1>
       </div>
       <div class="list-header-right">
+        <span class="refreshing-dot" v-if="tagStore.isRefreshing && tagStore.hasCachedData" title="Syncing…"></span>
         <span class="list-count mono" v-if="tagList.length">{{ tagList.length }}</span>
         <button class="add-top-btn" @click="openTopForm" title="New tag">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
@@ -80,12 +81,13 @@ import { ref, onMounted, computed, provide, readonly, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagItem from '@/components/TagItem.vue';
+import { useTagStore } from '@/stores/tagStore';
 
 const route = useRoute();
 const router = useRouter();
 const memberId = route.params.id;
 
-const tagData = ref(null);
+const tagStore = useTagStore();
 const isLoading = ref(true);
 const editMode = ref(false);
 const draggedTagId = ref(null);
@@ -94,32 +96,21 @@ const showTopForm = ref(false);
 const topTagName  = ref('');
 const topInput    = ref(null);
 const errorMessage = ref('');
-const fetchError  = ref(false);
 
 const fetchTags = async () => {
-  isLoading.value = true;
-  fetchError.value = false;
-  try {
-    const response = await apiClient.get(`/api/v1/tags?memberId=${Number(memberId)}`);
-    tagData.value = response.data;
-  } catch (error) {
-    console.error('Error fetching tags:', error);
-    fetchError.value = true;
-  } finally {
-    isLoading.value = false;
+  // 캐시가 없을 때만 로딩 표시
+  if (!tagStore.hasCachedData) {
+    isLoading.value = true;
   }
+  await tagStore.loadTags(memberId);
+  isLoading.value = false;
 };
 
-// ROOT 태그 객체 (최상위 부모)
-const rootTag = computed(() =>
-  (tagData.value ?? []).find(t => t.type === 'ROOT')
-);
-
-// 사용자에게 표시할 태그 목록 = ROOT의 children (CUSTOM 태그들)
-const tagList = computed(() => rootTag.value?.children ?? []);
+const tagList = computed(() => tagStore.tagList);
+const fetchError = computed(() => tagStore.fetchError);
 
 // 최상위 태그 생성 시 사용할 ROOT id
-const rootTagId = computed(() => rootTag.value?.id);
+const rootTagId = computed(() => tagStore.rootTag?.id);
 
 const openTopForm = async () => {
   showTopForm.value = true;
@@ -147,7 +138,7 @@ const submitTopTag = async () => {
       parentTagId: rootTagId.value,
     });
     cancelTopForm();
-    await fetchTags();
+    await tagStore.refreshTags(memberId);
   } catch (e) {
     console.error('태그 생성 실패:', e);
     errorMessage.value = '태그 생성에 실패했습니다. 다시 시도해 주세요.';
@@ -162,7 +153,7 @@ const handleDrop = async (newParentId, movedId) => {
   if (newParentId === movedId) return;
   try {
     await apiClient.patch(`/api/v1/tags/${movedId}`, { newParentTagId: newParentId });
-    await fetchTags();
+    await tagStore.refreshTags(memberId);
   } catch (error) {
     console.error('Drop failed:', error);
   }
@@ -171,7 +162,7 @@ const handleDrop = async (newParentId, movedId) => {
 provide('editMode', readonly(editMode));
 provide('draggedTagId', readonly(draggedTagId));
 provide('onNavigate', navigateToDetail);
-provide('onRefresh', fetchTags);
+provide('onRefresh', () => tagStore.refreshTags(memberId));
 provide('onDragStart', (id) => { draggedTagId.value = id; });
 provide('onDragEnd', () => { draggedTagId.value = null; });
 provide('onDropOn', handleDrop);
@@ -349,6 +340,20 @@ onMounted(fetchTags);
 .create-first-btn:hover { background: var(--accent-dim); }
 
 .tag-tree { padding: 4px 0; }
+
+.refreshing-dot {
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--accent);
+  animation: pulse-dot 1.2s ease infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 0.3; }
+  50% { opacity: 1; }
+}
 
 .mono { font-family: var(--font-mono); }
 </style>

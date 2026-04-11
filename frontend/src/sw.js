@@ -64,6 +64,37 @@ registerRoute(
   'DELETE'
 );
 
+// ── Phase 2.5: Background Sync — timer operations ───────────────────
+// 오프라인 중 실패한 타이머 시작·종료·리셋 요청을
+// IndexedDB 큐에 저장했다가 온라인 복귀 시 자동 재전송
+const timerBgSyncPlugin = new BackgroundSyncPlugin('timerQueue', {
+  maxRetentionTime: 24 * 60, // 24시간(분 단위) 보관
+});
+
+// POST /api/v1/tags/*/timer/start — 타이머 시작
+registerRoute(
+  ({ url, request }) =>
+    /^\/api\/v1\/tags\/\d+\/timer\/start$/.test(url.pathname) && request.method === 'POST',
+  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
+  'POST'
+);
+
+// POST /api/v1/tags/*/timer/stop — 타이머 종료
+registerRoute(
+  ({ url, request }) =>
+    /^\/api\/v1\/tags\/\d+\/timer\/stop$/.test(url.pathname) && request.method === 'POST',
+  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
+  'POST'
+);
+
+// POST /api/v1/tags/*/timer/reset — 타이머 리셋
+registerRoute(
+  ({ url, request }) =>
+    /^\/api\/v1\/tags\/\d+\/timer\/reset$/.test(url.pathname) && request.method === 'POST',
+  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
+  'POST'
+);
+
 // ── Phase 3: Push 알림 수신 ──────────────────────────────────────────
 self.addEventListener('push', (event) => {
   if (!event.data) return;

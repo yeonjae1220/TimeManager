@@ -19,6 +19,9 @@ import project.TimeManager.domain.record.model.Record;
 import project.TimeManager.domain.record.model.TimeRange;
 import project.TimeManager.domain.tag.model.Tag;
 
+import java.time.LocalDate;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Optional;
 
 @Service
@@ -58,15 +61,33 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         Record record = loadRecordPort.loadRecord(command.recordId())
                 .orElseThrow(() -> new DomainException("Record not found: " + command.recordId()));
         long oldTotalTime = record.getTotalTime();
+        boolean wasToday = isToday(record.getTimeRange().start());
 
         TimeRange newRange = new TimeRange(command.newStartTime(), command.newEndTime());
         record.editTimeRange(newRange);
+        boolean isNowToday = isToday(newRange.start());
 
         long delta = record.getTotalTime() - oldTotalTime;
         saveRecordPort.saveRecord(record);
 
         if (delta != 0) {
             updateTagTimeBatchPort.updateTagTimeBatch(record.getTagId().value(), delta);
+        }
+
+        // dailyTotalTime 보정: 오늘 레코드의 시간 변동분 반영
+        long dailyDelta = 0;
+        if (wasToday && isNowToday) {
+            dailyDelta = delta;
+        } else if (wasToday) {
+            dailyDelta = -oldTotalTime;
+        } else if (isNowToday) {
+            dailyDelta = record.getTotalTime();
+        }
+        if (dailyDelta != 0) {
+            Tag tag = loadTagPort.loadTag(record.getTagId().value())
+                    .orElseThrow(() -> new DomainException("Tag not found: " + record.getTagId().value()));
+            tag.updateDailyTotalTime(dailyDelta);
+            saveTagPort.saveTag(tag);
         }
 
         return command.recordId();
@@ -83,6 +104,20 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
 
         saveRecordPort.deleteRecord(recordId);
         updateTagTimeBatchPort.updateTagTimeBatch(tagId, delta);
+
+        // 오늘 레코드 삭제 시 dailyTotalTime 차감
+        if (isToday(record.getTimeRange().start())) {
+            Tag tag = loadTagPort.loadTag(tagId)
+                    .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
+            tag.updateDailyTotalTime(delta);
+            saveTagPort.saveTag(tag);
+        }
+
         return true;
+    }
+
+    private boolean isToday(ZonedDateTime dateTime) {
+        LocalDate today = LocalDate.now(ZoneId.systemDefault());
+        return dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().equals(today);
     }
 }
