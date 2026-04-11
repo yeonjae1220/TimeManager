@@ -1,5 +1,5 @@
 import { defineStore } from 'pinia';
-import { get, set, del } from 'idb-keyval';
+import { get, set } from 'idb-keyval';
 import apiClient from '@/utils/apiClient';
 
 const cacheKey = (memberId) => `tags-${memberId}`;
