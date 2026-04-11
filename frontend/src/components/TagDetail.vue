@@ -275,25 +275,40 @@ const hydrateStopwatchState = () => {
 };
 
 const fetchTagData = async (tagId) => {
+  const saved = loadTimerState(Number(tagId));
+
   try {
     const response = await apiClient.get(`/api/v1/tags/${tagId}`);
     tag.value = response.data;
 
-    stopwatchState.isRunning        = tag.value.state || false;
-    stopwatchState.latestStartTime  = tag.value.latestStartTimeMs || 0;
-    stopwatchState.latestEndTime    = tag.value.latestStopTimeMs || 0;
-    stopwatchState.elapsedTime      = tag.value.elapsedTime || 0;
-    stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime || 0;
-    stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime || 0;
-    stopwatchState.tagTotalTime     = tag.value.tagTotalTime || 0;
-    stopwatchState.totalTime        = tag.value.totalTime || 0;
+    // 로컬에 저장된 타이머 상태가 서버/캐시 응답보다 최신이면 로컬 우선
+    // (오프라인에서 타이머 조작 후, SW 캐시가 오래된 응답을 반환하는 경우)
+    if (saved && saved.savedAt > (tag.value.latestStartTimeMs || 0)) {
+      stopwatchState.isRunning       = saved.isRunning;
+      stopwatchState.latestStartTime = saved.latestStartTime;
+      stopwatchState.latestEndTime   = saved.latestEndTime;
+      stopwatchState.elapsedTime     = saved.elapsedTime;
+      stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
+      stopwatchState.dailyGoalTime   = saved.dailyGoalTime || tag.value.dailyGoalTime || 0;
+      stopwatchState.tagTotalTime    = saved.tagTotalTime;
+      stopwatchState.totalTime       = saved.totalTime;
+    } else {
+      // 서버 데이터가 최신 → 정상 반영
+      stopwatchState.isRunning        = tag.value.state || false;
+      stopwatchState.latestStartTime  = tag.value.latestStartTimeMs || 0;
+      stopwatchState.latestEndTime    = tag.value.latestStopTimeMs || 0;
+      stopwatchState.elapsedTime      = tag.value.elapsedTime || 0;
+      stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime || 0;
+      stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime || 0;
+      stopwatchState.tagTotalTime     = tag.value.tagTotalTime || 0;
+      stopwatchState.totalTime        = tag.value.totalTime || 0;
+      clearTimerState();
+    }
 
     hydrateStopwatchState();
-    clearTimerState();
   } catch (error) {
     console.error('태그 데이터를 불러오는 중 오류 발생:', error);
-    // 오프라인 시 로컬 저장된 타이머 상태에서 복원
-    const saved = loadTimerState(Number(tagId));
+    // 완전한 네트워크 실패 (SW 캐시도 없는 경우)
     if (saved) {
       tag.value = tag.value || { id: Number(tagId), name: '...', memberId: null };
       stopwatchState.isRunning       = saved.isRunning;
@@ -428,7 +443,7 @@ const resetStopwatch = async () => {
   if (stopwatchState.isRunning) return;
   stopwatchState.elapsedTimeCal = 0;
   stopwatchState.elapsedTime    = 0;
-  clearTimerState();
+  saveTimerState(tag.value.id, stopwatchState);
   try {
     await apiClient.post(
       `/api/v1/tags/${tag.value.id}/timer/reset`,
