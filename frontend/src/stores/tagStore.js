@@ -21,6 +21,20 @@ export const useTagStore = defineStore('tag', {
             return this.rootTag?.children ?? [];
         },
         hasCachedData: (state) => state.tagTree.length > 0,
+        findTagById: (state) => (id) => {
+            const numId = Number(id);
+            const search = (nodes) => {
+                for (const node of nodes) {
+                    if (node.id === numId) return node;
+                    if (node.children?.length) {
+                        const found = search(node.children);
+                        if (found) return found;
+                    }
+                }
+                return null;
+            };
+            return search(state.tagTree);
+        },
     },
     actions: {
         async loadTags(memberId) {
@@ -69,6 +83,17 @@ export const useTagStore = defineStore('tag', {
                 console.error('태그 목록 네트워크 조회 실패:', error);
                 if (!this.hasCachedData) {
                     this.fetchError = true;
+                }
+                // 401→clearAuth→clearCache로 tagTree가 비워졌을 경우 IndexedDB에서 재복구
+                if (this.tagTree.length === 0) {
+                    try {
+                        const cached = await get(cacheKey(memberId));
+                        if (cached) {
+                            this.tagTree = cached;
+                        }
+                    } catch (e) {
+                        console.warn('IndexedDB 재복구 실패:', e);
+                    }
                 }
             } finally {
                 this.isRefreshing = false;

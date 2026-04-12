@@ -205,10 +205,12 @@ import apiClient from '@/utils/apiClient';
 import TagModal from '@/Modals/EditTagModal.vue';
 import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
 import { saveTimerState, loadTimerState, clearTimerState } from '@/utils/timerPersistence.js';
+import { useTagStore } from '@/stores/tagStore';
 
 const route = useRoute();
 const tag = ref(null);
 const router = useRouter();
+const tagStore = useTagStore();
 const isModalOpen = ref(false);
 
 // ── Wake Lock (prevent screen sleep while timer is running) ──
@@ -320,6 +322,24 @@ const fetchTagData = async (tagId) => {
       stopwatchState.tagTotalTime    = saved.tagTotalTime;
       stopwatchState.totalTime       = saved.totalTime;
       hydrateStopwatchState();
+    } else {
+      // tagStore 캐시 트리에서 태그 검색 (오프라인 + 미방문 태그)
+      const cached = tagStore.findTagById(tagId);
+      if (cached) {
+        tag.value = {
+          ...cached,
+          childrenList: (cached.children || []).map(c => c.id),
+        };
+        stopwatchState.isRunning        = cached.state || false;
+        stopwatchState.latestStartTime  = cached.latestStartTimeMs || 0;
+        stopwatchState.latestEndTime    = cached.latestStopTimeMs || 0;
+        stopwatchState.elapsedTime      = cached.elapsedTime || 0;
+        stopwatchState.dailyTotalTime   = cached.dailyTotalTime || 0;
+        stopwatchState.dailyGoalTime    = cached.dailyGoalTime || 0;
+        stopwatchState.tagTotalTime     = cached.tagTotalTime || 0;
+        stopwatchState.totalTime        = cached.totalTime || 0;
+        hydrateStopwatchState();
+      }
     }
   }
 };
