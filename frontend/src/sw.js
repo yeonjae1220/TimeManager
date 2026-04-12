@@ -25,7 +25,7 @@ registerRoute(
     !url.pathname.startsWith('/api/v1/records'),
   new NetworkFirst({
     cacheName: 'api-cache',
-    networkTimeoutSeconds: 5,
+    networkTimeoutSeconds: 3,
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),

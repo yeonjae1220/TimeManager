@@ -1,5 +1,17 @@
 <template>
   <div class="page">
+    <!-- Pull-to-refresh indicator -->
+    <div
+      class="pull-indicator"
+      :style="{
+        transform: `translateY(${pullDistance}px)`,
+        opacity: Math.min(pullDistance / pullThreshold, 1)
+      }"
+      v-show="pullDistance > 0 || isPullRefreshing"
+    >
+      <span class="pull-spinner" :class="{ spinning: isPullRefreshing }"></span>
+    </div>
+
     <div class="topbar">
       <span class="topbar-brand">timemgr</span>
       <div class="topbar-actions">
@@ -82,6 +94,7 @@ import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagItem from '@/components/TagItem.vue';
 import { useTagStore } from '@/stores/tagStore';
+import { usePullToRefresh } from '@/composables/usePullToRefresh';
 
 const route = useRoute();
 const router = useRouter();
@@ -89,6 +102,10 @@ const memberId = route.params.id;
 
 const tagStore = useTagStore();
 const isLoading = ref(true);
+
+const { isRefreshing: isPullRefreshing, pullDistance, threshold: pullThreshold } = usePullToRefresh(
+  () => tagStore.refreshTags(memberId)
+);
 const editMode = ref(false);
 const draggedTagId = ref(null);
 
@@ -356,4 +373,34 @@ onMounted(fetchTags);
 }
 
 .mono { font-family: var(--font-mono); }
+
+/* Pull-to-refresh */
+.pull-indicator {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  z-index: 50;
+}
+
+.pull-spinner {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+
+.pull-spinner.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

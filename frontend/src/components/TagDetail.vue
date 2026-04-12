@@ -1,6 +1,18 @@
 <template>
   <div class="page detail-page" :class="{ 'is-running': stopwatchState.isRunning }">
 
+    <!-- Pull-to-refresh indicator -->
+    <div
+      class="pull-indicator"
+      :style="{
+        transform: `translateY(${pullDistance}px)`,
+        opacity: Math.min(pullDistance / pullThreshold, 1)
+      }"
+      v-show="pullDistance > 0 || isPullRefreshing"
+    >
+      <span class="pull-spinner" :class="{ spinning: isPullRefreshing }"></span>
+    </div>
+
     <!-- Topbar -->
     <div class="topbar">
       <router-link :to="`/members/${tag?.memberId ?? 1}/tags`" class="topbar-back">
@@ -206,12 +218,18 @@ import TagModal from '@/Modals/EditTagModal.vue';
 import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
 import { saveTimerState, loadTimerState, clearTimerState } from '@/utils/timerPersistence.js';
 import { useTagStore } from '@/stores/tagStore';
+import { useAuthStore } from '@/stores/authStore';
+import { usePullToRefresh } from '@/composables/usePullToRefresh';
 
 const route = useRoute();
 const tag = ref(null);
 const router = useRouter();
 const tagStore = useTagStore();
 const isModalOpen = ref(false);
+
+const { isRefreshing: isPullRefreshing, pullDistance, threshold: pullThreshold } = usePullToRefresh(
+  () => fetchTagData(route.params.id)
+);
 
 // ── Wake Lock (prevent screen sleep while timer is running) ──
 const wakeLock = ref(null);
@@ -276,71 +294,67 @@ const hydrateStopwatchState = () => {
   }
 };
 
-const fetchTagData = async (tagId) => {
-  const saved = loadTimerState(Number(tagId));
+// ── 태그 데이터를 tag.value + stopwatchState에 적용하는 헬퍼 ──
+const applyTagData = (source, options = {}) => {
+  const isTreeNode = Array.isArray(source.children);
+  tag.value = isTreeNode
+    ? { ...source, childrenList: source.children.map(c => c.id) }
+    : source;
 
+  const saved = options.saved;
+  if (saved && saved.savedAt > (source.latestStartTimeMs || 0)) {
+    // 로컬 타이머 상태가 서버/캐시보다 최신 → 로컬 우선
+    stopwatchState.isRunning       = saved.isRunning;
+    stopwatchState.latestStartTime = saved.latestStartTime;
+    stopwatchState.latestEndTime   = saved.latestEndTime;
+    stopwatchState.elapsedTime     = saved.elapsedTime;
+    stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
+    stopwatchState.dailyGoalTime   = saved.dailyGoalTime || source.dailyGoalTime || 0;
+    stopwatchState.tagTotalTime    = saved.tagTotalTime;
+    stopwatchState.totalTime       = saved.totalTime;
+  } else {
+    stopwatchState.isRunning        = source.state || false;
+    stopwatchState.latestStartTime  = source.latestStartTimeMs || 0;
+    stopwatchState.latestEndTime    = source.latestStopTimeMs || 0;
+    stopwatchState.elapsedTime      = source.elapsedTime || 0;
+    stopwatchState.dailyTotalTime   = source.dailyTotalTime || 0;
+    stopwatchState.dailyGoalTime    = source.dailyGoalTime || 0;
+    stopwatchState.tagTotalTime     = source.tagTotalTime || 0;
+    stopwatchState.totalTime        = source.totalTime || 0;
+    if (!saved) clearTimerState();
+  }
+  hydrateStopwatchState();
+};
+
+const fetchTagData = async (tagId) => {
+  const numId = Number(tagId);
+  const saved = loadTimerState(numId);
+
+  // ── Phase 1: 캐시 데이터 즉시 표시 (Stale) ──
+  // 딥링크 대응: tagStore가 비어있으면 IndexedDB에서 로드
+  if (!tagStore.hasCachedData) {
+    const authStore = useAuthStore();
+    if (authStore.memberId) {
+      await tagStore.loadTags(authStore.memberId);
+    }
+  }
+
+  const cached = tagStore.findTagById(numId);
+  if (cached) {
+    applyTagData(cached, { saved });
+  } else if (saved) {
+    tag.value = { id: numId, name: '...', memberId: null };
+    applyTagData(tag.value, { saved });
+  }
+
+  // ── Phase 2: API에서 최신 데이터 가져오기 (Revalidate) ──
   try {
     const response = await apiClient.get(`/api/v1/tags/${tagId}`);
-    tag.value = response.data;
-
-    // 로컬에 저장된 타이머 상태가 서버/캐시 응답보다 최신이면 로컬 우선
-    // (오프라인에서 타이머 조작 후, SW 캐시가 오래된 응답을 반환하는 경우)
-    if (saved && saved.savedAt > (tag.value.latestStartTimeMs || 0)) {
-      stopwatchState.isRunning       = saved.isRunning;
-      stopwatchState.latestStartTime = saved.latestStartTime;
-      stopwatchState.latestEndTime   = saved.latestEndTime;
-      stopwatchState.elapsedTime     = saved.elapsedTime;
-      stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
-      stopwatchState.dailyGoalTime   = saved.dailyGoalTime || tag.value.dailyGoalTime || 0;
-      stopwatchState.tagTotalTime    = saved.tagTotalTime;
-      stopwatchState.totalTime       = saved.totalTime;
-    } else {
-      // 서버 데이터가 최신 → 정상 반영
-      stopwatchState.isRunning        = tag.value.state || false;
-      stopwatchState.latestStartTime  = tag.value.latestStartTimeMs || 0;
-      stopwatchState.latestEndTime    = tag.value.latestStopTimeMs || 0;
-      stopwatchState.elapsedTime      = tag.value.elapsedTime || 0;
-      stopwatchState.dailyTotalTime   = tag.value.dailyTotalTime || 0;
-      stopwatchState.dailyGoalTime    = tag.value.dailyGoalTime || 0;
-      stopwatchState.tagTotalTime     = tag.value.tagTotalTime || 0;
-      stopwatchState.totalTime        = tag.value.totalTime || 0;
-      clearTimerState();
-    }
-
-    hydrateStopwatchState();
+    if (route.params.id != tagId) return; // 네비게이션 race condition 방지
+    applyTagData(response.data, { saved });
   } catch (error) {
-    console.error('태그 데이터를 불러오는 중 오류 발생:', error);
-    // 완전한 네트워크 실패 (SW 캐시도 없는 경우)
-    if (saved) {
-      tag.value = tag.value || { id: Number(tagId), name: '...', memberId: null };
-      stopwatchState.isRunning       = saved.isRunning;
-      stopwatchState.latestStartTime = saved.latestStartTime;
-      stopwatchState.latestEndTime   = saved.latestEndTime;
-      stopwatchState.elapsedTime     = saved.elapsedTime;
-      stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
-      stopwatchState.dailyGoalTime   = saved.dailyGoalTime;
-      stopwatchState.tagTotalTime    = saved.tagTotalTime;
-      stopwatchState.totalTime       = saved.totalTime;
-      hydrateStopwatchState();
-    } else {
-      // tagStore 캐시 트리에서 태그 검색 (오프라인 + 미방문 태그)
-      const cached = tagStore.findTagById(tagId);
-      if (cached) {
-        tag.value = {
-          ...cached,
-          childrenList: (cached.children || []).map(c => c.id),
-        };
-        stopwatchState.isRunning        = cached.state || false;
-        stopwatchState.latestStartTime  = cached.latestStartTimeMs || 0;
-        stopwatchState.latestEndTime    = cached.latestStopTimeMs || 0;
-        stopwatchState.elapsedTime      = cached.elapsedTime || 0;
-        stopwatchState.dailyTotalTime   = cached.dailyTotalTime || 0;
-        stopwatchState.dailyGoalTime    = cached.dailyGoalTime || 0;
-        stopwatchState.tagTotalTime     = cached.tagTotalTime || 0;
-        stopwatchState.totalTime        = cached.totalTime || 0;
-        hydrateStopwatchState();
-      }
-    }
+    console.error('태그 데이터 네트워크 조회 실패:', error);
+    // Phase 1에서 이미 캐시 데이터 표시 중 → 추가 작업 불필요
   }
 };
 
@@ -840,4 +854,34 @@ onBeforeUnmount(() => {
 }
 
 .mono { font-family: var(--font-mono); }
+
+/* ── Pull-to-refresh ── */
+.pull-indicator {
+  position: fixed;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  z-index: 50;
+}
+
+.pull-spinner {
+  width: 18px;
+  height: 18px;
+  border: 1.5px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+}
+
+.pull-spinner.spinning {
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

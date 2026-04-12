@@ -110,6 +110,7 @@ body {
   font-weight: 400;
   line-height: 1.6;
   min-height: 100vh;
+  overscroll-behavior-y: contain;
 }
 
 /* Grain overlay */
