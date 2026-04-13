@@ -432,6 +432,7 @@ const startStopwatch = async () => {
       { startTime: new Date(stopwatchState.latestStartTime).toISOString() },
       { headers: { 'Content-Type': 'application/json' } }
     );
+    tagStore.refreshTags(tag.value.memberId);
   } catch (error) {
     // BackgroundSync가 온라인 복귀 시 자동 재전송
     console.warn('스톱워치 시작 요청 큐잉됨 (오프라인):', error.message);
@@ -467,6 +468,7 @@ const stopStopwatch = async () => {
       { headers: { 'Content-Type': 'application/json' } }
     );
     clearTimerState();
+    tagStore.refreshTags(tag.value.memberId);
   } catch (error) {
     // BackgroundSync가 온라인 복귀 시 자동 재전송
     console.warn('스톱워치 종료 요청 큐잉됨 (오프라인):', error.message);
@@ -484,6 +486,7 @@ const resetStopwatch = async () => {
       { elapsedTime: stopwatchState.elapsedTime },
       { headers: { 'Content-Type': 'application/json' } }
     );
+    tagStore.refreshTags(tag.value.memberId);
   } catch (error) {
     // BackgroundSync가 온라인 복귀 시 자동 재전송
     console.warn('스톱워치 리셋 요청 큐잉됨 (오프라인):', error.message);
