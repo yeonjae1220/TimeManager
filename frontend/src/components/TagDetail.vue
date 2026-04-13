@@ -28,7 +28,7 @@
           <circle cx="8" cy="12.5" r="1.1" fill="currentColor"/>
         </svg>
       </button>
-      <TagModal v-if="isModalOpen" :isOpen="isModalOpen" :tagData="tag" @close="isModalOpen = false" />
+      <TagModal v-if="isModalOpen" :isOpen="isModalOpen" :tagData="tag" @close="handleModalClose" @mutated="handleModalMutated" />
     </div>
 
     <!-- Content -->
@@ -226,6 +226,16 @@ const tag = ref(null);
 const router = useRouter();
 const tagStore = useTagStore();
 const isModalOpen = ref(false);
+
+const handleModalClose = () => {
+  isModalOpen.value = false;
+  fetchTagData(tag.value.id);
+  tagStore.refreshTags(tag.value.memberId);
+};
+
+const handleModalMutated = () => {
+  tagStore.refreshTags(tag.value.memberId);
+};
 
 const { isRefreshing: isPullRefreshing, pullDistance, threshold: pullThreshold } = usePullToRefresh(
   () => fetchTagData(route.params.id)
@@ -425,6 +435,7 @@ const startStopwatch = async () => {
   stopwatchState.latestStartTime = Date.now();
   updateTimer();
   requestWakeLock();
+  tagStore.setTagState(tag.value.id, true);
   saveTimerState(tag.value.id, stopwatchState);
   try {
     await apiClient.post(
@@ -444,6 +455,7 @@ const stopStopwatch = async () => {
   stopwatchState.isRunning = false;
   cancelAnimationFrame(stopwatchState.rAF_ID);
   releaseWakeLock();
+  tagStore.setTagState(tag.value.id, false);
   stopwatchState.latestEndTime = Date.now();
   const delta = Math.floor((stopwatchState.latestEndTime - stopwatchState.latestStartTime) / 1000);
   stopwatchState.elapsedTime    += delta;

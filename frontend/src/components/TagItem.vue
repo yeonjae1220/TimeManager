@@ -102,6 +102,7 @@
       :isOpen="showEditModal"
       :tagData="tag"
       @close="onEditModalClose"
+      @mutated="injOnRefresh"
     />
   </li>
 </template>

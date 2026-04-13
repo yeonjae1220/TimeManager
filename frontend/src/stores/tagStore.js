@@ -14,6 +14,7 @@ export const useTagStore = defineStore('tag', {
         isRefreshing: false,
         fetchError: false,
         _activeMemberId: null,
+        _pendingRefreshMemberId: null,
     }),
     getters: {
         rootTag: (state) => state.tagTree.find((t) => t.type === 'ROOT') ?? null,
@@ -51,6 +52,16 @@ export const useTagStore = defineStore('tag', {
                 });
             }
 
+            // in-memory 데이터가 충분히 최신이면 IndexedDB 읽기 생략
+            // (refreshTags 진행 중이거나 최근 30초 이내 갱신된 경우)
+            const FRESH_THRESHOLD_MS = 30_000;
+            if (
+                this.isRefreshing ||
+                (this.tagTree.length > 0 && this.lastFetchedAt && Date.now() - this.lastFetchedAt < FRESH_THRESHOLD_MS)
+            ) {
+                return;
+            }
+
             // IndexedDB 캐시에서 즉시 로드
             try {
                 const cached = await get(cacheKey(memberId));
@@ -68,6 +79,12 @@ export const useTagStore = defineStore('tag', {
         },
 
         async refreshTags(memberId) {
+            // 진행 중인 요청이 있으면 완료 후 한 번 더 실행하도록 예약만 하고 반환
+            if (this.isRefreshing) {
+                this._pendingRefreshMemberId = memberId;
+                return;
+            }
+            this._pendingRefreshMemberId = null;
             this.isRefreshing = true;
             try {
                 const response = await apiClient.get(`/api/v1/tags?memberId=${Number(memberId)}`);
@@ -99,6 +116,25 @@ export const useTagStore = defineStore('tag', {
                 }
             } finally {
                 this.isRefreshing = false;
+                // 대기 중인 갱신 요청이 있으면 한 번만 재실행
+                if (this._pendingRefreshMemberId) {
+                    const pending = this._pendingRefreshMemberId;
+                    this._pendingRefreshMemberId = null;
+                    this.refreshTags(pending);
+                }
+            }
+        },
+
+        setTagState(tagId, state) {
+            const target = this.findTagById(tagId);
+            if (target) {
+                target.state = state;
+                // IndexedDB도 낙관적으로 갱신
+                if (this._activeMemberId) {
+                    set(cacheKey(this._activeMemberId), this.tagTree).catch((e) =>
+                        console.warn('IndexedDB optimistic update 실패:', e)
+                    );
+                }
             }
         },
 

@@ -22,13 +22,27 @@ precacheAndRoute(self.__WB_MANIFEST);
 // 네트워크 우선; 실패 시 캐시 응답 반환 (오프라인 대비)
 registerRoute(
   ({ url }) => url.pathname.startsWith('/api/v1/') &&
-    !url.pathname.startsWith('/api/v1/records'),
+    !url.pathname.startsWith('/api/v1/records') &&
+    !/^\/api\/v1\/tags\/\d+$/.test(url.pathname),
   new NetworkFirst({
     cacheName: 'api-cache',
     networkTimeoutSeconds: 3,
     plugins: [
       new CacheableResponsePlugin({ statuses: [0, 200] }),
       new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),
+    ],
+  })
+);
+
+// 태그 상세(/api/v1/tags/{id}): 타이머 state가 포함되므로 캐시 유효기간 2분으로 단축
+registerRoute(
+  ({ url }) => /^\/api\/v1\/tags\/\d+$/.test(url.pathname),
+  new NetworkFirst({
+    cacheName: 'tag-detail-cache',
+    networkTimeoutSeconds: 3,
+    plugins: [
+      new CacheableResponsePlugin({ statuses: [0, 200] }),
+      new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 2 * 60 }),
     ],
   })
 );

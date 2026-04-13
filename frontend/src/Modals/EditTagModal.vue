@@ -58,7 +58,7 @@ const props = defineProps({
   tagData: Object,
 });
 
-const emit = defineEmits(['close']);
+const emit = defineEmits(['close', 'mutated']);
 
 const newTagName      = ref('');
 const selectedParentId = ref('');
@@ -104,6 +104,7 @@ const createTag = async () => {
     });
     newTagName.value = '';
     fetchTags();
+    emit('mutated');
   } catch (error) {
     console.error('태그 생성 실패', error);
   }
@@ -115,6 +116,7 @@ const updateParentTag = async () => {
     await apiClient.patch(`/api/v1/tags/${Number(props.tagData.id)}`, {
       newParentTagId: selectedParentId.value,
     });
+    emit('mutated');
     closeModal();
   } catch (error) {
     console.error('부모 태그 변경 실패', error);
@@ -127,6 +129,7 @@ const deleteTag = async () => {
     await apiClient.patch(`/api/v1/tags/${Number(props.tagData.id)}`, {
       newParentTagId: discardedTag.value.id,
     });
+    emit('mutated');
     closeModal();
   } catch (error) {
     console.error('태그 삭제 실패', error);

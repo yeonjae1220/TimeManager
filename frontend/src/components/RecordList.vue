@@ -74,13 +74,13 @@
       v-if="isAddRecordModalOpen"
       :isOpen="isAddRecordModalOpen"
       :tagId="Number(tagId)"
-      @close="isAddRecordModalOpen = false"
+      @close="handleAddModalClose"
     />
     <EditRecordModal
       v-if="isEditRecordModalOpen"
       :isOpen="isEditRecordModalOpen"
       :recordData="selectedRecord"
-      @close="isEditRecordModalOpen = false"
+      @close="handleEditModalClose"
     />
   </div>
 </template>
@@ -135,6 +135,16 @@ const openEditModal = (record) => {
 };
 
 const openAddRecordModal = () => { isAddRecordModalOpen.value = true; };
+
+const handleAddModalClose = () => {
+  isAddRecordModalOpen.value = false;
+  fetchRecords();
+};
+
+const handleEditModalClose = () => {
+  isEditRecordModalOpen.value = false;
+  fetchRecords();
+};;
 
 onMounted(fetchRecords);
 </script>
