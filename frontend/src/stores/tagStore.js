@@ -1,4 +1,5 @@
 import { defineStore } from 'pinia';
+import { toRaw } from 'vue';
 import { get, set } from 'idb-keyval';
 import apiClient from '@/utils/apiClient';
 
@@ -133,7 +134,8 @@ export const useTagStore = defineStore('tag', {
                 this.lastFetchedAt = Date.now();
                 // IndexedDB도 낙관적으로 갱신
                 if (this._activeMemberId) {
-                    set(cacheKey(this._activeMemberId), this.tagTree).catch((e) =>
+                    // Vue reactive proxy는 Structured Clone 불가 → toRaw + JSON 직렬화
+                    set(cacheKey(this._activeMemberId), JSON.parse(JSON.stringify(toRaw(this.tagTree)))).catch((e) =>
                         console.warn('IndexedDB optimistic update 실패:', e)
                     );
                 }
