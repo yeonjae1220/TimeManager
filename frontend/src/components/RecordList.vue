@@ -144,7 +144,7 @@ const handleAddModalClose = () => {
 const handleEditModalClose = () => {
   isEditRecordModalOpen.value = false;
   fetchRecords();
-};;
+};
 
 onMounted(fetchRecords);
 </script>
