@@ -14,7 +14,7 @@ spec:
         app: redis
     spec:
       nodeSelector:
-        project: timemanager
+        project-timemanager: "true"
       containers:
         - name: redis
           image: redis:7-alpine

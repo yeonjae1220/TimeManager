@@ -26,7 +26,7 @@ spec:
         app: postgres
     spec:
       nodeSelector:
-        project: timemanager
+        project-timemanager: "true"
       containers:
         - name: postgres
           image: postgres:15-alpine

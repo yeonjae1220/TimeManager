@@ -14,11 +14,11 @@ spec:
         app: backend
     spec:
       nodeSelector:
-        project: timemanager
+        project-timemanager: "true"
       containers:
         - name: backend
-          image: timemanager-backend:latest
-          imagePullPolicy: Never
+          image: ghcr.io/yeonjae1220/timemanager:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 8080
           env:

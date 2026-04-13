@@ -14,11 +14,11 @@ spec:
         app: frontend
     spec:
       nodeSelector:
-        project: timemanager
+        project-timemanager: "true"
       containers:
         - name: frontend
-          image: timemanager-frontend:latest
-          imagePullPolicy: Never
+          image: ghcr.io/yeonjae1220/timemanager-frontend:latest
+          imagePullPolicy: Always
           ports:
             - containerPort: 80
           resources:
