@@ -121,7 +121,12 @@ const fetchTags = async () => {
   if (tagStore.hasCachedData) {
     // 캐시 있음 → 즉시 렌더, 백그라운드 갱신
     isLoading.value = false;
-    tagStore.refreshTags(memberId);
+    // write 직후(setTagState 포함) 5초 이내라면 백그라운드 갱신 생략
+    // write 완료 후 TagDetail의 refreshTags가 최신 서버 상태를 동기화함
+    const isRecentlyUpdated = tagStore.lastFetchedAt && Date.now() - tagStore.lastFetchedAt < 5_000;
+    if (!isRecentlyUpdated) {
+      tagStore.refreshTags(memberId);
+    }
   } else {
     // 캐시 없음 → 로딩 표시 후 네트워크 대기
     isLoading.value = true;

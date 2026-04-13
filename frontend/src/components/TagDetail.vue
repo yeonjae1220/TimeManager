@@ -367,7 +367,9 @@ const fetchTagData = async (tagId) => {
   try {
     const response = await apiClient.get(`/api/v1/tags/${tagId}`);
     if (route.params.id != tagId) return; // 네비게이션 race condition 방지
-    applyTagData(response.data, { saved });
+    // Phase 1 이후 사용자가 타이머를 조작했을 수 있으므로 localStorage를 재로드
+    const freshSaved = loadTimerState(numId);
+    applyTagData(response.data, { saved: freshSaved });
   } catch (error) {
     console.error('태그 데이터 네트워크 조회 실패:', error);
     // Phase 1에서 이미 캐시 데이터 표시 중 → 추가 작업 불필요
