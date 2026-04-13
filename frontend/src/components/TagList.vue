@@ -115,12 +115,19 @@ const topInput    = ref(null);
 const errorMessage = ref('');
 
 const fetchTags = async () => {
-  // 캐시가 없을 때만 로딩 표시
-  if (!tagStore.hasCachedData) {
+  // Phase 1: IndexedDB 캐시 즉시 로드
+  await tagStore.loadTagsFromCache(memberId);
+
+  if (tagStore.hasCachedData) {
+    // 캐시 있음 → 즉시 렌더, 백그라운드 갱신
+    isLoading.value = false;
+    tagStore.refreshTags(memberId);
+  } else {
+    // 캐시 없음 → 로딩 표시 후 네트워크 대기
     isLoading.value = true;
+    await tagStore.refreshTags(memberId);
+    isLoading.value = false;
   }
-  await tagStore.loadTags(memberId);
-  isLoading.value = false;
 };
 
 const tagList = computed(() => tagStore.tagList);

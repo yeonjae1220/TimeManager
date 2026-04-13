@@ -37,7 +37,7 @@ export const useTagStore = defineStore('tag', {
         },
     },
     actions: {
-        async loadTags(memberId) {
+        async loadTagsFromCache(memberId) {
             this.fetchError = false;
             this._activeMemberId = memberId;
 
@@ -51,7 +51,7 @@ export const useTagStore = defineStore('tag', {
                 });
             }
 
-            // 1. IndexedDB 캐시에서 즉시 로드
+            // IndexedDB 캐시에서 즉시 로드
             try {
                 const cached = await get(cacheKey(memberId));
                 if (cached) {
@@ -60,8 +60,10 @@ export const useTagStore = defineStore('tag', {
             } catch (e) {
                 console.warn('IndexedDB 캐시 읽기 실패:', e);
             }
+        },
 
-            // 2. 네트워크에서 최신 데이터 가져오기
+        async loadTags(memberId) {
+            await this.loadTagsFromCache(memberId);
             await this.refreshTags(memberId);
         },
 
