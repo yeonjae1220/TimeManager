@@ -129,6 +129,8 @@ export const useTagStore = defineStore('tag', {
             const target = this.findTagById(tagId);
             if (target) {
                 target.state = state;
+                // lastFetchedAt 갱신 → freshness guard가 IndexedDB 덮어쓰기를 30초간 차단
+                this.lastFetchedAt = Date.now();
                 // IndexedDB도 낙관적으로 갱신
                 if (this._activeMemberId) {
                     set(cacheKey(this._activeMemberId), this.tagTree).catch((e) =>

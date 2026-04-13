@@ -289,7 +289,13 @@ const togglePushNotification = async () => {
   }
 };
 
-const goToRecordsPage = (tagId) => router.push(`/records/${tagId}`);
+// stop API가 진행 중일 때 Records 이동 시 완료 대기
+let _pendingStop = null;
+
+const goToRecordsPage = async (tagId) => {
+  if (_pendingStop) await _pendingStop;
+  router.push(`/records/${tagId}`);
+};
 
 const hydrateStopwatchState = () => {
   stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
@@ -467,24 +473,29 @@ const stopStopwatch = async () => {
   stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
   stopwatchState.totalTimeCal      = stopwatchState.totalTime;
   saveTimerState(tag.value.id, stopwatchState);
-  try {
-    await apiClient.post(
-      `/api/v1/tags/${tag.value.id}/timer/stop`,
-      {
-        elapsedTime: stopwatchState.elapsedTime,
-        timestamps: {
-          startTime: new Date(stopwatchState.latestStartTime).toISOString(),
-          endTime:   new Date(stopwatchState.latestEndTime).toISOString(),
+  _pendingStop = (async () => {
+    try {
+      await apiClient.post(
+        `/api/v1/tags/${tag.value.id}/timer/stop`,
+        {
+          elapsedTime: stopwatchState.elapsedTime,
+          timestamps: {
+            startTime: new Date(stopwatchState.latestStartTime).toISOString(),
+            endTime:   new Date(stopwatchState.latestEndTime).toISOString(),
+          },
         },
-      },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    clearTimerState();
-    tagStore.refreshTags(tag.value.memberId);
-  } catch (error) {
-    // BackgroundSync가 온라인 복귀 시 자동 재전송
-    console.warn('스톱워치 종료 요청 큐잉됨 (오프라인):', error.message);
-  }
+        { headers: { 'Content-Type': 'application/json' } }
+      );
+      clearTimerState();
+      tagStore.refreshTags(tag.value.memberId);
+    } catch (error) {
+      // BackgroundSync가 온라인 복귀 시 자동 재전송
+      console.warn('스톱워치 종료 요청 큐잉됨 (오프라인):', error.message);
+    } finally {
+      _pendingStop = null;
+    }
+  })();
+  await _pendingStop;
 };
 
 const resetStopwatch = async () => {
