@@ -121,9 +121,10 @@ class RecordCommandServiceTest {
             Record record = Record.reconstitute(RecordId.of(recordId), tagId, originalRange, 3600L);
 
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
 
             ZonedDateTime newEnd = END.plusHours(1); // 7200초
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L);
 
             recordCommandService.editRecordTime(command);
 
@@ -139,9 +140,10 @@ class RecordCommandServiceTest {
             Record record = Record.reconstitute(RecordId.of(recordId), tagId, originalRange, 3600L);
 
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
 
             // 동일한 시간 범위로 수정
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L);
 
             recordCommandService.editRecordTime(command);
 
@@ -153,7 +155,7 @@ class RecordCommandServiceTest {
         void shouldThrow_whenRecordNotFound() {
             given(loadRecordPort.loadRecord(anyLong())).willReturn(Optional.empty());
 
-            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END, 1L);
 
             assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
                     .isInstanceOf(DomainException.class)
@@ -172,8 +174,9 @@ class RecordCommandServiceTest {
             TagId tagId = TagId.of(1L);
             Record record = Record.reconstitute(RecordId.of(recordId), tagId, new TimeRange(START, END), 3600L);
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
 
-            boolean result = recordCommandService.deleteRecord(recordId);
+            boolean result = recordCommandService.deleteRecord(recordId, 1L);
 
             assertThat(result).isTrue();
             then(saveRecordPort).should().deleteRecord(recordId);
@@ -185,7 +188,7 @@ class RecordCommandServiceTest {
         void shouldReturnFalse_whenRecordNotFound() {
             given(loadRecordPort.loadRecord(anyLong())).willReturn(Optional.empty());
 
-            boolean result = recordCommandService.deleteRecord(999L);
+            boolean result = recordCommandService.deleteRecord(999L, 1L);
 
             assertThat(result).isFalse();
             then(saveRecordPort).shouldHaveNoInteractions();

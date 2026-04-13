@@ -5,6 +5,7 @@ import io.jsonwebtoken.JwtException;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.io.Decoders;
 import io.jsonwebtoken.security.Keys;
+import jakarta.annotation.PostConstruct;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
@@ -20,10 +21,18 @@ import java.util.UUID;
 public class JwtTokenProviderImpl implements JwtTokenProvider, TokenGeneratorPort {
 
     @Value("${jwt.secret}")
-    private String secret;
+    private String secretValue;
 
     @Value("${jwt.access-token-ttl-minutes:15}")
     private long accessTokenTtlMinutes;
+
+    private SecretKey signingKey;
+
+    @PostConstruct
+    public void init() {
+        byte[] keyBytes = Decoders.BASE64.decode(secretValue);
+        this.signingKey = Keys.hmacShaKeyFor(keyBytes);
+    }
 
     @Override
     public String generateAccessToken(MemberId memberId) {
@@ -69,7 +78,6 @@ public class JwtTokenProviderImpl implements JwtTokenProvider, TokenGeneratorPor
     }
 
     private SecretKey getSigningKey() {
-        byte[] keyBytes = Decoders.BASE64.decode(secret);
-        return Keys.hmacShaKeyFor(keyBytes);
+        return signingKey;
     }
 }

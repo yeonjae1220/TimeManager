@@ -18,6 +18,7 @@ import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.tag.model.Tag;
 
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 
 @Service
 @Transactional
@@ -39,7 +40,8 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
             if (!runningTag.getId().value().equals(command.tagId())) {
                 log.info("Auto-stopping running tag: {}", runningTag.getId().value());
                 ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
-                runningTag.stop(endTime, 0L);
+                long elapsed = Math.max(0L, ChronoUnit.SECONDS.between(runningTag.getLatestStartTime(), endTime));
+                runningTag.stop(endTime, elapsed);
                 saveTagPort.saveTag(runningTag);
                 createRecordUseCase.createRecord(new CreateRecordCommand(runningTag.getId().value(), runningTag.getLatestStartTime(), endTime));
             }

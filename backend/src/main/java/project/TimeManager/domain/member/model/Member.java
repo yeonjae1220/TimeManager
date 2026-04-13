@@ -60,13 +60,6 @@ public class Member {
         return member;
     }
 
-    public static Member reconstitute(MemberId id, String name) {
-        Member member = new Member();
-        member.id = id;
-        member.name = name;
-        return member;
-    }
-
     public static Member reconstitute(MemberId id, String name, String email, String hashedPassword) {
         Member member = new Member();
         member.id = id;

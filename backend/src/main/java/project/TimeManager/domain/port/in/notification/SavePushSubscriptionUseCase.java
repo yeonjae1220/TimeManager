@@ -1,8 +1,8 @@
 package project.TimeManager.domain.port.in.notification;
 
-import project.TimeManager.adapter.in.web.dto.request.PushSubscribeRequest;
+import project.TimeManager.application.dto.command.SavePushSubscriptionCommand;
 
 public interface SavePushSubscriptionUseCase {
-    void saveSubscription(Long memberId, PushSubscribeRequest request);
+    void saveSubscription(SavePushSubscriptionCommand command);
     void deleteSubscription(Long memberId, String endpoint);
 }

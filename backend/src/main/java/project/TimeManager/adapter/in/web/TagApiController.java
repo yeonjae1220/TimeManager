@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.MoveTagRequest;
@@ -17,6 +18,8 @@ import project.TimeManager.application.dto.command.MoveTagCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
+import project.TimeManager.application.dto.result.TagResult;
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.port.in.tag.*;
 
 import java.time.ZonedDateTime;
@@ -37,27 +40,34 @@ public class TagApiController {
     private final MoveTagUseCase moveTagUseCase;
 
     @GetMapping
-    public List<TagTreeResponse> getUserTagsTree(@RequestParam Long memberId) {
+    public List<TagTreeResponse> getUserTagsTree(@AuthenticationPrincipal Long memberId) {
         return TagTreeResponse.buildTree(getTagListQuery.getTagListByMemberId(memberId));
     }
 
     @GetMapping("/{tagId}")
-    public TagResponse getTagDetail(@PathVariable Long tagId) {
-        return TagResponse.from(getTagQuery.getTag(tagId));
+    public TagResponse getTagDetail(@PathVariable Long tagId,
+                                    @AuthenticationPrincipal Long memberId) {
+        TagResult result = getTagQuery.getTag(tagId);
+        if (!result.getMemberId().equals(memberId)) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+        return TagResponse.from(result);
     }
 
     @PostMapping
-    public ResponseEntity<Long> createTag(@Valid @RequestBody CreateTagRequest request) {
+    public ResponseEntity<Long> createTag(@AuthenticationPrincipal Long memberId,
+                                          @Valid @RequestBody CreateTagRequest request) {
         return ResponseEntity.status(201).body(createTagUseCase.createTag(
-                new CreateTagCommand(request.tagName(), request.memberId(), request.parentTagId())
+                new CreateTagCommand(request.tagName(), memberId, request.parentTagId())
         ));
     }
 
     @PatchMapping("/{tagId}")
     public ResponseEntity<Long> moveTag(@PathVariable Long tagId,
+                                        @AuthenticationPrincipal Long memberId,
                                         @Valid @RequestBody MoveTagRequest request) {
         return ResponseEntity.ok(moveTagUseCase.moveTag(
-                new MoveTagCommand(tagId, request.newParentTagId())
+                new MoveTagCommand(tagId, request.newParentTagId(), memberId)
         ));
     }
 

@@ -16,6 +16,7 @@ import project.TimeManager.application.service.notification.PushSender;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.tag.model.TagType;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -71,7 +72,8 @@ class TagServiceTest {
                 .filter(t -> t.getName().equals("ChildTag2"))
                 .findFirst().orElseThrow();
 
-        moveTagUseCase.moveTag(new MoveTagCommand(childTag1_1.getId(), childTag2.getId()));
+        moveTagUseCase.moveTag(new MoveTagCommand(childTag1_1.getId(), childTag2.getId(),
+                childTag1_1.getMember().getId()));
 
         em.flush();
         em.clear();
@@ -89,9 +91,10 @@ class TagServiceTest {
                 .orElseThrow(() -> new AssertionError("CUSTOM 태그가 없습니다"));
 
         assertThatThrownBy(() ->
-                moveTagUseCase.moveTag(new MoveTagCommand(anyTag.getId(), anyTag.getId()))
+                moveTagUseCase.moveTag(new MoveTagCommand(anyTag.getId(), anyTag.getId(),
+                        anyTag.getMember().getId()))
         )
-                .isInstanceOf(IllegalArgumentException.class)
+                .isInstanceOf(DomainException.class)
                 .hasMessageContaining("cannot be moved to itself");
     }
 }

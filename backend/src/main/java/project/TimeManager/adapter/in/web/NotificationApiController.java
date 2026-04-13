@@ -6,6 +6,7 @@ import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.PushSubscribeRequest;
 import project.TimeManager.adapter.in.web.dto.request.PushUnsubscribeRequest;
+import project.TimeManager.application.dto.command.SavePushSubscriptionCommand;
 import project.TimeManager.domain.port.in.notification.SavePushSubscriptionUseCase;
 
 @RestController
@@ -19,7 +20,9 @@ public class NotificationApiController {
     public ResponseEntity<Void> subscribe(
             @PathVariable Long memberId,
             @Valid @RequestBody PushSubscribeRequest request) {
-        savePushSubscriptionUseCase.saveSubscription(memberId, request);
+        savePushSubscriptionUseCase.saveSubscription(
+                new SavePushSubscriptionCommand(memberId, request.endpoint(),
+                        request.getP256dh(), request.getAuth()));
         return ResponseEntity.noContent().build();
     }
 

@@ -43,13 +43,16 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
 
     @Override
     public Long moveTag(MoveTagCommand command) {
-        // Business rule: a tag cannot be moved to itself
         if (command.tagId().equals(command.newParentTagId())) {
-            throw new IllegalArgumentException("A tag cannot be moved to itself");
+            throw new DomainException("A tag cannot be moved to itself");
         }
 
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+
+        if (!tag.getMemberId().value().equals(command.memberId())) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
 
         Tag newParent = loadTagPort.loadTag(command.newParentTagId())
                 .orElseThrow(() -> new DomainException("New parent tag not found: " + command.newParentTagId()));
@@ -57,7 +60,6 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
         Long oldParentId = tag.getParentId() != null ? tag.getParentId().value() : null;
         long tagTotalTime = tag.getTotalTime();
 
-        // Subtract time from old parent hierarchy
         if (oldParentId != null) {
             updateTagTimeBatchPort.updateTagTimeBatch(oldParentId, -tagTotalTime);
         }
@@ -65,7 +67,6 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
         tag.moveTo(newParent.getId());
         saveTagPort.saveTag(tag);
 
-        // Add time to new parent hierarchy
         updateTagTimeBatchPort.updateTagTimeBatch(command.newParentTagId(), tagTotalTime);
 
         log.info("Tag moved: id={}, newParentId={}", command.tagId(), command.newParentTagId());

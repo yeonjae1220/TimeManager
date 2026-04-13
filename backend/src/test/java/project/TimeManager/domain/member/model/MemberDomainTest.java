@@ -103,17 +103,6 @@ class MemberDomainTest {
     class WhenReconstituting {
 
         @Test
-        @DisplayName("id와 name으로 복원하면 해당 필드가 설정된다")
-        void shouldSetIdAndName() {
-            MemberId memberId = MemberId.of(1L);
-
-            Member member = Member.reconstitute(memberId, "홍길동");
-
-            assertThat(member.getId()).isEqualTo(memberId);
-            assertThat(member.getName()).isEqualTo("홍길동");
-        }
-
-        @Test
         @DisplayName("id, name, email, password로 복원하면 모든 필드가 설정된다")
         void shouldSetAllFields() {
             MemberId memberId = MemberId.of(42L);

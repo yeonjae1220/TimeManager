@@ -12,9 +12,9 @@ public class DailyGoalScheduler {
 
     private final PushSender pushSender;
 
-    @Scheduled(cron = "0 0 * * * *")
+    // @Scheduled(cron = "0 0 * * * *") // TODO: 구현 완료 후 활성화
     public void checkDailyGoals() {
-        log.info("[Push] 일일 목표 달성 여부 확인 스케줄러 실행");
+        log.info("[Push] 일일 목표 달성 여부 확인 스케줄러 - 미구현, 비활성화 상태");
         // TODO: TagService를 주입받아 오늘 목표를 달성한 (memberId, tagName) 목록을 조회하고
         //       pushSender.sendToMember(memberId, "목표 달성!", tagName + " 일일 목표를 달성했습니다.") 호출
     }

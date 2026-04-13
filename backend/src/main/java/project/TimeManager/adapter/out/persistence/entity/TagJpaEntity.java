@@ -43,6 +43,9 @@ public class TagJpaEntity {
     @Enumerated(EnumType.STRING)
     private TimerState timerState = TimerState.STOPPED;
 
+    @Version
+    private Long version;
+
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "member_id")
     private MemberJpaEntity member;

@@ -60,6 +60,14 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
     public Long editRecordTime(EditRecordTimeCommand command) {
         Record record = loadRecordPort.loadRecord(command.recordId())
                 .orElseThrow(() -> new DomainException("Record not found: " + command.recordId()));
+
+        Tag tag = loadTagPort.loadTag(record.getTagId().value())
+                .orElseThrow(() -> new DomainException("Tag not found: " + record.getTagId().value()));
+
+        if (!tag.getMemberId().value().equals(command.memberId())) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+
         long oldTotalTime = record.getTotalTime();
         boolean wasToday = isToday(record.getTimeRange().start());
 
@@ -84,8 +92,6 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
             dailyDelta = record.getTotalTime();
         }
         if (dailyDelta != 0) {
-            Tag tag = loadTagPort.loadTag(record.getTagId().value())
-                    .orElseThrow(() -> new DomainException("Tag not found: " + record.getTagId().value()));
             tag.updateDailyTotalTime(dailyDelta);
             saveTagPort.saveTag(tag);
         }
@@ -94,21 +100,26 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
     }
 
     @Override
-    public boolean deleteRecord(Long recordId) {
+    public boolean deleteRecord(Long recordId, Long memberId) {
         Optional<Record> recordOpt = loadRecordPort.loadRecord(recordId);
         if (recordOpt.isEmpty()) return false;
 
         Record record = recordOpt.get();
-        long delta = -record.getTotalTime();
         Long tagId = record.getTagId().value();
 
+        Tag tag = loadTagPort.loadTag(tagId)
+                .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
+
+        if (!tag.getMemberId().value().equals(memberId)) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+
+        long delta = -record.getTotalTime();
         saveRecordPort.deleteRecord(recordId);
         updateTagTimeBatchPort.updateTagTimeBatch(tagId, delta);
 
         // 오늘 레코드 삭제 시 dailyTotalTime 차감
         if (isToday(record.getTimeRange().start())) {
-            Tag tag = loadTagPort.loadTag(tagId)
-                    .orElseThrow(() -> new DomainException("Tag not found: " + tagId));
             tag.updateDailyTotalTime(delta);
             saveTagPort.saveTag(tag);
         }

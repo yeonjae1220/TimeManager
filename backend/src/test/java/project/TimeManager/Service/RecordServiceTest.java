@@ -62,7 +62,8 @@ class RecordServiceTest {
         // 종료 시간을 30분 단축
         ZonedDateTime newEnd = record.getStartTime().plusMinutes(30);
         editRecordTimeUseCase.editRecordTime(
-                new EditRecordTimeCommand(record.getId(), record.getStartTime(), newEnd));
+                new EditRecordTimeCommand(record.getId(), record.getStartTime(), newEnd,
+                        child1_1.getMember().getId()));
 
         em.flush();
         em.clear();
@@ -85,7 +86,7 @@ class RecordServiceTest {
         assertThat(records).isNotEmpty();
         long recordTotalTime = records.get(0).getTotalTime();
 
-        boolean deleted = deleteRecordUseCase.deleteRecord(records.get(0).getId());
+        boolean deleted = deleteRecordUseCase.deleteRecord(records.get(0).getId(), child1_1.getMember().getId());
 
         em.flush();
         em.clear();
@@ -105,9 +106,10 @@ class RecordServiceTest {
         ZonedDateTime start = ZonedDateTime.of(2024, 12, 5, 14, 0, 0, 0, ZoneId.of("Asia/Seoul"));
         ZonedDateTime end   = ZonedDateTime.of(2024, 12, 5, 13, 0, 0, 0, ZoneId.of("Asia/Seoul"));
 
+        Long memberId = anyRecord.getTag().getMember().getId();
         assertThatThrownBy(() ->
                 editRecordTimeUseCase.editRecordTime(
-                        new EditRecordTimeCommand(anyRecord.getId(), start, end))
+                        new EditRecordTimeCommand(anyRecord.getId(), start, end, memberId))
         )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("종료 시간은 시작 시간 이후여야 합니다");
