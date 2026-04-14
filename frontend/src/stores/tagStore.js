@@ -2,7 +2,7 @@ import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 import { get, set } from 'idb-keyval';
 import apiClient from '@/utils/apiClient';
-import { peekTimerState } from '@/utils/timerPersistence';
+import { peekTimerState, clearTimerState } from '@/utils/timerPersistence';
 
 const cacheKey = (memberId) => `tags-${memberId}`;
 
@@ -47,14 +47,15 @@ export const useTagStore = defineStore('tag', {
             // 온라인 복귀 시 자동 갱신 리스너 등록 (1회)
             if (!onlineListenerRegistered) {
                 onlineListenerRegistered = true;
-                window.addEventListener('online', () => {
+                window.addEventListener('online', async () => {
+                    // 오프라인 중 실패한 타이머 동작을 수동 재전송
+                    await this.retryPendingTimerOp();
                     if (this._activeMemberId) {
                         this.refreshTags(this._activeMemberId);
-                        // BackgroundSync와의 경쟁 해소: SW가 timerQueue를 재전송하고
-                        // 서버가 처리 완료한 이후의 상태를 반영하기 위해 지연 갱신
+                        // 재전송 완료 후 서버 상태를 반영하기 위한 지연 갱신
                         setTimeout(() => {
                             if (this._activeMemberId) this.refreshTags(this._activeMemberId);
-                        }, 3000);
+                        }, 2000);
                     }
                 });
             }
@@ -153,6 +154,42 @@ export const useTagStore = defineStore('tag', {
                         console.warn('IndexedDB optimistic update 실패:', e)
                     );
                 }
+            }
+        },
+
+        // 오프라인 중 실패한 타이머 동작(stop/start)을 온라인 복귀 시 수동 재전송
+        // BackgroundSync 대신 사용: SW 제어 여부와 무관하게 동작하며 record 이중 생성 방지
+        async retryPendingTimerOp() {
+            const saved = peekTimerState();
+            if (!saved) return;
+
+            try {
+                if (!saved.isRunning && saved.latestEndTime) {
+                    // 오프라인 stop 재전송
+                    await apiClient.post(
+                        `/api/v1/tags/${saved.tagId}/timer/stop`,
+                        {
+                            elapsedTime: saved.elapsedTime,
+                            timestamps: {
+                                startTime: new Date(saved.latestStartTime).toISOString(),
+                                endTime: new Date(saved.latestEndTime).toISOString(),
+                            },
+                        },
+                        { headers: { 'Content-Type': 'application/json' } }
+                    );
+                    clearTimerState();
+                    console.log('[tagStore] 오프라인 stop 재전송 완료:', saved.tagId);
+                } else if (saved.isRunning && saved.latestStartTime) {
+                    // 오프라인 start 재전송
+                    await apiClient.post(
+                        `/api/v1/tags/${saved.tagId}/timer/start`,
+                        { startTime: new Date(saved.latestStartTime).toISOString() },
+                        { headers: { 'Content-Type': 'application/json' } }
+                    );
+                    console.log('[tagStore] 오프라인 start 재전송 완료:', saved.tagId);
+                }
+            } catch (e) {
+                console.warn('[tagStore] 오프라인 타이머 재전송 실패:', e.message);
             }
         },
 

@@ -13,6 +13,18 @@ import { ExpirationPlugin } from 'workbox-expiration';
 import { CacheableResponsePlugin } from 'workbox-cacheable-response';
 import { BackgroundSyncPlugin } from 'workbox-background-sync';
 
+// ── SW 생명주기: 즉시 활성화 ─────────────────────────────────────────
+// skipWaiting: 배포 후 새 SW가 "waiting" 없이 즉시 install → activate
+// clients.claim: activate 후 열려있는 모든 탭을 즉시 제어
+// (이 없으면 SW가 설치됐어도 페이지를 제어하지 못해 fetch 가로채기 불가)
+self.addEventListener('install', (event) => {
+  event.waitUntil(self.skipWaiting());
+});
+
+self.addEventListener('activate', (event) => {
+  event.waitUntil(self.clients.claim());
+});
+
 // ── Phase 1: 앱 쉘 Precache ──────────────────────────────────────────
 // Workbox InjectManifest 모드: 빌드 시 __WB_MANIFEST 자리에
 // precache 목록(JS/CSS/HTML)이 삽입됨
@@ -78,36 +90,11 @@ registerRoute(
   'DELETE'
 );
 
-// ── Phase 2.5: Background Sync — timer operations ───────────────────
-// 오프라인 중 실패한 타이머 시작·종료·리셋 요청을
-// IndexedDB 큐에 저장했다가 온라인 복귀 시 자동 재전송
-const timerBgSyncPlugin = new BackgroundSyncPlugin('timerQueue', {
-  maxRetentionTime: 24 * 60, // 24시간(분 단위) 보관
-});
-
-// POST /api/v1/tags/*/timer/start — 타이머 시작
-registerRoute(
-  ({ url, request }) =>
-    /^\/api\/v1\/tags\/\d+\/timer\/start$/.test(url.pathname) && request.method === 'POST',
-  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
-  'POST'
-);
-
-// POST /api/v1/tags/*/timer/stop — 타이머 종료
-registerRoute(
-  ({ url, request }) =>
-    /^\/api\/v1\/tags\/\d+\/timer\/stop$/.test(url.pathname) && request.method === 'POST',
-  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
-  'POST'
-);
-
-// POST /api/v1/tags/*/timer/reset — 타이머 리셋
-registerRoute(
-  ({ url, request }) =>
-    /^\/api\/v1\/tags\/\d+\/timer\/reset$/.test(url.pathname) && request.method === 'POST',
-  new NetworkFirst({ plugins: [timerBgSyncPlugin] }),
-  'POST'
-);
+// ── 타이머 API (timer/start, timer/stop, timer/reset) ────────────────
+// BackgroundSync를 사용하지 않음:
+//   - SW가 제어하기 전에는 큐잉 불가 (skipWaiting 이전 문제)
+//   - BackgroundSync + Vue 수동 재전송 중복 시 record 이중 생성 위험
+// → 타이머 재전송은 tagStore의 온라인 리스너에서 수동으로 처리
 
 // ── Phase 3: Push 알림 수신 ──────────────────────────────────────────
 self.addEventListener('push', (event) => {

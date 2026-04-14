@@ -530,15 +530,16 @@ watch(
 );
 
 // 온라인 복귀 시 서버 데이터로 자동 갱신
+// 타이머 재전송은 tagStore의 online 리스너가 먼저 처리 후 이 함수가 호출됨
 const handleOnline = () => {
   const tagId = route.params.id;
   if (tagId) {
+    // 즉시 갱신: tagStore.retryPendingTimerOp과 병렬 실행
     fetchTagData(tagId);
-    // BackgroundSync와의 경쟁 해소: SW가 timerQueue를 재전송하고
-    // 서버가 처리 완료한 이후의 상태(기록 포함)를 반영하기 위해 지연 갱신
+    // 재전송 완료 후 서버 상태(기록 포함) 반영을 위한 지연 갱신
     setTimeout(() => {
       if (route.params.id == tagId) fetchTagData(tagId);
-    }, 3000);
+    }, 2000);
   }
 };
 window.addEventListener('online', handleOnline);
