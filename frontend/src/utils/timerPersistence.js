@@ -40,3 +40,14 @@ export function clearTimerState() {
         console.warn('타이머 상태 삭제 실패:', e);
     }
 }
+
+// tagId 필터 없이 localStorage의 타이머 상태를 그대로 반환
+// tagStore에서 IDB 로드 후 낙관적 상태 오버라이드에 사용
+export function peekTimerState() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        return raw ? JSON.parse(raw) : null;
+    } catch (e) {
+        return null;
+    }
+}

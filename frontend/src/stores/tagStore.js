@@ -2,6 +2,7 @@ import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 import { get, set } from 'idb-keyval';
 import apiClient from '@/utils/apiClient';
+import { peekTimerState } from '@/utils/timerPersistence';
 
 const cacheKey = (memberId) => `tags-${memberId}`;
 
@@ -49,6 +50,11 @@ export const useTagStore = defineStore('tag', {
                 window.addEventListener('online', () => {
                     if (this._activeMemberId) {
                         this.refreshTags(this._activeMemberId);
+                        // BackgroundSync와의 경쟁 해소: SW가 timerQueue를 재전송하고
+                        // 서버가 처리 완료한 이후의 상태를 반영하기 위해 지연 갱신
+                        setTimeout(() => {
+                            if (this._activeMemberId) this.refreshTags(this._activeMemberId);
+                        }, 3000);
                     }
                 });
             }
@@ -71,6 +77,14 @@ export const useTagStore = defineStore('tag', {
                 }
             } catch (e) {
                 console.warn('IndexedDB 캐시 읽기 실패:', e);
+            }
+
+            // IDB 로드 후 localStorage의 낙관적 타이머 상태로 오버라이드
+            // IDB 비동기 쓰기 미완료, 또는 BackgroundSync 대기 중인 state와의 경쟁을 해소
+            const localTimer = peekTimerState();
+            if (localTimer) {
+                const target = this.findTagById(localTimer.tagId);
+                if (target) target.state = localTimer.isRunning;
             }
         },
 

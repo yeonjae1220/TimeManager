@@ -534,6 +534,11 @@ const handleOnline = () => {
   const tagId = route.params.id;
   if (tagId) {
     fetchTagData(tagId);
+    // BackgroundSync와의 경쟁 해소: SW가 timerQueue를 재전송하고
+    // 서버가 처리 완료한 이후의 상태(기록 포함)를 반영하기 위해 지연 갱신
+    setTimeout(() => {
+      if (route.params.id == tagId) fetchTagData(tagId);
+    }, 3000);
   }
 };
 window.addEventListener('online', handleOnline);
