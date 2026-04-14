@@ -86,7 +86,7 @@
 </template>
 
 <script setup>
-import { onMounted, ref } from 'vue';
+import { onMounted, onBeforeUnmount, ref } from 'vue';
 import apiClient from '@/utils/apiClient';
 import { useRoute } from 'vue-router';
 import EditRecordModal from '@/Modals/EditRecordModal.vue';
@@ -146,7 +146,21 @@ const handleEditModalClose = () => {
   fetchRecords();
 };
 
-onMounted(fetchRecords);
+// 온라인 복귀 시 BackgroundSync가 timer/stop을 재전송하고
+// 서버가 record를 생성한 이후를 반영하기 위해 즉시 + 지연 갱신
+const handleOnline = () => {
+  fetchRecords();
+  setTimeout(() => fetchRecords(), 3000);
+};
+
+onMounted(() => {
+  fetchRecords();
+  window.addEventListener('online', handleOnline);
+});
+
+onBeforeUnmount(() => {
+  window.removeEventListener('online', handleOnline);
+});
 </script>
 
 <style scoped>
