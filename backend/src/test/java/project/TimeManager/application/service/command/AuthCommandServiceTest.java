@@ -15,6 +15,7 @@ import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
@@ -54,10 +55,10 @@ class AuthCommandServiceTest {
         @DisplayName("이메일과 비밀번호가 올바르면 토큰 쌍을 반환한다")
         void shouldReturnTokenPair_whenCredentialsValid() {
             // Arrange
-            MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD);
+            MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD, MemberRole.MEMBER);
             given(loadMemberCredentialsPort.findByEmail(EMAIL)).willReturn(Optional.of(credentials));
             given(passwordHasherPort.matches(PASSWORD, HASHED_PASSWORD)).willReturn(true);
-            given(tokenGeneratorPort.generateAccessToken(MEMBER_ID)).willReturn(ACCESS_TOKEN);
+            given(tokenGeneratorPort.generateAccessToken(eq(MEMBER_ID), any(MemberRole.class))).willReturn(ACCESS_TOKEN);
             given(tokenGeneratorPort.generateRefreshToken()).willReturn(REFRESH_TOKEN);
 
             // Act
@@ -83,7 +84,7 @@ class AuthCommandServiceTest {
         @Test
         @DisplayName("비밀번호가 틀리면 DomainException이 발생한다")
         void shouldThrow_whenPasswordIncorrect() {
-            MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD);
+            MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD, MemberRole.MEMBER);
             given(loadMemberCredentialsPort.findByEmail(EMAIL)).willReturn(Optional.of(credentials));
             given(passwordHasherPort.matches(anyString(), anyString())).willReturn(false);
 
@@ -108,7 +109,7 @@ class AuthCommandServiceTest {
             String newRefreshToken = "new-refresh-token";
             String newAccessToken = "new-access-token";
             given(tokenGeneratorPort.generateRefreshToken()).willReturn(newRefreshToken);
-            given(tokenGeneratorPort.generateAccessToken(MEMBER_ID)).willReturn(newAccessToken);
+            given(tokenGeneratorPort.generateAccessToken(eq(MEMBER_ID), any(MemberRole.class))).willReturn(newAccessToken);
 
             // Act
             TokenPairResult result = authCommandService.refresh(new RefreshTokenCommand(REFRESH_TOKEN));

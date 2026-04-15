@@ -11,6 +11,7 @@ import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.member.InitializeMemberTagsPort;
@@ -58,7 +59,7 @@ class MemberCommandServiceTest {
         @Test
         @DisplayName("이미 사용 중인 이메일로 가입하면 DomainException이 발생한다")
         void shouldThrow_whenEmailAlreadyExists() {
-            MemberCredentials existing = new MemberCredentials(MemberId.of(1L), "some_hash");
+            MemberCredentials existing = new MemberCredentials(MemberId.of(1L), "some_hash", MemberRole.MEMBER);
             given(loadMemberCredentialsPort.findByEmail("existing@example.com")).willReturn(Optional.of(existing));
 
             RegisterMemberCommand command = new RegisterMemberCommand("홍길동", "existing@example.com", "plainPw");
