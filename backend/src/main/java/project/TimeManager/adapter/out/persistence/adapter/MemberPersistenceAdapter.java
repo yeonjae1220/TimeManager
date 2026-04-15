@@ -1,6 +1,8 @@
 package project.TimeManager.adapter.out.persistence.adapter;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Component;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 import project.TimeManager.adapter.out.persistence.mapper.MemberMapper;
@@ -41,7 +43,8 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
         return memberJpaRepository.findByEmail(email)
                 .map(entity -> new MemberCredentials(
                         MemberId.of(entity.getId()),
-                        entity.getPassword()
+                        entity.getPassword(),
+                        entity.getRole()
                 ));
     }
 
@@ -67,6 +70,24 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
     @Override
     public void deleteMember(Long memberId) {
         memberJpaRepository.deleteById(memberId);
+    }
+
+    @Override
+    public void updateMemberRole(Long memberId, project.TimeManager.domain.member.model.MemberRole role) {
+        MemberJpaEntity entity = memberJpaRepository.findById(memberId)
+                .orElseThrow(() -> new DomainException("존재하지 않는 회원입니다"));
+        entity.setRole(role);
+        memberJpaRepository.save(entity);
+    }
+
+    @Override
+    public Page<Member> findAll(Pageable pageable) {
+        return memberJpaRepository.findAll(pageable).map(memberMapper::toDomain);
+    }
+
+    @Override
+    public long count() {
+        return memberJpaRepository.count();
     }
 
 }

@@ -10,6 +10,7 @@ import project.TimeManager.application.dto.result.TokenPairResult;
 import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
 import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
@@ -17,6 +18,7 @@ import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
+import project.TimeManager.domain.port.out.member.LoadMemberPort;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -33,6 +35,7 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
     private final PasswordHasherPort passwordHasherPort;
     private final TokenStorePort tokenStorePort;
     private final TokenGeneratorPort tokenGeneratorPort;
+    private final LoadMemberPort loadMemberPort;
 
     @Override
     public TokenPairResult login(LoginCommand command) {
@@ -65,7 +68,9 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
         session.rotate(newRefreshToken, newExpiresAt());
         tokenStorePort.save(session);
 
-        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId());
+        MemberRole role = loadMemberPort.loadMember(session.getMemberId().value())
+                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
+        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId(), role);
         return new TokenPairResult(newAccessToken, newRefreshToken, session.getMemberId().value());
     }
 
@@ -75,7 +80,9 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
     }
 
     private TokenPairResult issueTokenPair(MemberId memberId) {
-        String accessToken = tokenGeneratorPort.generateAccessToken(memberId);
+        MemberRole role = loadMemberPort.loadMember(memberId.value())
+                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
+        String accessToken = tokenGeneratorPort.generateAccessToken(memberId, role);
         String refreshToken = tokenGeneratorPort.generateRefreshToken();
         AuthSession session = AuthSession.create(memberId, refreshToken, newExpiresAt());
         tokenStorePort.save(session);

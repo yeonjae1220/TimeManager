@@ -7,6 +7,8 @@ import RegisterView from "@/views/RegisterView.vue";
 import OAuthCallbackView from "@/views/OAuthCallbackView.vue";
 import ProfileView from "@/views/ProfileView.vue";
 import LandingView from "@/views/LandingView.vue";
+import AdminDashboardView from "@/views/admin/AdminDashboardView.vue";
+import AdminMembersView from "@/views/admin/AdminMembersView.vue";
 
 const routes = [
     { path: "/", name: 'landing', component: LandingView },
@@ -17,6 +19,8 @@ const routes = [
     { path: "/members/:id/tags", name: 'tags', component: TagList, meta: { requiresAuth: true } },
     { path: "/records/:id", name: 'records', component: RecordList, props: true, meta: { requiresAuth: true } },
     { path: "/profile", name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
+    { path: "/admin", name: 'adminDashboard', component: AdminDashboardView, meta: { requiresAuth: true, requiresAdmin: true } },
+    { path: "/admin/members", name: 'adminMembers', component: AdminMembersView, meta: { requiresAuth: true, requiresAdmin: true } },
 ];
 
 const router = createRouter({
@@ -27,8 +31,10 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     if (!to.meta.requiresAuth) return next();
     const raw = localStorage.getItem('auth');
-    const accessToken = raw ? JSON.parse(raw)?.accessToken : null;
+    const parsed = raw ? JSON.parse(raw) : null;
+    const accessToken = parsed?.accessToken;
     if (!accessToken) return next('/login');
+    if (to.meta.requiresAdmin && parsed?.role !== 'ADMIN') return next('/login');
     next();
 });
 

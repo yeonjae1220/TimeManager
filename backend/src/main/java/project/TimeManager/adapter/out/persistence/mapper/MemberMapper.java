@@ -15,7 +15,8 @@ public class MemberMapper {
                 entity.getEmail(),
                 entity.getPassword(),
                 entity.getProvider(),
-                entity.getProviderId()
+                entity.getProviderId(),
+                entity.getRole()
         );
     }
 
@@ -26,6 +27,7 @@ public class MemberMapper {
         entity.setProvider(domain.getProvider() != null ? domain.getProvider()
                 : project.TimeManager.domain.member.model.OAuthProvider.LOCAL);
         entity.setProviderId(domain.getProviderId());
+        entity.setRole(domain.getRole());
         return entity;
     }
 }

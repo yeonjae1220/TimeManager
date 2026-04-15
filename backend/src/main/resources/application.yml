@@ -36,7 +36,7 @@ push:
     subject: ${PUSH_VAPID_SUBJECT:mailto:admin@example.com}
 
 jwt:
-  secret: ${JWT_SECRET:ZGV2LXNlY3JldC1rZXktZm9yLWxvY2FsLWRldmVsb3BtZW50LW9ubHk=}
+  secret: ${JWT_SECRET}
   access-token-ttl-minutes: 15
   refresh-token-ttl-minutes: 10080
 

@@ -5,6 +5,7 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.member.model.OAuthProvider;
 
 import java.util.ArrayList;
@@ -36,6 +37,10 @@ public class MemberJpaEntity {
 
     @Column(name = "provider_id")
     private String providerId;
+
+    @Column(name = "role", nullable = false, length = 20)
+    @Enumerated(EnumType.STRING)
+    private MemberRole role = MemberRole.MEMBER;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();

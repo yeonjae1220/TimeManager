@@ -8,6 +8,7 @@ public class Member {
     private String hashedPassword;
     private OAuthProvider provider;
     private String providerId;
+    private MemberRole role;
 
     private Member() {}
 
@@ -18,6 +19,11 @@ public class Member {
         Member member = new Member();
         member.name = name;
         return member;
+    }
+
+    public void updateRole(MemberRole role) {
+        if (role == null) throw new IllegalArgumentException("역할은 null일 수 없습니다");
+        this.role = role;
     }
 
     public static Member register(String name, String email, String hashedPassword) {
@@ -79,6 +85,20 @@ public class Member {
         member.hashedPassword = hashedPassword;
         member.provider = provider != null ? provider : OAuthProvider.LOCAL;
         member.providerId = providerId;
+        member.role = MemberRole.MEMBER;
+        return member;
+    }
+
+    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
+                                      OAuthProvider provider, String providerId, MemberRole role) {
+        Member member = new Member();
+        member.id = id;
+        member.name = name;
+        member.email = email;
+        member.hashedPassword = hashedPassword;
+        member.provider = provider != null ? provider : OAuthProvider.LOCAL;
+        member.providerId = providerId;
+        member.role = role != null ? role : MemberRole.MEMBER;
         return member;
     }
 
@@ -88,4 +108,5 @@ public class Member {
     public String getHashedPassword() { return hashedPassword; }
     public OAuthProvider getProvider() { return provider; }
     public String getProviderId() { return providerId; }
+    public MemberRole getRole() { return role != null ? role : MemberRole.MEMBER; }
 }

@@ -1,3 +1,3 @@
 package project.TimeManager.domain.member.model;
 
-public record MemberCredentials(MemberId memberId, String hashedPassword) {}
+public record MemberCredentials(MemberId memberId, String hashedPassword, MemberRole role) {}

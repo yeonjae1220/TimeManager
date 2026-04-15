@@ -12,9 +12,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.member.model.MemberRole;
 
 import java.io.IOException;
-import java.util.Collections;
+import java.util.List;
 import java.util.UUID;
 
 @Component
@@ -36,9 +37,11 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
             if (StringUtils.hasText(token) && jwtTokenProvider.validateAccessToken(token)) {
                 MemberId memberId = jwtTokenProvider.extractMemberId(token);
+                MemberRole role = jwtTokenProvider.extractRole(token);
                 MDC.put("memberId", memberId.value().toString());
+                String authority = role == MemberRole.ADMIN ? "ADMIN" : "ROLE_USER";
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
-                        memberId.value(), null, Collections.emptyList());
+                        memberId.value(), null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(authority)));
                 SecurityContextHolder.getContext().setAuthentication(auth);
             }
 

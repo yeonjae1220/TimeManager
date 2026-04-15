@@ -11,6 +11,7 @@ import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.member.model.OAuthProvider;
+import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.out.auth.GoogleOAuthPort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
@@ -62,7 +63,9 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
             isNewMember = true;
         }
 
-        String accessToken = tokenGeneratorPort.generateAccessToken(memberId);
+        MemberRole role = loadMemberPort.loadMember(memberId.value())
+                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
+        String accessToken = tokenGeneratorPort.generateAccessToken(memberId, role);
         String refreshToken = tokenGeneratorPort.generateRefreshToken();
         Instant expiresAt = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
         AuthSession session = AuthSession.create(memberId, refreshToken, expiresAt);
