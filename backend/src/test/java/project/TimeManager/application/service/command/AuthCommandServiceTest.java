@@ -20,6 +20,7 @@ import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
+import project.TimeManager.domain.port.out.member.LoadMemberPort;
 
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
@@ -37,6 +38,7 @@ class AuthCommandServiceTest {
     @Mock PasswordHasherPort passwordHasherPort;
     @Mock TokenStorePort tokenStorePort;
     @Mock TokenGeneratorPort tokenGeneratorPort;
+    @Mock LoadMemberPort loadMemberPort;
 
     @InjectMocks AuthCommandService authCommandService;
 
