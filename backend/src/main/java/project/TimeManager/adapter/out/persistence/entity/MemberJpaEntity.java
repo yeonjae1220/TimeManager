@@ -38,7 +38,7 @@ public class MemberJpaEntity {
     @Column(name = "provider_id")
     private String providerId;
 
-    @Column(name = "role", nullable = false, length = 20)
+    @Column(name = "role", columnDefinition = "VARCHAR(20) NOT NULL DEFAULT 'MEMBER'")
     @Enumerated(EnumType.STRING)
     private MemberRole role = MemberRole.MEMBER;
 
