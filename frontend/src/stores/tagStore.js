@@ -85,7 +85,13 @@ export const useTagStore = defineStore('tag', {
             const localTimer = peekTimerState();
             if (localTimer) {
                 const target = this.findTagById(localTimer.tagId);
-                if (target) target.state = localTimer.isRunning;
+                if (target) {
+                    const serverStopTimeMs = target.latestStopTimeMs || 0;
+                    // localStorage가 서버의 stop 이후에 저장된 경우에만 오버라이드
+                    if (localTimer.savedAt > serverStopTimeMs) {
+                        target.state = localTimer.isRunning;
+                    }
+                }
             }
         },
 

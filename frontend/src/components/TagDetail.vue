@@ -318,7 +318,7 @@ const applyTagData = (source, options = {}) => {
     : source;
 
   const saved = options.saved;
-  if (saved && saved.savedAt > (source.latestStartTimeMs || 0)) {
+  if (saved && saved.savedAt > (source.latestStartTimeMs || 0) && saved.savedAt > (source.latestStopTimeMs || 0)) {
     // 로컬 타이머 상태가 서버/캐시보다 최신 → 로컬 우선
     stopwatchState.isRunning       = saved.isRunning;
     stopwatchState.latestStartTime = saved.latestStartTime;
