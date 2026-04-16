@@ -1,7 +1,7 @@
 <template>
   <div class="page home-page">
     <div class="topbar">
-      <span class="topbar-brand">timemgr</span>
+      <router-link to="/" class="topbar-brand">timemgr</router-link>
       <div class="topbar-actions">
         <button class="btn btn-ghost topbar-btn" @click="goProfile">Profile</button>
         <button class="btn btn-ghost topbar-btn" @click="handleLogout">Sign out</button>

@@ -13,7 +13,7 @@
     </div>
 
     <div class="topbar">
-      <span class="topbar-brand">timemgr</span>
+      <router-link to="/" class="topbar-brand">timemgr</router-link>
       <div class="topbar-actions">
         <router-link to="/" class="topbar-back">
           <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
