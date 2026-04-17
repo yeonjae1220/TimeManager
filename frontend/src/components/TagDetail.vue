@@ -320,11 +320,13 @@ const applyTagData = (source, options = {}) => {
   const saved = options.saved;
   if (saved && saved.savedAt > (source.latestStartTimeMs || 0) && saved.savedAt > (source.latestStopTimeMs || 0)) {
     // 로컬 타이머 상태가 서버/캐시보다 최신 → 로컬 우선
+    const isSavedToday = saved.savedDate === new Date().toLocaleDateString('sv');
     stopwatchState.isRunning       = saved.isRunning;
     stopwatchState.latestStartTime = saved.latestStartTime;
     stopwatchState.latestEndTime   = saved.latestEndTime;
     stopwatchState.elapsedTime     = saved.elapsedTime;
-    stopwatchState.dailyTotalTime  = saved.dailyTotalTime;
+    // dailyTotalTime: 오늘 저장된 경우만 localStorage 사용, 날짜가 바뀌었으면 서버 값(초기화된 0) 사용
+    stopwatchState.dailyTotalTime  = isSavedToday ? saved.dailyTotalTime : (source.dailyTotalTime || 0);
     stopwatchState.dailyGoalTime   = saved.dailyGoalTime || source.dailyGoalTime || 0;
     stopwatchState.tagTotalTime    = saved.tagTotalTime;
     stopwatchState.totalTime       = saved.totalTime;

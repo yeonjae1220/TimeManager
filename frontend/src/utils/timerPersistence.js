@@ -13,6 +13,7 @@ export function saveTimerState(tagId, state) {
             tagTotalTime: state.tagTotalTime,
             totalTime: state.totalTime,
             savedAt: Date.now(),
+            savedDate: new Date().toLocaleDateString('sv'),
         };
         localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
     } catch (e) {
