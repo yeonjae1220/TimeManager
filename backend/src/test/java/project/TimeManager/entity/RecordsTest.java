@@ -58,7 +58,7 @@ class RecordsTest {
         ZonedDateTime start = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, ZoneId.of("Asia/Seoul"));
         ZonedDateTime end   = ZonedDateTime.of(2024, 1, 1, 11, 0, 0, 0, ZoneId.of("Asia/Seoul"));
 
-        Long recordId = createRecordUseCase.createRecord(new CreateRecordCommand(tagId, start, end));
+        Long recordId = createRecordUseCase.createRecord(new CreateRecordCommand(tagId, start, end, false));
 
         assertThat(recordJpaRepository.findById(recordId).orElseThrow().getTotalTime())
                 .isEqualTo(3600L);

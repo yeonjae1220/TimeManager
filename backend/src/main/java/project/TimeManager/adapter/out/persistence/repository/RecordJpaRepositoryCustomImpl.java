@@ -1,5 +1,6 @@
 package project.TimeManager.adapter.out.persistence.repository;
 
+import com.querydsl.core.Tuple;
 import com.querydsl.jpa.impl.JPAQueryFactory;
 import jakarta.persistence.EntityManager;
 import lombok.RequiredArgsConstructor;
@@ -8,6 +9,7 @@ import org.springframework.stereotype.Repository;
 import project.TimeManager.adapter.out.persistence.entity.QRecordJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Repository
@@ -30,7 +32,7 @@ public class RecordJpaRepositoryCustomImpl implements RecordJpaRepositoryCustom 
     }
 
     @Override
-    public Long sumTotalTimeByTagIdAndStartTimeAfter(Long tagId, java.time.ZonedDateTime after) {
+    public Long sumTotalTimeByTagIdAndStartTimeAfter(Long tagId, ZonedDateTime after) {
         Long sum = jpaQueryFactory
                 .select(record.totalTime.sum())
                 .from(record)
@@ -38,5 +40,23 @@ public class RecordJpaRepositoryCustomImpl implements RecordJpaRepositoryCustom 
                         .and(record.startTime.goe(after)))
                 .fetchOne();
         return sum != null ? sum : 0L;
+    }
+
+    @Override
+    public List<Tuple> findOverlappingRecords(Long memberId, ZonedDateTime start, ZonedDateTime end, Long excludeRecordId) {
+        var predicate = record.tag.member.id.eq(memberId)
+                .and(record.startTime.lt(end))
+                .and(record.endTime.gt(start));
+
+        if (excludeRecordId != null) {
+            predicate = predicate.and(record.id.ne(excludeRecordId));
+        }
+
+        return jpaQueryFactory
+                .select(record.id, record.tag.id, record.tag.name, record.startTime, record.endTime)
+                .from(record)
+                .join(record.tag)
+                .where(predicate)
+                .fetch();
     }
 }

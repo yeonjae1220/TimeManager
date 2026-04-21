@@ -43,7 +43,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
                 long elapsed = Math.max(0L, ChronoUnit.SECONDS.between(runningTag.getLatestStartTime(), endTime));
                 runningTag.stop(endTime, elapsed);
                 saveTagPort.saveTag(runningTag);
-                createRecordUseCase.createRecord(new CreateRecordCommand(runningTag.getId().value(), runningTag.getLatestStartTime(), endTime));
+                createRecordUseCase.createRecord(new CreateRecordCommand(runningTag.getId().value(), runningTag.getLatestStartTime(), endTime, false));
             }
         });
 
@@ -58,7 +58,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         tag.stop(command.endTime(), command.elapsedTime());
         saveTagPort.saveTag(tag);
-        return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime()));
+        return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime(), false));
     }
 
     @Override

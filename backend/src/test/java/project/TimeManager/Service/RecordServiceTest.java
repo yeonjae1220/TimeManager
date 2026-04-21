@@ -63,7 +63,7 @@ class RecordServiceTest {
         ZonedDateTime newEnd = record.getStartTime().plusMinutes(30);
         editRecordTimeUseCase.editRecordTime(
                 new EditRecordTimeCommand(record.getId(), record.getStartTime(), newEnd,
-                        child1_1.getMember().getId()));
+                        child1_1.getMember().getId(), false));
 
         em.flush();
         em.clear();
@@ -109,7 +109,7 @@ class RecordServiceTest {
         Long memberId = anyRecord.getTag().getMember().getId();
         assertThatThrownBy(() ->
                 editRecordTimeUseCase.editRecordTime(
-                        new EditRecordTimeCommand(anyRecord.getId(), start, end, memberId))
+                        new EditRecordTimeCommand(anyRecord.getId(), start, end, memberId, false))
         )
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("종료 시간은 시작 시간 이후여야 합니다");

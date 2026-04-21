@@ -10,7 +10,10 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.RecordOverlapException;
 import project.TimeManager.domain.member.model.MemberId;
+import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort;
+import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
@@ -26,6 +29,7 @@ import project.TimeManager.domain.tag.model.TimerState;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.*;
@@ -41,6 +45,7 @@ class RecordCommandServiceTest {
     @Mock LoadRecordPort loadRecordPort;
     @Mock SaveRecordPort saveRecordPort;
     @Mock UpdateTagTimeBatchPort updateTagTimeBatchPort;
+    @Mock FindOverlappingRecordsPort findOverlappingRecordsPort;
 
     @InjectMocks RecordCommandService recordCommandService;
 
@@ -71,7 +76,7 @@ class RecordCommandServiceTest {
             given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
             given(saveRecordPort.saveRecord(any())).willReturn(100L);
 
-            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END);
+            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, false);
 
             // Act
             Long recordId = recordCommandService.createRecord(command);
@@ -87,7 +92,7 @@ class RecordCommandServiceTest {
         void shouldThrowDomainException_whenTagNotFound() {
             given(loadTagPort.loadTag(anyLong())).willReturn(Optional.empty());
 
-            CreateRecordCommand command = new CreateRecordCommand(999L, START, END);
+            CreateRecordCommand command = new CreateRecordCommand(999L, START, END, false);
 
             assertThatThrownBy(() -> recordCommandService.createRecord(command))
                     .isInstanceOf(DomainException.class)
@@ -102,7 +107,7 @@ class RecordCommandServiceTest {
             given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
             given(saveRecordPort.saveRecord(any())).willReturn(1L);
 
-            recordCommandService.createRecord(new CreateRecordCommand(tagId, START, END));
+            recordCommandService.createRecord(new CreateRecordCommand(tagId, START, END, false));
 
             assertThat(tag.getTagTotalTime()).isEqualTo(3600L);
         }
@@ -124,7 +129,7 @@ class RecordCommandServiceTest {
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
 
             ZonedDateTime newEnd = END.plusHours(1); // 7200초
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L, false);
 
             recordCommandService.editRecordTime(command);
 
@@ -143,7 +148,7 @@ class RecordCommandServiceTest {
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
 
             // 동일한 시간 범위로 수정
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false);
 
             recordCommandService.editRecordTime(command);
 
@@ -155,11 +160,100 @@ class RecordCommandServiceTest {
         void shouldThrow_whenRecordNotFound() {
             given(loadRecordPort.loadRecord(anyLong())).willReturn(Optional.empty());
 
-            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END, 1L);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END, 1L, false);
 
             assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
                     .isInstanceOf(DomainException.class)
                     .hasMessageContaining("Record not found");
+        }
+    }
+
+    @Nested
+    @DisplayName("시간 중복 처리")
+    class WhenOverlapDetected {
+
+        @Test
+        @DisplayName("createRecord — 중복 있고 forceOverwrite=false 이면 RecordOverlapException이 발생한다")
+        void createRecord_shouldThrow_whenOverlapExists_andNotForced() {
+            Long tagId = 1L;
+            Tag tag = stubTag(tagId);
+            given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
+
+            OverlapResult overlap = new OverlapResult(99L, 2L, "Other", START, END);
+            given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), isNull()))
+                    .willReturn(List.of(overlap));
+
+            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, false);
+
+            assertThatThrownBy(() -> recordCommandService.createRecord(command))
+                    .isInstanceOf(RecordOverlapException.class);
+
+            then(saveRecordPort).shouldHaveNoInteractions();
+        }
+
+        @Test
+        @DisplayName("createRecord — 중복 있고 forceOverwrite=true 이면 겹치는 레코드를 삭제하고 저장한다")
+        void createRecord_shouldDeleteOverlapsAndSave_whenForced() {
+            Long tagId = 1L;
+            Long overlapTagId = 2L;
+            Tag tag = stubTag(tagId);
+
+            given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
+            given(saveRecordPort.saveRecord(any())).willReturn(100L);
+
+            OverlapResult overlapResult = new OverlapResult(99L, overlapTagId, "Other", START, END);
+            given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), isNull()))
+                    .willReturn(List.of(overlapResult));
+
+            Record overlapRecord = Record.reconstitute(RecordId.of(99L), TagId.of(overlapTagId), new TimeRange(START, END), 3600L);
+            given(loadRecordPort.loadRecord(99L)).willReturn(Optional.of(overlapRecord));
+
+            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, true);
+
+            Long recordId = recordCommandService.createRecord(command);
+
+            assertThat(recordId).isEqualTo(100L);
+            then(saveRecordPort).should().deleteRecord(99L);
+            then(updateTagTimeBatchPort).should().updateTagTimeBatch(eq(overlapTagId), eq(-3600L));
+        }
+
+        @Test
+        @DisplayName("editRecordTime — 자기 자신의 시간대로 수정해도 중복 예외가 발생하지 않는다")
+        void editRecord_shouldNotThrow_whenOnlySelfOverlap() {
+            Long recordId = 10L;
+            TagId tagId = TagId.of(1L);
+            TimeRange originalRange = new TimeRange(START, END);
+            Record record = Record.reconstitute(RecordId.of(recordId), tagId, originalRange, 3600L);
+
+            given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+            // excludeRecordId=recordId 로 쿼리 시 빈 목록 반환 (자기 제외)
+            given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), eq(recordId)))
+                    .willReturn(List.of());
+
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false);
+
+            assertThatNoException().isThrownBy(() -> recordCommandService.editRecordTime(command));
+        }
+
+        @Test
+        @DisplayName("editRecordTime — 다른 기록과 겹치고 forceOverwrite=false 이면 RecordOverlapException이 발생한다")
+        void editRecord_shouldThrow_whenOverlapWithOtherRecord_andNotForced() {
+            Long recordId = 10L;
+            TagId tagId = TagId.of(1L);
+            Record record = Record.reconstitute(RecordId.of(recordId), tagId, new TimeRange(START, END), 3600L);
+
+            given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+
+            OverlapResult overlap = new OverlapResult(50L, 2L, "Other", START, END);
+            given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), eq(recordId)))
+                    .willReturn(List.of(overlap));
+
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END.plusHours(1), 1L, false);
+
+            assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
+                    .isInstanceOf(RecordOverlapException.class);
         }
     }
 

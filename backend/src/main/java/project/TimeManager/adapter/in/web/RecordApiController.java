@@ -49,12 +49,12 @@ public class RecordApiController {
     @PostMapping
     public ResponseEntity<Long> createRecord(@AuthenticationPrincipal Long memberId,
                                              @Valid @RequestBody CreateRecordRequest request) {
-        TagResult tag = getTagQuery.getTag(request.tagId());
+        TagResult tag = getTagQuery.getTag(request.getTagId());
         if (!tag.getMemberId().equals(memberId)) {
             throw new DomainException("접근 권한이 없습니다");
         }
         return ResponseEntity.status(201).body(createRecordUseCase.createRecord(
-                new CreateRecordCommand(request.tagId(), request.newStartTime(), request.newEndTime())
+                new CreateRecordCommand(request.getTagId(), request.getNewStartTime(), request.getNewEndTime(), request.isForceOverwrite())
         ));
     }
 
@@ -63,7 +63,7 @@ public class RecordApiController {
                                                  @AuthenticationPrincipal Long memberId,
                                                  @Valid @RequestBody EditRecordTimeRequest request) {
         return ResponseEntity.ok(editRecordTimeUseCase.editRecordTime(
-                new EditRecordTimeCommand(recordId, request.newStartTime(), request.newEndTime(), memberId)
+                new EditRecordTimeCommand(recordId, request.getNewStartTime(), request.getNewEndTime(), memberId, request.isForceOverwrite())
         ));
     }
 

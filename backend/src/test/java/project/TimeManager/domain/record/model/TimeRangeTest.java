@@ -8,6 +8,7 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 import static org.assertj.core.api.Assertions.*;
+import static org.assertj.core.api.Assertions.assertThat;
 
 @DisplayName("TimeRange")
 class TimeRangeTest {
@@ -129,6 +130,93 @@ class TimeRangeTest {
 
             assertThatIllegalArgumentException()
                     .isThrownBy(() -> original.withStart(BASE.plusHours(2)));
+        }
+    }
+
+    @Nested
+    @DisplayName("미래 시작 시간 제약")
+    class WhenFutureStartTime {
+
+        @Test
+        @DisplayName("start가 현재 시각 이후이면 IllegalArgumentException이 발생한다")
+        void shouldThrow_whenStartIsInFuture() {
+            ZonedDateTime futureStart = ZonedDateTime.now(SEOUL).plusHours(1);
+            ZonedDateTime futureEnd   = futureStart.plusHours(1);
+
+            assertThatIllegalArgumentException()
+                    .isThrownBy(() -> new TimeRange(futureStart, futureEnd))
+                    .withMessageContaining("시작 시간은 현재 시각 이후일 수 없습니다");
+        }
+
+        @Test
+        @DisplayName("start가 현재 시각 이전이면 정상 생성된다")
+        void shouldCreate_whenStartIsInPast() {
+            ZonedDateTime pastStart = ZonedDateTime.now(SEOUL).minusHours(2);
+            ZonedDateTime pastEnd   = pastStart.plusHours(1);
+
+            assertThatNoException().isThrownBy(() -> new TimeRange(pastStart, pastEnd));
+        }
+    }
+
+    @Nested
+    @DisplayName("overlaps — 시간대 겹침 판별")
+    class WhenCheckingOverlap {
+
+        // 기준: BASE(10:00) ~ BASE+2h(12:00)
+        private final TimeRange base = new TimeRange(BASE, BASE.plusHours(2));
+
+        @Test
+        @DisplayName("완전히 포함되는 경우 겹친다")
+        void shouldOverlap_whenFullyContained() {
+            TimeRange inner = new TimeRange(BASE.plusMinutes(30), BASE.plusMinutes(90));
+            assertThat(base.overlaps(inner)).isTrue();
+            assertThat(inner.overlaps(base)).isTrue();
+        }
+
+        @Test
+        @DisplayName("앞부분이 겹치는 경우 겹친다")
+        void shouldOverlap_whenPartiallyOverlappingFromStart() {
+            // 09:00 ~ 11:00 — 앞부분 겹침
+            TimeRange overlap = new TimeRange(BASE.minusHours(1), BASE.plusHours(1));
+            assertThat(base.overlaps(overlap)).isTrue();
+        }
+
+        @Test
+        @DisplayName("뒷부분이 겹치는 경우 겹친다")
+        void shouldOverlap_whenPartiallyOverlappingAtEnd() {
+            // 11:00 ~ 13:00 — 뒷부분 겹침
+            TimeRange overlap = new TimeRange(BASE.plusHours(1), BASE.plusHours(3));
+            assertThat(base.overlaps(overlap)).isTrue();
+        }
+
+        @Test
+        @DisplayName("경계가 맞닿는 경우(연속)는 겹치지 않는다")
+        void shouldNotOverlap_whenBoundaryTouches() {
+            // 12:00 ~ 13:00 — base.end == other.start
+            TimeRange adjacent = new TimeRange(BASE.plusHours(2), BASE.plusHours(3));
+            assertThat(base.overlaps(adjacent)).isFalse();
+        }
+
+        @Test
+        @DisplayName("완전히 분리된 경우 겹치지 않는다")
+        void shouldNotOverlap_whenCompletelyDisjoint() {
+            // 13:00 ~ 14:00
+            TimeRange after = new TimeRange(BASE.plusHours(3), BASE.plusHours(4));
+            assertThat(base.overlaps(after)).isFalse();
+        }
+
+        @Test
+        @DisplayName("타임존이 달라도 같은 절대 시간이면 겹친다")
+        void shouldOverlap_whenSameAbsoluteTimeDifferentZone() {
+            ZoneId utc = ZoneId.of("UTC");
+            // BASE = 2024-01-01T10:00 KST = 2024-01-01T01:00 UTC
+            ZonedDateTime utcStart = BASE.withZoneSameInstant(utc);
+            ZonedDateTime utcEnd   = utcStart.plusHours(1);
+
+            TimeRange utcRange = new TimeRange(utcStart, utcEnd);
+            TimeRange kstRange = new TimeRange(BASE, BASE.plusHours(1));
+
+            assertThat(utcRange.overlaps(kstRange)).isTrue();
         }
     }
 }

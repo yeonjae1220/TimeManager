@@ -66,10 +66,10 @@ public class InitTestData {
             ZonedDateTime t4s = ZonedDateTime.of(2024, 12, 5, 13, 40, 0, 0, ZoneId.of("Asia/Seoul"));
             ZonedDateTime t4e = ZonedDateTime.of(2024, 12, 5, 14, 0, 0, 0, ZoneId.of("Asia/Seoul"));
 
-            createRecordUseCase.createRecord(new CreateRecordCommand(parentTagId, t1s, t1e));
-            createRecordUseCase.createRecord(new CreateRecordCommand(parentTagId, t2s, t2e));
-            createRecordUseCase.createRecord(new CreateRecordCommand(childTag1Id, t3s, t3e));
-            createRecordUseCase.createRecord(new CreateRecordCommand(childTag1_1Id, t4s, t4e));
+            createRecordUseCase.createRecord(new CreateRecordCommand(parentTagId, t1s, t1e, false));
+            createRecordUseCase.createRecord(new CreateRecordCommand(parentTagId, t2s, t2e, false));
+            createRecordUseCase.createRecord(new CreateRecordCommand(childTag1Id, t3s, t3e, false));
+            createRecordUseCase.createRecord(new CreateRecordCommand(childTag1_1Id, t4s, t4e, false));
         }
     }
 }

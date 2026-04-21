@@ -8,13 +8,54 @@ import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.RecordOverlapException;
+import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 
+import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
 @Slf4j
 @RestControllerAdvice
 public class GlobalExceptionHandler {
+
+    /**
+     * 시간대 중복 — 409 Conflict
+     * 프론트엔드는 이 응답으로 2단계 확인 모달을 구성합니다.
+     * 1단계: overlappingTags (중복된 태그 목록)
+     * 2단계: recordsToDelete (삭제될 레코드 목록) + 되돌릴 수 없다는 안내
+     */
+    @ExceptionHandler(RecordOverlapException.class)
+    public ResponseEntity<Map<String, Object>> handleRecordOverlap(RecordOverlapException e) {
+        log.warn("Record overlap detected: {} overlapping records", e.getOverlaps().size());
+
+        // 1단계용: 태그 중복 제거
+        List<Map<String, Object>> overlappingTags = e.getOverlaps().stream()
+                .collect(Collectors.toMap(
+                        OverlapResult::tagId,
+                        o -> Map.<String, Object>of("tagId", o.tagId(), "tagName", o.tagName()),
+                        (a, b) -> a))
+                .values()
+                .stream()
+                .toList();
+
+        // 2단계용: 삭제될 레코드 전체 목록
+        List<Map<String, Object>> recordsToDelete = e.getOverlaps().stream()
+                .map(o -> Map.<String, Object>of(
+                        "recordId", o.recordId(),
+                        "tagName", o.tagName(),
+                        "startTime", o.startTime(),
+                        "endTime", o.endTime()
+                ))
+                .toList();
+
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
+                "code", "RECORD_OVERLAP",
+                "overlappingTags", overlappingTags,
+                "recordsToDelete", recordsToDelete
+        ));
+    }
 
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<Map<String, String>> handleDomainException(DomainException e) {

@@ -7,9 +7,12 @@ import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.RecordOverlapException;
 import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
 import project.TimeManager.domain.port.in.record.DeleteRecordUseCase;
 import project.TimeManager.domain.port.in.record.EditRecordTimeUseCase;
+import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort;
+import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
@@ -20,8 +23,8 @@ import project.TimeManager.domain.record.model.TimeRange;
 import project.TimeManager.domain.tag.model.Tag;
 
 import java.time.LocalDate;
-import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 
 @Service
@@ -35,6 +38,7 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
     private final LoadRecordPort loadRecordPort;
     private final SaveRecordPort saveRecordPort;
     private final UpdateTagTimeBatchPort updateTagTimeBatchPort;
+    private final FindOverlappingRecordsPort findOverlappingRecordsPort;
 
     @Override
     public Long createRecord(CreateRecordCommand command) {
@@ -42,6 +46,17 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
 
         TimeRange timeRange = new TimeRange(command.startTime(), command.endTime());
+
+        // 중복 검사 — 같은 회원의 모든 태그에 걸쳐 시간대가 겹치는지 확인
+        List<OverlapResult> overlaps = findOverlappingRecordsPort.findOverlappingRecords(
+                tag.getMemberId().value(), command.startTime(), command.endTime(), null);
+        if (!overlaps.isEmpty() && !command.forceOverwrite()) {
+            throw new RecordOverlapException(overlaps);
+        }
+        if (!overlaps.isEmpty()) {
+            deleteOverlappingRecords(overlaps);
+        }
+
         Record record = Record.create(tag.getId(), timeRange);
 
         Long recordId = saveRecordPort.saveRecord(record);
@@ -72,6 +87,17 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         boolean wasToday = isToday(record.getTimeRange().start());
 
         TimeRange newRange = new TimeRange(command.newStartTime(), command.newEndTime());
+
+        // 중복 검사 — 자기 자신(excludeRecordId)은 제외하고 검사
+        List<OverlapResult> overlaps = findOverlappingRecordsPort.findOverlappingRecords(
+                tag.getMemberId().value(), command.newStartTime(), command.newEndTime(), command.recordId());
+        if (!overlaps.isEmpty() && !command.forceOverwrite()) {
+            throw new RecordOverlapException(overlaps);
+        }
+        if (!overlaps.isEmpty()) {
+            deleteOverlappingRecords(overlaps);
+        }
+
         record.editTimeRange(newRange);
         boolean isNowToday = isToday(newRange.start());
 
@@ -127,8 +153,32 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         return true;
     }
 
+    /**
+     * 겹치는 레코드를 삭제하고 태그의 totalTime / dailyTotalTime을 역산합니다.
+     */
+    private void deleteOverlappingRecords(List<OverlapResult> overlaps) {
+        for (OverlapResult overlap : overlaps) {
+            Record toDelete = loadRecordPort.loadRecord(overlap.recordId())
+                    .orElseThrow(() -> new DomainException("Record not found: " + overlap.recordId()));
+            long delta = -toDelete.getTotalTime();
+
+            saveRecordPort.deleteRecord(overlap.recordId());
+            updateTagTimeBatchPort.updateTagTimeBatch(overlap.tagId(), delta);
+
+            if (isToday(toDelete.getTimeRange().start())) {
+                Tag overlapTag = loadTagPort.loadTag(overlap.tagId())
+                        .orElseThrow(() -> new DomainException("Tag not found: " + overlap.tagId()));
+                overlapTag.updateDailyTotalTime(delta);
+                saveTagPort.saveTag(overlapTag);
+            }
+        }
+    }
+
+    /**
+     * record에 내포된 타임존 기준으로 "오늘"인지 판단합니다.
+     * (서버 시스템 타임존이 아닌 클라이언트 타임존 기준)
+     */
     private boolean isToday(ZonedDateTime dateTime) {
-        LocalDate today = LocalDate.now(ZoneId.systemDefault());
-        return dateTime.withZoneSameInstant(ZoneId.systemDefault()).toLocalDate().equals(today);
+        return dateTime.toLocalDate().equals(LocalDate.now(dateTime.getZone()));
     }
 }

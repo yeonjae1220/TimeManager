@@ -21,9 +21,16 @@ public class RecordJpaEntity {
     @Column(name = "record_id")
     private Long id;
 
+    @Column(nullable = false)
     private ZonedDateTime startTime;
+
+    @Column(nullable = false)
     private ZonedDateTime endTime;
+
     private Long totalTime = 0L;
+
+    @Version
+    private Long version;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "tag_id")
