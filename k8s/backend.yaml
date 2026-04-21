@@ -71,6 +71,8 @@ spec:
                   name: timemanager-google-secret
                   key: GOOGLE_CLIENT_SECRET
                   optional: true
+            - name: FRONTEND_URL
+              value: "http://timemanager.local"
             - name: REDIS_HOST
               value: "redis"
             - name: REDIS_PORT
