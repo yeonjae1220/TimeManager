@@ -19,6 +19,7 @@ import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import project.TimeManager.adapter.in.web.security.JwtAuthenticationFilter;
 
+import java.util.Arrays;
 import java.util.List;
 
 @Configuration
@@ -29,12 +30,12 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
     /**
-     * 허용 오리진 목록은 환경별 application-{profile}.yml 의 cors.allowed-origins 에서만 읽습니다.
-     * 기본값 없음 — 프로퍼티 미설정 시 애플리케이션 기동 실패 (프로덕션 사고 방지).
-     * 여러 오리진은 쉼표로 구분합니다. 예) http://localhost:3000,https://app.example.com
+     * 로컬 개발 시에만 cors.allowed-origins 를 설정합니다 (application-local.yml).
+     * 프로덕션(k8s + ingress)은 프론트·백이 같은 호스트를 공유하므로 same-origin — CORS 불필요.
+     * 미설정(빈 문자열) 시 CORS 오리진을 등록하지 않아 same-origin 요청만 허용됩니다.
      */
-    @Value("#{'${cors.allowed-origins}'.split(',')}")
-    private List<String> allowedOrigins;
+    @Value("${cors.allowed-origins:}")
+    private String allowedOriginsRaw;
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -43,14 +44,23 @@ public class SecurityConfig {
 
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
-        CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(allowedOrigins);
-        config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
-        config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
-        config.setAllowCredentials(true);
-        config.setMaxAge(3600L);
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();
-        source.registerCorsConfiguration("/**", config);
+
+        if (allowedOriginsRaw != null && !allowedOriginsRaw.isBlank()) {
+            List<String> origins = Arrays.stream(allowedOriginsRaw.split(","))
+                    .map(String::trim)
+                    .filter(s -> !s.isEmpty())
+                    .toList();
+
+            CorsConfiguration config = new CorsConfiguration();
+            config.setAllowedOrigins(origins);
+            config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
+            config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
+            config.setAllowCredentials(true);
+            config.setMaxAge(3600L);
+            source.registerCorsConfiguration("/**", config);
+        }
+
         return source;
     }
 

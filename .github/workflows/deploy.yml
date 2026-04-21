@@ -155,11 +155,6 @@ jobs:
               -n timemanager \
               --dry-run=client -o yaml | sudo kubectl apply -f -
 
-            # Ensure FRONTEND_URL env var is set on backend deployment (CORS allowlist)
-            sudo kubectl set env deployment/backend \
-              FRONTEND_URL=http://timemanager.local \
-              -n timemanager
-
             # Update images to latest (public GHCR — no imagePullSecrets needed)
             sudo kubectl set image deployment/backend \
               backend=ghcr.io/yeonjae1220/timemanager:latest \

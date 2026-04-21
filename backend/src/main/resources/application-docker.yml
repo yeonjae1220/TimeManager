@@ -11,15 +11,12 @@ spring:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
         format_sql: true
-
-# 허용 오리진: 환경변수로 프론트엔드 URL을 주입하세요. 예) FRONTEND_URL=https://app.example.com
-# 여러 오리진이 필요할 경우 쉼표로 구분하세요. 예) https://app.example.com,https://www.example.com
-cors:
-  allowed-origins: ${FRONTEND_URL}
   data:
     redis:
       host: redis
       port: 6379
+
+# cors.allowed-origins 미설정 — 프론트·백이 같은 ingress 호스트를 공유하므로 CORS 불필요
 
 google:
   oauth2:
