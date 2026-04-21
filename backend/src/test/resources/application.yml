@@ -31,3 +31,6 @@ jwt:
   secret: ${JWT_SECRET:dGVzdC1zZWNyZXQta2V5LWZvci11bml0LXRlc3Rpbmctb25seS0xMjM0NTY3OA==}
   access-token-ttl-minutes: 15
   refresh-token-ttl-minutes: 10080
+
+cors:
+  allowed-origins: "http://localhost:3000,http://localhost:5173"

@@ -28,8 +28,13 @@ public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
 
-    @Value("${cors.allowed-origin:http://localhost:5173}")
-    private String allowedOrigin;
+    /**
+     * 허용 오리진 목록은 환경별 application-{profile}.yml 의 cors.allowed-origins 에서만 읽습니다.
+     * 기본값 없음 — 프로퍼티 미설정 시 애플리케이션 기동 실패 (프로덕션 사고 방지).
+     * 여러 오리진은 쉼표로 구분합니다. 예) http://localhost:3000,https://app.example.com
+     */
+    @Value("#{'${cors.allowed-origins}'.split(',')}")
+    private List<String> allowedOrigins;
 
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
@@ -39,7 +44,7 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        config.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:8080", allowedOrigin));
+        config.setAllowedOrigins(allowedOrigins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         config.setAllowedHeaders(List.of("Authorization", "Content-Type", "Accept"));
         config.setAllowCredentials(true);
@@ -67,7 +72,7 @@ public class SecurityConfig {
                         .requestMatchers("/api/v1/auth/**").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/**").hasAuthority("ADMIN")
-                        .requestMatchers("/tt/**").permitAll()
+                        .requestMatchers("/tt/**").authenticated()   // 회원 데이터 접근 — 인증 필요
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated()
                 )

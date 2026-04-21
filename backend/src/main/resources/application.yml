@@ -1,14 +1,9 @@
 spring:
-  profiles:
-    active: local
-  datasource:
-    url: jdbc:h2:tcp://localhost/~/timer
-    username: sa
-    password:
-    driver-class-name: org.h2.Driver
+  # ⚠ 기동 프로필은 JVM 옵션 -Dspring.profiles.active=<env> 로 명시하세요.
+  #   미설정 시 datasource·cors 등 필수 프로퍼티가 없어 기동 실패합니다.
   jpa:
     hibernate:
-      ddl-auto: create
+      ddl-auto: validate   # 프로덕션 기본값 — 스키마 변경 차단
     properties:
       hibernate:
         # show_sql: true

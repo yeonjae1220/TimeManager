@@ -53,7 +53,12 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
 
     private String resolveRequestId(HttpServletRequest request) {
         String existing = request.getHeader("X-Request-ID");
-        return StringUtils.hasText(existing) ? existing : UUID.randomUUID().toString().substring(0, 8);
+        // 클라이언트 제공 값은 영숫자·하이픈만 허용하고 길이를 제한합니다.
+        // 검증 실패 시 서버가 생성한 ID를 사용해 로그 위변조(log injection)를 방지합니다.
+        if (StringUtils.hasText(existing) && existing.matches("[a-zA-Z0-9\\-]{1,36}")) {
+            return existing;
+        }
+        return UUID.randomUUID().toString().substring(0, 8);
     }
 
     private String resolveToken(HttpServletRequest request) {

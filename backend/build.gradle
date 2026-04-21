@@ -70,6 +70,12 @@ tasks.named('test') {
 	useJUnitPlatform()
 }
 
+// 로컬 개발 기동 시 자동으로 local 프로필을 활성화합니다.
+// 다른 환경은 -Dspring.profiles.active=<env> 를 JVM 옵션으로 명시하세요.
+bootRun {
+	systemProperty 'spring.profiles.active', System.getProperty('spring.profiles.active', 'local')
+}
+
 // 이거 clean 필요 한가? => 새로 빌드할 때 기존에 생성된 코드를 삭제하여 빌드 환경을 깨끗하게 유지 위함
 clean {
 	delete file('src/main/generated')
