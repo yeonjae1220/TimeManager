@@ -92,6 +92,15 @@ export const useTagStore = defineStore('tag', {
                         target.state = localTimer.isRunning;
                     }
                 }
+
+                // 앱 재시작 시 미전송 start/stop을 즉시 재전송 (근본 수정)
+                // online 이벤트는 오프라인→온라인 전환에서만 발생하므로,
+                // 이미 온라인인 상태로 재시작한 경우에는 별도 처리 필요
+                if (navigator.onLine && !onlineListenerRegistered) {
+                    this.retryPendingTimerOp().then(() => {
+                        if (this._activeMemberId) this.refreshTags(this._activeMemberId);
+                    });
+                }
             }
         },
 
@@ -114,9 +123,22 @@ export const useTagStore = defineStore('tag', {
                 this.lastFetchedAt = Date.now();
                 this.fetchError = false;
 
-                // IndexedDB에 캐시 저장
+                // loadTagsFromCache와 동일하게: 서버 fetch 후에도 localStorage 낙관적 상태 적용
+                // 앱 kill 등으로 start API가 미도달한 경우에도 Live 뱃지가 유지되도록 함
+                const localTimer = peekTimerState();
+                if (localTimer) {
+                    const target = this.findTagById(localTimer.tagId);
+                    if (target) {
+                        const serverStopTimeMs = target.latestStopTimeMs || 0;
+                        if (localTimer.savedAt > serverStopTimeMs) {
+                            target.state = localTimer.isRunning;
+                        }
+                    }
+                }
+
+                // IndexedDB에 캐시 저장 (override 적용 후 저장)
                 try {
-                    await set(cacheKey(memberId), response.data);
+                    await set(cacheKey(memberId), JSON.parse(JSON.stringify(toRaw(this.tagTree))));
                 } catch (e) {
                     console.warn('IndexedDB 캐시 저장 실패:', e);
                 }
