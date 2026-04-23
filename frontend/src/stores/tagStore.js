@@ -8,6 +8,8 @@ const cacheKey = (memberId) => `tags-${memberId}`;
 
 // 온라인 복귀 시 자동 갱신을 위한 전역 리스너
 let onlineListenerRegistered = false;
+// 앱 시작 시 1회 재전송 시도 여부 (중복 재전송 방지)
+let startupRetryAttempted = false;
 
 export const useTagStore = defineStore('tag', {
     state: () => ({
@@ -96,7 +98,8 @@ export const useTagStore = defineStore('tag', {
                 // 앱 재시작 시 미전송 start/stop을 즉시 재전송 (근본 수정)
                 // online 이벤트는 오프라인→온라인 전환에서만 발생하므로,
                 // 이미 온라인인 상태로 재시작한 경우에는 별도 처리 필요
-                if (navigator.onLine && !onlineListenerRegistered) {
+                if (navigator.onLine && !startupRetryAttempted) {
+                    startupRetryAttempted = true;
                     this.retryPendingTimerOp().then(() => {
                         if (this._activeMemberId) this.refreshTags(this._activeMemberId);
                     });
