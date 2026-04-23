@@ -33,7 +33,9 @@ export function usePullToRefresh(onRefresh, options = {}) {
     }
     // 댐프닝 적용: 실제 이동 = diff * 0.4
     pullDistance.value = Math.min(diff * 0.4, threshold * 1.5);
-    if (diff > 10) e.preventDefault();
+    // threshold의 절반 이상 당겼을 때만 브라우저 스크롤을 막아
+    // 일반 아래 방향 스크롤이 차단되지 않도록 함
+    if (diff > threshold / 2) e.preventDefault();
   };
 
   const onTouchEnd = async () => {

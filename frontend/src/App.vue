@@ -136,6 +136,7 @@ ul, ol { list-style: none; }
   max-width: 760px;
   margin: 0 auto;
   padding: 0 40px;
+  padding-bottom: max(60px, env(safe-area-inset-bottom, 60px));
   min-height: 100vh;
   animation: pageIn 280ms ease both;
 }
@@ -152,6 +153,10 @@ ul, ol { list-style: none; }
   justify-content: space-between;
   height: 52px;
   border-bottom: 1px solid var(--border-subtle);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  background: var(--bg);
 }
 
 .topbar-brand {
