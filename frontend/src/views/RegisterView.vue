@@ -23,7 +23,12 @@
 
         <div class="field">
           <label>Password</label>
-          <input v-model="password" type="password" autocomplete="new-password" placeholder="••••••••" />
+          <input v-model="password" type="password" autocomplete="new-password" placeholder="••••••••" @focus="passwordFocused = true" />
+          <ul v-if="passwordFocused || password.length > 0" class="pwd-conditions">
+            <li v-for="cond in PASSWORD_CONDITIONS" :key="cond.label" :class="{ met: cond.test(password) }">
+              <span>{{ cond.test(password) ? '✓' : '○' }}</span>{{ cond.label }}
+            </li>
+          </ul>
         </div>
 
         <p v-if="error" class="auth-error">{{ error }}</p>
@@ -49,6 +54,13 @@
 import { ref } from 'vue';
 import { useAuth } from '@/composables/useAuth';
 
+const PASSWORD_CONDITIONS = [
+  { label: '8자 이상',    test: (p) => p.length >= 8 },
+  { label: '대문자 포함', test: (p) => /[A-Z]/.test(p) },
+  { label: '소문자 포함', test: (p) => /[a-z]/.test(p) },
+  { label: '숫자 포함',   test: (p) => /\d/.test(p) },
+]
+
 const { register } = useAuth();
 
 const name = ref('');
@@ -56,9 +68,15 @@ const email = ref('');
 const password = ref('');
 const error = ref('');
 const loading = ref(false);
+const passwordFocused = ref(false);
 
 async function handleRegister() {
   error.value = '';
+  const unmet = PASSWORD_CONDITIONS.filter(c => !c.test(password.value))
+  if (unmet.length > 0) {
+    error.value = `비밀번호 조건 미충족: ${unmet.map(c => c.label).join(', ')}`
+    return
+  }
   loading.value = true;
   try {
     await register(name.value, email.value, password.value);
@@ -136,4 +154,23 @@ async function handleRegister() {
   transition: opacity var(--t);
 }
 .auth-link:hover { opacity: 0.7; }
+
+.pwd-conditions {
+  list-style: none;
+  padding: 6px 0 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.pwd-conditions li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-2, #9ca3af);
+  transition: color 0.15s;
+}
+.pwd-conditions li.met { color: var(--accent, #16a34a); }
 </style>
