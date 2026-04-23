@@ -920,4 +920,70 @@ onBeforeUnmount(() => {
 @keyframes spin {
   to { transform: rotate(360deg); }
 }
+
+@media (max-width: 768px) {
+  .tag-title {
+    overflow-wrap: anywhere;
+    word-break: break-word;
+  }
+
+  .controls-section {
+    flex-wrap: wrap;
+  }
+
+  .ctrl-btn {
+    flex: 1 1 calc(50% - 8px);
+    justify-content: center;
+  }
+
+  .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+    padding: 24px 0;
+  }
+
+  .stat-cell {
+    padding: 14px 0;
+  }
+
+  .stat-cell:nth-child(n) {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .stat-cell:nth-last-child(-n+2) {
+    border-bottom: none;
+  }
+}
+
+@media (max-width: 480px) {
+  .tag-meta-row,
+  .progress-labels,
+  .records-nav {
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
+  .ctrl-btn {
+    flex: 1 1 100%;
+  }
+
+  .stats-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .stat-cell:nth-last-child(-n+2) {
+    border-bottom: 1px solid var(--border-subtle);
+  }
+
+  .stat-cell:last-child {
+    border-bottom: none;
+  }
+
+  .sub-tag-chip,
+  .records-link-btn {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
 </style>

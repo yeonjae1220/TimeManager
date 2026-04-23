@@ -168,6 +168,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
+  gap: 16px;
+  flex-wrap: wrap;
   padding: 52px 0 28px;
   border-bottom: 1px solid var(--border-subtle);
   margin-bottom: 0;
@@ -263,4 +265,95 @@ onBeforeUnmount(() => {
 .record-edit-btn:hover { color: var(--text); }
 
 .mono { font-family: var(--font-mono); }
+
+@media (max-width: 768px) {
+  .records-header {
+    align-items: flex-start;
+    padding: 36px 0 24px;
+  }
+
+  .records-title {
+    font-size: 28px;
+  }
+
+  .add-btn {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 0;
+  }
+
+  .records-list-header {
+    display: none;
+  }
+
+  .record-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 12px 16px;
+    margin: 0;
+    padding: 18px 0;
+    align-items: start;
+  }
+
+  .record-time,
+  .record-duration {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .record-time::before,
+  .record-duration::before {
+    font-family: var(--font-mono);
+    font-size: 10px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--text-3);
+  }
+
+  .record-row > .record-time:first-of-type::before {
+    content: 'Start';
+  }
+
+  .record-row > .record-time:nth-of-type(2)::before {
+    content: 'End';
+  }
+
+  .record-duration::before {
+    content: 'Duration';
+  }
+
+  .record-row > .record-duration {
+    grid-column: 1 / 2;
+  }
+
+  .record-edit-btn {
+    grid-column: 2 / 3;
+    justify-self: end;
+    align-self: end;
+    opacity: 1;
+    padding: 8px;
+    border: 1px solid var(--border-subtle);
+  }
+}
+
+@media (max-width: 480px) {
+  .records-title {
+    font-size: 24px;
+  }
+
+  .record-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 10px;
+  }
+
+  .record-row > .record-duration,
+  .record-edit-btn {
+    grid-column: auto;
+  }
+
+  .record-edit-btn {
+    justify-self: start;
+  }
+}
 </style>

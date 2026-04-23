@@ -100,6 +100,7 @@ html {
   font-size: 16px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-x: hidden;
 }
 
 body {
@@ -111,6 +112,7 @@ body {
   line-height: 1.6;
   min-height: 100vh;
   overscroll-behavior-y: contain;
+  overflow-x: hidden;
 }
 
 /* Grain overlay */
@@ -303,6 +305,8 @@ ul, ol { list-style: none; }
   max-width: 420px;
   padding: 32px;
   animation: slideUp 180ms ease;
+  max-height: min(85vh, 720px);
+  overflow-y: auto;
 }
 
 @keyframes slideUp {
@@ -380,7 +384,8 @@ select option { background: #1b1b1b; color: var(--text); }
   border-radius: var(--radius-md);
   box-shadow: 0 8px 32px rgba(0,0,0,0.5);
   z-index: 200;
-  white-space: nowrap;
+  max-width: calc(100vw - 32px);
+  width: max-content;
 }
 
 .install-banner-text {
@@ -462,4 +467,76 @@ select option { background: #1b1b1b; color: var(--text); }
 .net-banner-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
 .net-banner-enter-from   { opacity: 0; transform: translateY(-100%); }
 .net-banner-leave-to     { opacity: 0; transform: translateY(-100%); }
+
+@media (max-width: 768px) {
+  .page {
+    padding: 0 20px;
+  }
+
+  .modal-overlay {
+    padding: 16px;
+    align-items: flex-end;
+  }
+
+  .modal-panel {
+    max-width: none;
+    padding: 24px 20px;
+    max-height: min(88vh, 760px);
+  }
+
+  .install-banner {
+    bottom: 16px;
+    gap: 10px;
+    padding: 10px 14px;
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+
+  .install-banner-text {
+    text-align: center;
+  }
+}
+
+@media (max-width: 480px) {
+  .page {
+    padding: 0 14px;
+  }
+
+  .modal-overlay {
+    padding: 10px;
+  }
+
+  .modal-panel {
+    padding: 20px 16px;
+    border-radius: 10px;
+  }
+
+  .modal-header,
+  .modal-footer {
+    gap: 12px;
+    flex-wrap: wrap;
+  }
+
+  .modal-footer > * {
+    flex: 1 1 100%;
+  }
+
+  .install-banner {
+    left: 14px;
+    right: 14px;
+    transform: none;
+    width: auto;
+  }
+
+  .install-banner-btn,
+  .install-banner-close {
+    flex: 1 1 auto;
+  }
+
+  .net-banner {
+    padding: 6px 12px;
+    text-align: center;
+    line-height: 1.45;
+  }
+}
 </style>
