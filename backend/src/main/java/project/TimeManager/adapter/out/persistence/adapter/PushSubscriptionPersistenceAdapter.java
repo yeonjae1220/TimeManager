@@ -40,6 +40,12 @@ public class PushSubscriptionPersistenceAdapter implements SavePushSubscriptionP
     }
 
     @Override
+    @Transactional
+    public void deleteByMemberId(Long memberId) {
+        repository.deleteByMemberId(memberId);
+    }
+
+    @Override
     public List<PushSubscription> loadAllSubscriptions() {
         return repository.findAll().stream().map(this::toDomain).toList();
     }
