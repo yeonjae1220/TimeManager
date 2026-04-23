@@ -35,7 +35,10 @@
     <header class="list-header">
       <div class="list-header-left">
         <p class="list-eyebrow mono">workspace</p>
-        <h1 class="list-title">Tags</h1>
+        <div class="list-title-row">
+          <h1 class="list-title">Tags</h1>
+          <span class="today-total mono">{{ formattedTodayTotalTime }}</span>
+        </div>
       </div>
       <div class="list-header-right">
         <span class="refreshing-dot" v-if="tagStore.isRefreshing && tagStore.hasCachedData" title="Syncing…"></span>
@@ -89,12 +92,13 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed, provide, readonly, nextTick } from 'vue';
+import { ref, onMounted, onBeforeUnmount, computed, provide, readonly, nextTick } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagItem from '@/components/TagItem.vue';
 import { useTagStore } from '@/stores/tagStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
+import { peekTimerState } from '@/utils/timerPersistence';
 
 const route = useRoute();
 const router = useRouter();
@@ -113,6 +117,9 @@ const showTopForm = ref(false);
 const topTagName  = ref('');
 const topInput    = ref(null);
 const errorMessage = ref('');
+const nowMs = ref(Date.now());
+const persistedTimer = ref(peekTimerState());
+let timerTick = null;
 
 const fetchTags = async () => {
   // Phase 1: IndexedDB 캐시 즉시 로드
@@ -140,6 +147,50 @@ const fetchError = computed(() => tagStore.fetchError);
 
 // 최상위 태그 생성 시 사용할 ROOT id
 const rootTagId = computed(() => tagStore.rootTag?.id);
+
+const todayKey = () => new Date().toLocaleDateString('sv');
+
+const formatTime = (seconds) => {
+  if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
+  const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
+  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
+  const s = String(Math.floor(seconds % 60)).padStart(2, '0');
+  return `${h}:${m}:${s}`;
+};
+
+const sumDailyTotals = (nodes) => nodes.reduce((total, node) => {
+  const ownDailyTotal = node.type === 'ROOT' ? 0 : (node.dailyTotalTime || 0);
+  const childDailyTotal = node.children?.length ? sumDailyTotals(node.children) : 0;
+  return total + ownDailyTotal + childDailyTotal;
+}, 0);
+
+const getPersistedTimerExtraSeconds = (saved) => {
+  if (!saved || saved.savedDate !== todayKey()) return 0;
+
+  const target = tagStore.findTagById(saved.tagId);
+  const serverDailyTotal = target?.dailyTotalTime || 0;
+  const localDailyTotal = saved.dailyTotalTime || 0;
+  const replacementBase = Math.max(0, localDailyTotal - serverDailyTotal);
+
+  if (!saved.isRunning || !saved.latestStartTime) {
+    return replacementBase;
+  }
+
+  const liveDelta = Math.max(0, Math.floor((nowMs.value - saved.latestStartTime) / 1000));
+  return replacementBase + liveDelta;
+};
+
+const todayTotalSeconds = computed(() => {
+  const treeTotal = sumDailyTotals(tagStore.tagTree);
+  return treeTotal + getPersistedTimerExtraSeconds(persistedTimer.value);
+});
+
+const formattedTodayTotalTime = computed(() => formatTime(todayTotalSeconds.value));
+
+const syncPersistedTimer = () => {
+  persistedTimer.value = peekTimerState();
+  nowMs.value = Date.now();
+};
 
 const openTopForm = async () => {
   showTopForm.value = true;
@@ -196,7 +247,21 @@ provide('onDragStart', (id) => { draggedTagId.value = id; });
 provide('onDragEnd', () => { draggedTagId.value = null; });
 provide('onDropOn', handleDrop);
 
-onMounted(fetchTags);
+onMounted(() => {
+  fetchTags();
+  syncPersistedTimer();
+  timerTick = window.setInterval(syncPersistedTimer, 1000);
+  window.addEventListener('focus', syncPersistedTimer);
+  window.addEventListener('storage', syncPersistedTimer);
+});
+
+onBeforeUnmount(() => {
+  if (timerTick) {
+    window.clearInterval(timerTick);
+  }
+  window.removeEventListener('focus', syncPersistedTimer);
+  window.removeEventListener('storage', syncPersistedTimer);
+});
 </script>
 
 <style scoped>
@@ -257,11 +322,24 @@ onMounted(fetchTags);
   margin-bottom: 10px;
 }
 
+.list-title-row {
+  display: flex;
+  align-items: baseline;
+  gap: 12px;
+}
+
 .list-title {
   font-family: var(--font-serif);
   font-size: 34px;
   color: var(--text);
   font-weight: 400;
+}
+
+.today-total {
+  font-size: 12px;
+  color: var(--accent);
+  letter-spacing: 0.08em;
+  white-space: nowrap;
 }
 
 .list-count {
