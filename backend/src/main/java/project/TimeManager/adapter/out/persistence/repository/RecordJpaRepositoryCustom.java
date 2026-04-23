@@ -16,4 +16,6 @@ public interface RecordJpaRepositoryCustom {
      * 결과 Tuple 컬럼 순서: record.id, tag.id, tag.name, record.startTime, record.endTime
      */
     List<Tuple> findOverlappingRecords(Long memberId, ZonedDateTime start, ZonedDateTime end, Long excludeRecordId);
+
+    List<RecordJpaEntity> findByMemberIdAndStartTimeBetween(Long memberId, ZonedDateTime start, ZonedDateTime end);
 }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateRecordRequest;
 import project.TimeManager.adapter.in.web.dto.request.EditRecordTimeRequest;
 import project.TimeManager.adapter.in.web.dto.response.RecordResponse;
+import project.TimeManager.adapter.in.web.dto.response.RecordSummaryResponse;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
 import project.TimeManager.application.dto.result.TagResult;
@@ -17,8 +18,10 @@ import project.TimeManager.domain.port.in.record.CreateRecordUseCase;
 import project.TimeManager.domain.port.in.record.DeleteRecordUseCase;
 import project.TimeManager.domain.port.in.record.EditRecordTimeUseCase;
 import project.TimeManager.domain.port.in.record.GetRecordListQuery;
+import project.TimeManager.domain.port.in.record.GetRecordSummaryQuery;
 import project.TimeManager.domain.port.in.tag.GetTagQuery;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @Slf4j
@@ -28,6 +31,7 @@ import java.util.List;
 public class RecordApiController {
 
     private final GetRecordListQuery getRecordListQuery;
+    private final GetRecordSummaryQuery getRecordSummaryQuery;
     private final EditRecordTimeUseCase editRecordTimeUseCase;
     private final DeleteRecordUseCase deleteRecordUseCase;
     private final CreateRecordUseCase createRecordUseCase;
@@ -72,5 +76,15 @@ public class RecordApiController {
                                              @AuthenticationPrincipal Long memberId) {
         boolean deleted = deleteRecordUseCase.deleteRecord(recordId, memberId);
         return deleted ? ResponseEntity.noContent().build() : ResponseEntity.notFound().build();
+    }
+
+    @GetMapping("/summary")
+    public ResponseEntity<RecordSummaryResponse> getSummary(
+            @RequestParam LocalDate startDate,
+            @RequestParam LocalDate endDate,
+            @AuthenticationPrincipal Long memberId) {
+        RecordSummaryResponse response = RecordSummaryResponse.from(
+                getRecordSummaryQuery.getSummary(memberId, startDate, endDate));
+        return ResponseEntity.ok(response);
     }
 }

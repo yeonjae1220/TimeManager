@@ -13,6 +13,7 @@ import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.result.RecordResult;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort;
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
+import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
 import project.TimeManager.domain.record.model.Record;
@@ -24,7 +25,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort, LoadRecordsByTagPort, FindOverlappingRecordsPort {
+public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort, LoadRecordsByTagPort, FindOverlappingRecordsPort, LoadRecordsByMemberPort {
 
     private final RecordJpaRepository recordJpaRepository;
     private final TagJpaRepository tagJpaRepository;
@@ -60,6 +61,11 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
         return recordJpaRepository.findByTagId(tagId).stream()
                 .map(recordMapper::toResult)
                 .collect(Collectors.toList());
+    }
+
+    @Override
+    public List<RecordJpaEntity> loadRecordsByMemberAndDateRange(Long memberId, ZonedDateTime start, ZonedDateTime end) {
+        return recordJpaRepository.findByMemberIdAndStartTimeBetween(memberId, start, end);
     }
 
     @Override

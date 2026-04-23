@@ -7,6 +7,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Repository;
 import project.TimeManager.adapter.out.persistence.entity.QRecordJpaEntity;
+import project.TimeManager.adapter.out.persistence.entity.QTagJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
 
 import java.time.ZonedDateTime;
@@ -57,6 +58,21 @@ public class RecordJpaRepositoryCustomImpl implements RecordJpaRepositoryCustom 
                 .from(record)
                 .join(record.tag)
                 .where(predicate)
+                .fetch();
+    }
+
+    @Override
+    public List<RecordJpaEntity> findByMemberIdAndStartTimeBetween(Long memberId, ZonedDateTime start, ZonedDateTime end) {
+        QTagJpaEntity tag = QTagJpaEntity.tagJpaEntity;
+        QTagJpaEntity parent = new QTagJpaEntity("parent");
+        return jpaQueryFactory
+                .selectFrom(record)
+                .join(record.tag, tag).fetchJoin()
+                .leftJoin(tag.parent, parent).fetchJoin()
+                .where(tag.member.id.eq(memberId)
+                        .and(record.startTime.goe(start))
+                        .and(record.startTime.lt(end)))
+                .orderBy(record.startTime.asc())
                 .fetch();
     }
 }

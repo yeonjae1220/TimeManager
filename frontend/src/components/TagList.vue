@@ -21,6 +21,7 @@
           </svg>
           Home
         </router-link>
+        <router-link to="/logs" class="btn btn-ghost profile-btn">Log</router-link>
         <router-link to="/profile" class="btn btn-ghost profile-btn">Profile</router-link>
         <button
           class="edit-toggle"
