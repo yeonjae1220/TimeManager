@@ -14,10 +14,12 @@ import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.LoadTagResultPort;
 import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
+import project.TimeManager.domain.port.out.tag.SaveTagsOrderPort;
 import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TimerState;
 
+import jakarta.persistence.EntityManager;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -25,11 +27,12 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort {
+public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort, SaveTagsOrderPort {
 
     private final TagJpaRepository tagJpaRepository;
     private final MemberJpaRepository memberJpaRepository;
     private final TagMapper tagMapper;
+    private final EntityManager em;
 
     @Override
     public Optional<Tag> loadTag(Long tagId) {
@@ -42,10 +45,14 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
         if (domain.getId() != null) {
             TagJpaEntity entity = tagJpaRepository.findById(domain.getId().value())
                     .orElseThrow(() -> new EntityNotFoundException("Tag not found: " + domain.getId().value()));
+            Long oldParentId = entity.getParentId();
             tagMapper.updateJpaEntity(entity, domain);
             if (domain.getParentId() != null) {
-                TagJpaEntity parent = tagJpaRepository.getReferenceById(domain.getParentId().value());
-                entity.setParent(parent);
+                Long newParentId = domain.getParentId().value();
+                entity.setParent(tagJpaRepository.getReferenceById(newParentId));
+                if (!newParentId.equals(oldParentId)) {
+                    entity.setDisplayOrder(tagJpaRepository.countByParent_Id(newParentId));
+                }
             }
             return tagJpaRepository.save(entity).getId();
         } else {
@@ -54,8 +61,21 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
                     ? tagJpaRepository.getReferenceById(domain.getParentId().value())
                     : null;
             TagJpaEntity entity = tagMapper.toNewJpaEntity(domain, member, parent);
+            int order = (domain.getParentId() != null)
+                    ? tagJpaRepository.countByParent_Id(domain.getParentId().value())
+                    : 0;
+            entity.setDisplayOrder(order);
             return tagJpaRepository.save(entity).getId();
         }
+    }
+
+    @Override
+    public void saveTagsOrder(List<Long> orderedTagIds) {
+        for (int i = 0; i < orderedTagIds.size(); i++) {
+            tagJpaRepository.updateDisplayOrder(orderedTagIds.get(i), i);
+        }
+        em.flush();
+        em.clear();
     }
 
     @Override

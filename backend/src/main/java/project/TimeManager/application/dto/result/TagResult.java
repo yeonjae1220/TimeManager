@@ -21,13 +21,15 @@ public class TagResult {
     private final Long memberId;
     private final Long parentId;
     private final List<Long> childrenList;
+    private final Integer displayOrder;
 
     public TagResult(Long id, String name, TagType type,
                      Long elapsedTime, Long dailyGoalTime,
                      Long dailyElapsedTime, Long dailyTotalTime,
                      Long tagTotalTime, Long totalTime,
                      ZonedDateTime latestStartTime, ZonedDateTime latestStopTime,
-                     Boolean state, Long memberId, Long parentId, List<Long> childrenList) {
+                     Boolean state, Long memberId, Long parentId, List<Long> childrenList,
+                     Integer displayOrder) {
         this.id = id;
         this.name = name;
         this.type = type;
@@ -43,6 +45,7 @@ public class TagResult {
         this.memberId = memberId;
         this.parentId = parentId;
         this.childrenList = childrenList;
+        this.displayOrder = displayOrder;
     }
 
     public Long getId() { return id; }
@@ -60,4 +63,5 @@ public class TagResult {
     public Long getMemberId() { return memberId; }
     public Long getParentId() { return parentId; }
     public List<Long> getChildrenList() { return childrenList; }
+    public Integer getDisplayOrder() { return displayOrder; }
 }

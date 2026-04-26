@@ -23,6 +23,7 @@ public abstract class BaseTagResponse {
     protected Boolean state;
     protected Long memberId;
     protected Long parentId;
+    protected Integer displayOrder;
 
     protected static void populate(BaseTagResponse r, TagResult result) {
         r.id = result.getId();
@@ -43,6 +44,7 @@ public abstract class BaseTagResponse {
         r.state = result.getState();
         r.memberId = result.getMemberId();
         r.parentId = result.getParentId();
+        r.displayOrder = result.getDisplayOrder();
     }
 
     public Long getId() { return id; }
@@ -61,4 +63,5 @@ public abstract class BaseTagResponse {
     public Boolean getState() { return state; }
     public Long getMemberId() { return memberId; }
     public Long getParentId() { return parentId; }
+    public Integer getDisplayOrder() { return displayOrder; }
 }

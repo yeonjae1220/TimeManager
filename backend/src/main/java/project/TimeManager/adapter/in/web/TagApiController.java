@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.MoveTagRequest;
+import project.TimeManager.adapter.in.web.dto.request.ReorderTagsRequest;
 import project.TimeManager.adapter.in.web.dto.request.ResetTimerRequest;
 import project.TimeManager.adapter.in.web.dto.request.StartTimerRequest;
 import project.TimeManager.adapter.in.web.dto.request.StopTimerRequest;
@@ -15,12 +16,20 @@ import project.TimeManager.adapter.in.web.dto.response.TagResponse;
 import project.TimeManager.adapter.in.web.dto.response.TagTreeResponse;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
+import project.TimeManager.application.dto.command.ReorderTagsCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
 import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.exception.DomainException;
-import project.TimeManager.domain.port.in.tag.*;
+import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
+import project.TimeManager.domain.port.in.tag.GetTagListQuery;
+import project.TimeManager.domain.port.in.tag.GetTagQuery;
+import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
+import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
+import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
+import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
 
 import java.time.ZonedDateTime;
 import java.util.List;
@@ -38,6 +47,7 @@ public class TagApiController {
     private final ResetTimerUseCase resetTimerUseCase;
     private final CreateTagUseCase createTagUseCase;
     private final MoveTagUseCase moveTagUseCase;
+    private final ReorderTagsUseCase reorderTagsUseCase;
 
     @GetMapping
     public List<TagTreeResponse> getUserTagsTree(@AuthenticationPrincipal Long memberId) {
@@ -60,6 +70,15 @@ public class TagApiController {
         return ResponseEntity.status(201).body(createTagUseCase.createTag(
                 new CreateTagCommand(request.tagName(), memberId, request.parentTagId())
         ));
+    }
+
+    @PatchMapping("/reorder")
+    public ResponseEntity<Void> reorderTags(@AuthenticationPrincipal Long memberId,
+                                            @Valid @RequestBody ReorderTagsRequest request) {
+        reorderTagsUseCase.reorderTags(
+                new ReorderTagsCommand(request.parentTagId(), request.orderedTagIds(), memberId)
+        );
+        return ResponseEntity.noContent().build();
     }
 
     @PatchMapping("/{tagId}")

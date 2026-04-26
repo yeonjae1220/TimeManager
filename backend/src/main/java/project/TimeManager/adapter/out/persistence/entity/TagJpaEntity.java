@@ -43,6 +43,9 @@ public class TagJpaEntity {
     @Enumerated(EnumType.STRING)
     private TimerState timerState = TimerState.STOPPED;
 
+    @Column(name = "display_order", nullable = false)
+    private Integer displayOrder = 0;
+
     @Version
     private Long version;
 

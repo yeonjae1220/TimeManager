@@ -1,5 +1,13 @@
 <template>
   <li class="tag-item" :data-tag-id="tag.id">
+    <!-- Drop zone: insert before -->
+    <div
+      class="drop-zone drop-zone--before"
+      :class="{ 'drop-zone--visible': isDragging, 'drop-zone--over': isDropZoneBeforeOver }"
+      @dragover.prevent="onDropZoneOver('before')"
+      @dragleave="onDropZoneLeave"
+      @drop.prevent="onDropZone('before', $event)"
+    />
     <!-- Main row -->
     <div
       ref="rowRef"
@@ -67,6 +75,15 @@
       </div>
     </div>
 
+    <!-- Drop zone: insert after -->
+    <div
+      class="drop-zone drop-zone--after"
+      :class="{ 'drop-zone--visible': isDragging, 'drop-zone--over': isDropZoneAfterOver }"
+      @dragover.prevent="onDropZoneOver('after')"
+      @dragleave="onDropZoneLeave"
+      @drop.prevent="onDropZone('after', $event)"
+    />
+
     <!-- Inline add form -->
     <div
       v-if="showAddForm"
@@ -125,6 +142,7 @@ const injOnRefresh    = inject('onRefresh',    () => {});
 const injOnDragStart  = inject('onDragStart',  () => {});
 const injOnDragEnd    = inject('onDragEnd',    () => {});
 const injOnDropOn     = inject('onDropOn',     async () => {});
+const injOnDropReorder = inject('onDropReorder', async () => {});
 
 // ── Local state ────────────────────────────────────────────────────
 const isExpanded   = ref(true);
@@ -132,6 +150,9 @@ const showAddForm  = ref(false);
 const showEditModal = ref(false);
 const newTagName   = ref('');
 const isDragOver   = ref(false);
+const isDropZoneBeforeOver = ref(false);
+const isDropZoneAfterOver  = ref(false);
+const isDragging = computed(() => injDraggedTagId.value !== null);
 
 // Template refs
 const addInput = ref(null);
@@ -237,6 +258,25 @@ const onDragEnd = () => {
   injOnDragEnd();
 };
 
+// ── Drop zones (reorder siblings) ─────────────────────────────────
+const onDropZoneOver = (pos) => {
+  isDropZoneBeforeOver.value = pos === 'before';
+  isDropZoneAfterOver.value  = pos === 'after';
+};
+
+const onDropZoneLeave = () => {
+  isDropZoneBeforeOver.value = false;
+  isDropZoneAfterOver.value  = false;
+};
+
+const onDropZone = (position, e) => {
+  onDropZoneLeave();
+  const movedId = Number(e.dataTransfer.getData('text/plain'));
+  if (movedId && movedId !== props.tag.id) {
+    injOnDropReorder(props.tag.id, movedId, position);
+  }
+};
+
 // ── Mobile Touch Drag & Drop ───────────────────────────────────────
 let touchTimer    = null;
 let touchStartX   = 0;
@@ -324,11 +364,16 @@ const handleTouchMove = (e) => {
 
   if (prevTouchTarget) {
     prevTouchTarget.removeAttribute('data-touch-over');
+    prevTouchTarget.classList.remove('drop-zone--over');
     prevTouchTarget = null;
   }
 
+  const dropZone = el?.closest('.drop-zone');
   const tagLi = el?.closest('[data-tag-id]');
-  if (tagLi) {
+  if (dropZone) {
+    dropZone.classList.add('drop-zone--over');
+    prevTouchTarget = dropZone;
+  } else if (tagLi) {
     const targetId = Number(tagLi.getAttribute('data-tag-id'));
     if (targetId !== props.tag.id) {
       const targetRow = tagLi.querySelector('.tag-row');
@@ -348,8 +393,16 @@ const handleTouchEnd = (e) => {
 
   cleanupTouchDrag();
 
+  const dropZone = el?.closest('.drop-zone');
   const tagLi = el?.closest('[data-tag-id]');
-  if (tagLi) {
+  if (dropZone) {
+    const position = dropZone.classList.contains('drop-zone--before') ? 'before' : 'after';
+    const parentLi = dropZone.closest('[data-tag-id]');
+    const targetId = Number(parentLi?.getAttribute('data-tag-id'));
+    if (targetId && targetId !== props.tag.id) {
+      injOnDropReorder(targetId, props.tag.id, position);
+    }
+  } else if (tagLi) {
     const targetId = Number(tagLi.getAttribute('data-tag-id'));
     if (targetId !== props.tag.id) {
       injOnDropOn(targetId, props.tag.id);
@@ -360,7 +413,11 @@ const handleTouchEnd = (e) => {
 
 const cleanupTouchDrag = () => {
   if (touchClone) { touchClone.remove(); touchClone = null; }
-  if (prevTouchTarget) { prevTouchTarget.removeAttribute('data-touch-over'); prevTouchTarget = null; }
+  if (prevTouchTarget) {
+    prevTouchTarget.removeAttribute('data-touch-over');
+    prevTouchTarget.classList.remove('drop-zone--over');
+    prevTouchTarget = null;
+  }
   document.removeEventListener('touchmove', handleTouchMove);
 };
 
@@ -371,7 +428,22 @@ onUnmounted(() => {
 </script>
 
 <style scoped>
-.tag-item { border-bottom: 1px solid var(--border-subtle); }
+.tag-item { border-bottom: 1px solid var(--border-subtle); position: relative; }
+
+/* ── Drop zones (reorder) ─────────────────────────────── */
+.drop-zone {
+  height: 4px;
+  margin: 0 -40px;
+  transition: background var(--t), height var(--t);
+}
+.drop-zone--visible {
+  height: 12px;
+}
+.drop-zone--over {
+  background: var(--accent);
+  opacity: 0.65;
+  border-radius: 2px;
+}
 
 /* ── Row ──────────────────────────────────────────── */
 .tag-row {

@@ -4,6 +4,7 @@ import project.TimeManager.application.dto.result.TagResult;
 import project.TimeManager.domain.tag.model.TagType;
 
 import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -34,6 +35,8 @@ public class TagTreeResponse extends BaseTagResponse {
                 }
             }
         }
+        nodeMap.values().forEach(node ->
+                node.getChildren().sort(Comparator.comparingInt(n -> n.getDisplayOrder() != null ? n.getDisplayOrder() : 0)));
         return roots;
     }
 

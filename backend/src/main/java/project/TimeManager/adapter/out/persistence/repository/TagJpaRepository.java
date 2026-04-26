@@ -26,4 +26,10 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     @Modifying
     @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0")
     void resetAllDailyTimes();
+
+    int countByParent_Id(Long parentId);
+
+    @Modifying
+    @Query("UPDATE TagJpaEntity t SET t.displayOrder = :order WHERE t.id = :id")
+    void updateDisplayOrder(@Param("id") Long id, @Param("order") int order);
 }

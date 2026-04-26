@@ -6,12 +6,15 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
+import project.TimeManager.application.dto.command.ReorderTagsCommand;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
+import project.TimeManager.domain.port.out.tag.SaveTagsOrderPort;
 import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 
@@ -19,11 +22,12 @@ import project.TimeManager.domain.tag.model.Tag;
 @Transactional
 @RequiredArgsConstructor
 @Slf4j
-public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
+public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, ReorderTagsUseCase {
 
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
     private final UpdateTagTimeBatchPort updateTagTimeBatchPort;
+    private final SaveTagsOrderPort saveTagsOrderPort;
 
     @Override
     public Long createTag(CreateTagCommand command) {
@@ -71,5 +75,16 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase {
 
         log.info("Tag moved: id={}, newParentId={}", command.tagId(), command.newParentTagId());
         return command.tagId();
+    }
+
+    @Override
+    public void reorderTags(ReorderTagsCommand command) {
+        Tag parentTag = loadTagPort.loadTag(command.parentTagId())
+                .orElseThrow(() -> new DomainException("Parent tag not found: " + command.parentTagId()));
+        if (!parentTag.getMemberId().value().equals(command.memberId())) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+        saveTagsOrderPort.saveTagsOrder(command.orderedTagIds());
+        log.info("Tags reordered: parentId={}, order={}", command.parentTagId(), command.orderedTagIds());
     }
 }

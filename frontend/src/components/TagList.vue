@@ -240,6 +240,53 @@ const handleDrop = async (newParentId, movedId) => {
   }
 };
 
+const handleReorder = async (targetId, movedId, position) => {
+  const findSiblings = (tags) => {
+    for (const tag of tags) {
+      if (tag.id === targetId) return tags;
+      const found = findSiblings(tag.children ?? []);
+      if (found) return found;
+    }
+    return null;
+  };
+
+  const siblings = findSiblings(tagStore.tagTree);
+  if (!siblings) return;
+
+  const targetTag = siblings.find(t => t.id === targetId);
+  if (!targetTag) return;
+
+  const isSameParent = siblings.some(t => t.id === movedId);
+  if (!isSameParent) {
+    try {
+      await apiClient.patch(`/api/v1/tags/${movedId}`, { newParentTagId: targetTag.parentId });
+      await tagStore.refreshTags(memberId);
+    } catch (error) {
+      console.error('Cross-parent move failed:', error);
+    }
+    return;
+  }
+
+  const withoutMoved = siblings.filter(t => t.id !== movedId);
+  const idx = withoutMoved.findIndex(t => t.id === targetId);
+  const insertIdx = position === 'before' ? idx : idx + 1;
+  const orderedIds = [
+    ...withoutMoved.slice(0, insertIdx).map(t => t.id),
+    movedId,
+    ...withoutMoved.slice(insertIdx).map(t => t.id),
+  ];
+
+  try {
+    await apiClient.patch('/api/v1/tags/reorder', {
+      parentTagId: targetTag.parentId,
+      orderedTagIds: orderedIds,
+    });
+    await tagStore.refreshTags(memberId);
+  } catch (error) {
+    console.error('Reorder failed:', error);
+  }
+};
+
 provide('editMode', readonly(editMode));
 provide('draggedTagId', readonly(draggedTagId));
 provide('onNavigate', navigateToDetail);
@@ -247,6 +294,7 @@ provide('onRefresh', () => tagStore.refreshTags(memberId));
 provide('onDragStart', (id) => { draggedTagId.value = id; });
 provide('onDragEnd', () => { draggedTagId.value = null; });
 provide('onDropOn', handleDrop);
+provide('onDropReorder', handleReorder);
 
 onMounted(() => {
   fetchTags();

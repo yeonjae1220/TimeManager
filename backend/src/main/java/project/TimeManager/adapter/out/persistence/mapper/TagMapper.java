@@ -84,7 +84,8 @@ public class TagMapper {
                 isRunning,
                 entity.getMember().getId(),
                 parentId,
-                childrenList
+                childrenList,
+                entity.getDisplayOrder()
         );
     }
 }
