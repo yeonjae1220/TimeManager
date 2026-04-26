@@ -121,6 +121,7 @@ const errorMessage = ref('');
 const nowMs = ref(Date.now());
 const persistedTimer = ref(peekTimerState());
 let timerTick = null;
+let fetchTick = null;
 
 const fetchTags = async () => {
   // Phase 1: IndexedDB 캐시 즉시 로드
@@ -165,6 +166,17 @@ const sumDailyTotals = (nodes) => nodes.reduce((total, node) => {
   return total + ownDailyTotal + childDailyTotal;
 }, 0);
 
+const findRunningTagInTree = (nodes) => {
+  for (const node of nodes) {
+    if (node.state === true && node.latestStartTimeMs) return node;
+    if (node.children?.length) {
+      const found = findRunningTagInTree(node.children);
+      if (found) return found;
+    }
+  }
+  return null;
+};
+
 const getPersistedTimerExtraSeconds = (saved) => {
   if (!saved || saved.savedDate !== todayKey()) return 0;
 
@@ -183,7 +195,27 @@ const getPersistedTimerExtraSeconds = (saved) => {
 
 const todayTotalSeconds = computed(() => {
   const treeTotal = sumDailyTotals(tagStore.tagTree);
-  return treeTotal + getPersistedTimerExtraSeconds(persistedTimer.value);
+  const runningTag = findRunningTagInTree(tagStore.tagTree);
+
+  if (persistedTimer.value) {
+    // localStorage가 있는 기기: 백엔드가 해당 태그를 running으로 보지 않으면 stale → live delta 제외
+    const localIsStale = !runningTag || runningTag.id !== persistedTimer.value.tagId;
+    if (localIsStale) {
+      const target = tagStore.findTagById(persistedTimer.value.tagId);
+      const serverDailyTotal = target?.dailyTotalTime || 0;
+      const localDailyTotal = persistedTimer.value.dailyTotalTime || 0;
+      return treeTotal + Math.max(0, localDailyTotal - serverDailyTotal);
+    }
+    return treeTotal + getPersistedTimerExtraSeconds(persistedTimer.value);
+  }
+
+  // localStorage 없는 기기: 백엔드 latestStartTimeMs로 live delta 계산
+  if (runningTag) {
+    const liveDelta = Math.max(0, Math.floor((nowMs.value - runningTag.latestStartTimeMs) / 1000));
+    return treeTotal + liveDelta;
+  }
+
+  return treeTotal;
 });
 
 const formattedTodayTotalTime = computed(() => formatTime(todayTotalSeconds.value));
@@ -300,14 +332,14 @@ onMounted(() => {
   fetchTags();
   syncPersistedTimer();
   timerTick = window.setInterval(syncPersistedTimer, 1000);
+  fetchTick = window.setInterval(fetchTags, 10000);
   window.addEventListener('focus', syncPersistedTimer);
   window.addEventListener('storage', syncPersistedTimer);
 });
 
 onBeforeUnmount(() => {
-  if (timerTick) {
-    window.clearInterval(timerTick);
-  }
+  if (timerTick) window.clearInterval(timerTick);
+  if (fetchTick) window.clearInterval(fetchTick);
   window.removeEventListener('focus', syncPersistedTimer);
   window.removeEventListener('storage', syncPersistedTimer);
 });
