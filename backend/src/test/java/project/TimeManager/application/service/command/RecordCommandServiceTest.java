@@ -4,17 +4,18 @@ import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
+import project.TimeManager.application.dto.result.RecordResult;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.exception.RecordOverlapException;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
+import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
@@ -43,11 +44,12 @@ class RecordCommandServiceTest {
     @Mock LoadTagPort loadTagPort;
     @Mock SaveTagPort saveTagPort;
     @Mock LoadRecordPort loadRecordPort;
+    @Mock LoadRecordsByTagPort loadRecordsByTagPort;
     @Mock SaveRecordPort saveRecordPort;
     @Mock UpdateTagTimeBatchPort updateTagTimeBatchPort;
     @Mock FindOverlappingRecordsPort findOverlappingRecordsPort;
 
-    @InjectMocks RecordCommandService recordCommandService;
+    RecordCommandService recordCommandService;
 
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
     private static final ZonedDateTime START = ZonedDateTime.of(2024, 1, 1, 10, 0, 0, 0, SEOUL);
@@ -63,6 +65,29 @@ class RecordCommandServiceTest {
                 MemberId.of(1L), null);
     }
 
+    private RecordResult stubRecordResult(Long recordId, ZonedDateTime start, ZonedDateTime end, Long totalTime) {
+        return new RecordResult(recordId, start, end, totalTime);
+    }
+
+    private void setUpSyncDefaults(Long tagId, ZonedDateTime start, ZonedDateTime end, Long totalTime) {
+        given(loadRecordsByTagPort.loadRecordsByTagId(tagId))
+                .willReturn(List.of(stubRecordResult(1L, start, end, totalTime)));
+    }
+
+    @org.junit.jupiter.api.BeforeEach
+    void setUp() {
+        TagRecordDerivedFieldsSyncService syncService =
+                new TagRecordDerivedFieldsSyncService(loadTagPort, loadRecordsByTagPort, saveTagPort);
+        recordCommandService = new RecordCommandService(
+                loadTagPort,
+                loadRecordPort,
+                saveRecordPort,
+                updateTagTimeBatchPort,
+                findOverlappingRecordsPort,
+                syncService
+        );
+    }
+
     @Nested
     @DisplayName("createRecord")
     class WhenCreatingRecord {
@@ -75,6 +100,7 @@ class RecordCommandServiceTest {
             Tag tag = stubTag(tagId);
             given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
             given(saveRecordPort.saveRecord(any())).willReturn(100L);
+            setUpSyncDefaults(tagId, START, END, 3600L);
 
             CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, false);
 
@@ -106,6 +132,7 @@ class RecordCommandServiceTest {
             Tag tag = stubTag(tagId);
             given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
             given(saveRecordPort.saveRecord(any())).willReturn(1L);
+            setUpSyncDefaults(tagId, START, END, 3600L);
 
             recordCommandService.createRecord(new CreateRecordCommand(tagId, START, END, false));
 
@@ -127,6 +154,8 @@ class RecordCommandServiceTest {
 
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+            given(loadRecordsByTagPort.loadRecordsByTagId(tagId.value()))
+                    .willReturn(List.of(stubRecordResult(recordId, START, END.plusHours(1), 7200L)));
 
             ZonedDateTime newEnd = END.plusHours(1); // 7200초
             EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L, false);
@@ -146,6 +175,8 @@ class RecordCommandServiceTest {
 
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+            given(loadRecordsByTagPort.loadRecordsByTagId(tagId.value()))
+                    .willReturn(List.of(stubRecordResult(recordId, START, END, 3600L)));
 
             // 동일한 시간 범위로 수정
             EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false);
@@ -200,6 +231,7 @@ class RecordCommandServiceTest {
 
             given(loadTagPort.loadTag(tagId)).willReturn(Optional.of(tag));
             given(saveRecordPort.saveRecord(any())).willReturn(100L);
+            setUpSyncDefaults(tagId, START, END, 3600L);
 
             OverlapResult overlapResult = new OverlapResult(99L, overlapTagId, "Other", START, END);
             given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), isNull()))
@@ -207,6 +239,8 @@ class RecordCommandServiceTest {
 
             Record overlapRecord = Record.reconstitute(RecordId.of(99L), TagId.of(overlapTagId), new TimeRange(START, END), 3600L);
             given(loadRecordPort.loadRecord(99L)).willReturn(Optional.of(overlapRecord));
+            given(loadTagPort.loadTag(overlapTagId)).willReturn(Optional.of(stubTag(overlapTagId)));
+            given(loadRecordsByTagPort.loadRecordsByTagId(overlapTagId)).willReturn(List.of());
 
             CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, true);
 
@@ -227,6 +261,8 @@ class RecordCommandServiceTest {
 
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+            given(loadRecordsByTagPort.loadRecordsByTagId(tagId.value()))
+                    .willReturn(List.of(stubRecordResult(recordId, START, END, 3600L)));
             // excludeRecordId=recordId 로 쿼리 시 빈 목록 반환 (자기 제외)
             given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), eq(recordId)))
                     .willReturn(List.of());
@@ -269,6 +305,7 @@ class RecordCommandServiceTest {
             Record record = Record.reconstitute(RecordId.of(recordId), tagId, new TimeRange(START, END), 3600L);
             given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
             given(loadTagPort.loadTag(tagId.value())).willReturn(Optional.of(stubTag(tagId.value())));
+            given(loadRecordsByTagPort.loadRecordsByTagId(tagId.value())).willReturn(List.of());
 
             boolean result = recordCommandService.deleteRecord(recordId, 1L);
 

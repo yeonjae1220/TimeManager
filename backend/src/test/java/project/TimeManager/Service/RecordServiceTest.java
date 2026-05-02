@@ -69,8 +69,17 @@ class RecordServiceTest {
         em.clear();
 
         TagJpaEntity child1_1After = tagJpaRepository.findById(child1_1.getId()).orElseThrow();
+        List<RecordJpaEntity> updatedRecords = recordJpaRepository.findByTagId(child1_1.getId());
         long expectedDelta = 1800L - originalTotal; // 1800초로 변경
         assertThat(child1_1After.getTotalTime()).isEqualTo(child1_1.getTotalTime() + expectedDelta);
+        assertThat(child1_1After.getTagTotalTime()).isEqualTo(
+                updatedRecords.stream().mapToLong(RecordJpaEntity::getTotalTime).sum()
+        );
+        ZonedDateTime latestStopTime = updatedRecords.stream()
+                .map(RecordJpaEntity::getEndTime)
+                .max(ZonedDateTime::compareTo)
+                .orElse(child1_1After.getLatestStopTime());
+        assertThat(child1_1After.getLatestStopTime()).isEqualTo(latestStopTime);
     }
 
     @Test
@@ -92,8 +101,17 @@ class RecordServiceTest {
         em.clear();
 
         assertThat(deleted).isTrue();
-        assertThat(tagJpaRepository.findById(child1_1.getId()).orElseThrow().getTotalTime())
-                .isEqualTo(totalTimeBefore - recordTotalTime);
+        TagJpaEntity updatedTag = tagJpaRepository.findById(child1_1.getId()).orElseThrow();
+        assertThat(updatedTag.getTotalTime()).isEqualTo(totalTimeBefore - recordTotalTime);
+        long remainingTagTotal = recordJpaRepository.findByTagId(child1_1.getId()).stream()
+                .mapToLong(RecordJpaEntity::getTotalTime)
+                .sum();
+        assertThat(updatedTag.getTagTotalTime()).isEqualTo(remainingTagTotal);
+        ZonedDateTime latestRemainingStop = recordJpaRepository.findByTagId(child1_1.getId()).stream()
+                .map(RecordJpaEntity::getEndTime)
+                .max(ZonedDateTime::compareTo)
+                .orElse(updatedTag.getLatestStopTime());
+        assertThat(updatedTag.getLatestStopTime()).isEqualTo(latestRemainingStop);
     }
 
     @Test

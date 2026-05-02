@@ -92,9 +92,13 @@ import { useRoute } from 'vue-router';
 import EditRecordModal from '@/Modals/EditRecordModal.vue';
 import AddRecordModal  from '@/Modals/AddRecordModal.vue';
 import { DateTime } from 'luxon';
+import { useAuthStore } from '@/stores/authStore';
+import { useTagStore } from '@/stores/tagStore';
 
 const route = useRoute();
 const tagId = route.params.id;
+const authStore = useAuthStore();
+const tagStore = useTagStore();
 
 const records              = ref([]);
 const loading              = ref(false);
@@ -139,11 +143,13 @@ const openAddRecordModal = () => { isAddRecordModalOpen.value = true; };
 const handleAddModalClose = () => {
   isAddRecordModalOpen.value = false;
   fetchRecords();
+  if (authStore.memberId) tagStore.refreshTags(authStore.memberId);
 };
 
 const handleEditModalClose = () => {
   isEditRecordModalOpen.value = false;
   fetchRecords();
+  if (authStore.memberId) tagStore.refreshTags(authStore.memberId);
 };
 
 // 온라인 복귀 시 BackgroundSync가 timer/stop을 재전송하고

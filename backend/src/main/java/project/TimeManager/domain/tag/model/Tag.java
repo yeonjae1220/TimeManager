@@ -119,6 +119,14 @@ public class Tag {
         this.dailyTotalTime += delta;
     }
 
+    public void synchronizeRecordDerivedFields(Long tagTotalTime, Long dailyTotalTime,
+                                               ZonedDateTime latestStartTime, ZonedDateTime latestStopTime) {
+        this.tagTotalTime = tagTotalTime;
+        this.dailyTotalTime = dailyTotalTime;
+        this.latestStartTime = latestStartTime != null ? latestStartTime : EPOCH;
+        this.latestStopTime = latestStopTime != null ? latestStopTime : EPOCH;
+    }
+
     public boolean isRunning() {
         return timerState == TimerState.RUNNING;
     }
