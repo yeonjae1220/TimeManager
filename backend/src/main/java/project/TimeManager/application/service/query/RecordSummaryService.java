@@ -11,7 +11,7 @@ import project.TimeManager.domain.port.in.record.GetRecordSummaryQuery;
 import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
 
 import java.time.LocalDate;
-import java.time.ZoneOffset;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.*;
 import java.util.stream.Collectors;
@@ -25,8 +25,9 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
 
     @Override
     public RecordSummaryResult getSummary(Long memberId, LocalDate startDate, LocalDate endDate) {
-        ZonedDateTime start = startDate.atStartOfDay(ZoneOffset.UTC);
-        ZonedDateTime end = endDate.plusDays(1).atStartOfDay(ZoneOffset.UTC);
+        ZoneId zone = ZoneId.of("Asia/Seoul");
+        ZonedDateTime start = startDate.atStartOfDay(zone);
+        ZonedDateTime end = endDate.plusDays(1).atStartOfDay(zone);
 
         List<RecordJpaEntity> records = loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(memberId, start, end);
 
