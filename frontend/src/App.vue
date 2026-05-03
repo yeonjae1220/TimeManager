@@ -286,13 +286,12 @@ ul, ol { list-style: none; }
 .modal-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(0,0,0,0.72);
-  backdrop-filter: blur(6px);
   display: flex;
   align-items: center;
   justify-content: center;
   z-index: 100;
   padding: 24px;
+  pointer-events: none;
   animation: fadeIn 140ms ease;
 }
 
@@ -311,6 +310,8 @@ ul, ol { list-style: none; }
   animation: slideUp 180ms ease;
   max-height: min(85vh, 720px);
   overflow-y: auto;
+  pointer-events: auto;
+  box-shadow: 0 0 0 1px rgba(201,169,110,0.12), 0 24px 64px rgba(0,0,0,0.7), 0 8px 24px rgba(0,0,0,0.45);
 }
 
 @keyframes slideUp {

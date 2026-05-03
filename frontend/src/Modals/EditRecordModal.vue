@@ -1,6 +1,7 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-panel">
+  <Teleport to="body">
+  <div v-if="isOpen" class="modal-overlay">
+    <div ref="panelRef" class="modal-panel">
 
       <!-- ── 헤더 ── -->
       <div class="modal-header">
@@ -78,10 +79,11 @@
 
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, watch } from 'vue';
+import { defineProps, defineEmits, ref, watch, onBeforeUnmount } from 'vue';
 import apiClient from '@/utils/apiClient';
 import { DateTime } from 'luxon';
 
@@ -97,6 +99,29 @@ const formattedEndTime   = ref('');
 const errorMessage       = ref('');
 const overlapData        = ref(null);
 const overlapStep        = ref(1);
+const panelRef           = ref(null);
+
+const onKeydown = (e) => { if (e.key === 'Escape') closeModal(); };
+const onDocumentClick = (e) => {
+  if (panelRef.value && !panelRef.value.contains(e.target)) closeModal();
+};
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('keydown', onKeydown);
+      document.addEventListener('click', onDocumentClick);
+    }, 0);
+  } else {
+    document.removeEventListener('keydown', onKeydown);
+    document.removeEventListener('click', onDocumentClick);
+  }
+}, { immediate: true });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown);
+  document.removeEventListener('click', onDocumentClick);
+});
 
 watch(
   () => props.recordData,

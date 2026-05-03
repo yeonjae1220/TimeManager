@@ -1,6 +1,7 @@
 <template>
-  <div v-if="isOpen" class="modal-overlay" @click.self="closeModal">
-    <div class="modal-panel">
+  <Teleport to="body">
+  <div v-if="isOpen" class="modal-overlay">
+    <div ref="panelRef" class="modal-panel">
 
       <div class="modal-header">
         <h2 class="modal-title">Manage Tag</h2>
@@ -47,10 +48,11 @@
 
     </div>
   </div>
+  </Teleport>
 </template>
 
 <script setup>
-import { ref, defineProps, watchEffect, computed } from 'vue';
+import { ref, defineProps, watchEffect, computed, watch, onBeforeUnmount } from 'vue';
 import apiClient from '@/utils/apiClient';
 
 const props = defineProps({
@@ -64,6 +66,29 @@ const newTagName      = ref('');
 const selectedParentId = ref('');
 const tagList         = ref([]);
 const discardedTag    = ref(null);
+const panelRef        = ref(null);
+
+const onKeydown = (e) => { if (e.key === 'Escape') closeModal(); };
+const onDocumentClick = (e) => {
+  if (panelRef.value && !panelRef.value.contains(e.target)) closeModal();
+};
+
+watch(() => props.isOpen, (open) => {
+  if (open) {
+    setTimeout(() => {
+      document.addEventListener('keydown', onKeydown);
+      document.addEventListener('click', onDocumentClick);
+    }, 0);
+  } else {
+    document.removeEventListener('keydown', onKeydown);
+    document.removeEventListener('click', onDocumentClick);
+  }
+}, { immediate: true });
+
+onBeforeUnmount(() => {
+  document.removeEventListener('keydown', onKeydown);
+  document.removeEventListener('click', onDocumentClick);
+});
 
 const fetchTags = async () => {
   try {
