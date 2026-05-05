@@ -123,6 +123,13 @@
         </div>
       </div>
 
+      <!-- Day Timeline -->
+      <DayTimeline
+        v-if="activeTab === 'daily'"
+        :sessions="timelineSessions"
+        :date="timelineDate"
+      />
+
       <!-- Session List per Tag -->
       <div class="sessions-section">
         <div
@@ -165,6 +172,7 @@ import { ref, computed, watch, onMounted } from 'vue';
 import { DateTime } from 'luxon';
 import apiClient from '@/utils/apiClient';
 import { getDailyRange, getWeeklyRange, getMonthlyRange, formatRangeLabel, shiftDate, formatSeconds } from '@/utils/dateRange.js';
+import DayTimeline from '@/components/DayTimeline.vue';
 
 const tabs = [
   { key: 'daily', label: '일간' },
@@ -266,6 +274,24 @@ function formatDateTime(iso) {
 function formatTimeOnly(iso) {
   return DateTime.fromISO(iso).toFormat('HH:mm');
 }
+
+const timelineSessions = computed(() => {
+  if (!summary.value || activeTab.value !== 'daily') return [];
+  return summary.value.tagSummaries.flatMap((tag, tagIndex) =>
+    tag.sessions.map(s => ({
+      tagId: tag.tagId,
+      tagName: tag.tagName,
+      tagIndex,
+      startTime: s.startTime,
+      endTime: s.endTime,
+      durationSeconds: s.durationSeconds,
+    }))
+  );
+});
+
+const timelineDate = computed(() =>
+  DateTime.fromJSDate(selectedDate.value).startOf('day')
+);
 
 watch([activeTab, selectedDate], fetchSummary);
 onMounted(fetchSummary);

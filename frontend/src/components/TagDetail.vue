@@ -220,12 +220,15 @@ import { saveTimerState, loadTimerState, clearTimerState } from '@/utils/timerPe
 import { useTagStore } from '@/stores/tagStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
+import { useLiveIndicator } from '@/composables/useLiveIndicator';
 
 const route = useRoute();
 const tag = ref(null);
 const router = useRouter();
 const tagStore = useTagStore();
 const isModalOpen = ref(false);
+
+const { startLive, stopLive } = useLiveIndicator();
 
 const handleModalClose = () => {
   isModalOpen.value = false;
@@ -531,6 +534,12 @@ watch(
   { immediate: true }
 );
 
+watch(
+  () => stopwatchState.isRunning,
+  (running) => { if (running) startLive(); else stopLive(); },
+  { immediate: true }
+);
+
 // 온라인 복귀 시 서버 데이터로 자동 갱신
 // 타이머 재전송은 tagStore의 online 리스너가 먼저 처리 후 이 함수가 호출됨
 const handleOnline = () => {
@@ -551,6 +560,8 @@ onBeforeUnmount(() => {
   releaseWakeLock();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('online', handleOnline);
+  // 타이머가 실행 중이 아닐 때만 indicator 해제 — 다른 페이지로 이동해도 측정 중 표시 유지
+  if (!stopwatchState.isRunning) stopLive();
 });
 </script>
 
