@@ -189,7 +189,14 @@ const getPersistedTimerExtraSeconds = (saved) => {
     return replacementBase;
   }
 
-  const liveDelta = Math.max(0, Math.floor((nowMs.value - saved.latestStartTime) / 1000));
+  // 다른 기기에서 타이머를 재시작하면 서버의 시작 시각이 로컬보다 더 최신일 수 있음.
+  // 이 경우 로컬 localStorage의 stale한 시작 시각 대신 서버 기준으로 live delta를 계산.
+  const serverStartTimeMs = target?.latestStartTimeMs || 0;
+  const effectiveStartTime = serverStartTimeMs > saved.latestStartTime
+    ? serverStartTimeMs
+    : saved.latestStartTime;
+
+  const liveDelta = Math.max(0, Math.floor((nowMs.value - effectiveStartTime) / 1000));
   return replacementBase + liveDelta;
 };
 
