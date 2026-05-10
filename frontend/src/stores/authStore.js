@@ -5,7 +5,6 @@ import { extractRoleFromToken } from '@/utils/jwt';
 export const useAuthStore = defineStore('auth', {
     state: () => ({
         accessToken: null,
-        refreshToken: null,
         memberId: null,
         role: null,
     }),
@@ -14,9 +13,8 @@ export const useAuthStore = defineStore('auth', {
         isAdmin: (state) => state.role === 'ADMIN',
     },
     actions: {
-        setAuth({ accessToken, refreshToken, memberId }) {
+        setAuth({ accessToken, memberId }) {
             this.accessToken = accessToken;
-            this.refreshToken = refreshToken;
             this.memberId = memberId;
             this.role = extractRoleFromToken(accessToken);
         },
@@ -26,7 +24,6 @@ export const useAuthStore = defineStore('auth', {
         },
         clearAuth() {
             this.accessToken = null;
-            this.refreshToken = null;
             this.memberId = null;
             this.role = null;
             const tagStore = useTagStore();

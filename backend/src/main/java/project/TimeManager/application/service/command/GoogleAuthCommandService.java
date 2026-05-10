@@ -29,7 +29,7 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class GoogleAuthCommandService implements GoogleLoginUseCase {
 
-    private static final long REFRESH_TOKEN_TTL_DAYS = 7L;
+    private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
 
     private final GoogleOAuthPort googleOAuthPort;
     private final LoadMemberPort loadMemberPort;

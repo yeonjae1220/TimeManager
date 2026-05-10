@@ -28,7 +28,7 @@ import java.time.temporal.ChronoUnit;
 @RequiredArgsConstructor
 public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, LogoutUseCase {
 
-    private static final long REFRESH_TOKEN_TTL_DAYS = 7L;
+    private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
     private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;

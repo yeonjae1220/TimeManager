@@ -33,7 +33,7 @@ push:
 jwt:
   secret: ${JWT_SECRET}
   access-token-ttl-minutes: 15
-  refresh-token-ttl-minutes: 10080
+  refresh-token-ttl-minutes: 43200
 
 google:
   oauth2:

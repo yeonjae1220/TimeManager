@@ -8,15 +8,13 @@ export function useAuth() {
 
     async function login(email, password) {
         const response = await authApi.login(email, password);
-        const { accessToken, refreshToken, memberId } = response.data;
-        authStore.setAuth({ accessToken, refreshToken, memberId });
+        const { accessToken, memberId } = response.data;
+        authStore.setAuth({ accessToken, memberId });
         await router.push(`/members/${memberId}/tags`);
     }
 
     async function logout() {
-        if (authStore.refreshToken) {
-            await authApi.logout(authStore.refreshToken).catch(() => {});
-        }
+        await authApi.logout().catch(() => {});
         authStore.clearAuth();
         await router.push('/login');
     }
@@ -28,8 +26,8 @@ export function useAuth() {
 
     async function googleLogin(code, redirectUri) {
         const response = await authApi.googleLogin(code, redirectUri);
-        const { accessToken, refreshToken, memberId } = response.data;
-        authStore.setAuth({ accessToken, refreshToken, memberId });
+        const { accessToken, memberId } = response.data;
+        authStore.setAuth({ accessToken, memberId });
         await router.push(`/members/${memberId}/tags`);
     }
 

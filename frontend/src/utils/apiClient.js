@@ -4,6 +4,7 @@ import router from '@/router';
 
 const apiClient = axios.create({
     baseURL: '',
+    withCredentials: true,
 });
 
 let isRefreshing = false;
@@ -34,13 +35,6 @@ apiClient.interceptors.response.use(
             return Promise.reject(error);
         }
 
-        const authStore = useAuthStore();
-        if (!authStore.refreshToken) {
-            authStore.clearAuth();
-            router.push('/login');
-            return Promise.reject(error);
-        }
-
         if (isRefreshing) {
             return new Promise((resolve, reject) => {
                 failedQueue.push({ resolve, reject });
@@ -54,16 +48,18 @@ apiClient.interceptors.response.use(
         isRefreshing = true;
 
         try {
-            const response = await axios.post('/api/v1/auth/refresh', {
-                refreshToken: authStore.refreshToken,
+            const response = await axios.post('/api/v1/auth/refresh', undefined, {
+                withCredentials: true,
             });
-            const { accessToken, refreshToken, memberId } = response.data;
-            authStore.setAuth({ accessToken, refreshToken, memberId });
+            const { accessToken, memberId } = response.data;
+            const authStore = useAuthStore();
+            authStore.setAuth({ accessToken, memberId });
             processQueue(null, accessToken);
             originalRequest.headers['Authorization'] = `Bearer ${accessToken}`;
             return apiClient(originalRequest);
         } catch (refreshError) {
             processQueue(refreshError, null);
+            const authStore = useAuthStore();
             authStore.clearAuth();
             router.push('/login');
             return Promise.reject(refreshError);
