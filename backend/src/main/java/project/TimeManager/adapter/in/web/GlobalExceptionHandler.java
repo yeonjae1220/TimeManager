@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.exception.RecordOverlapException;
+import project.TimeManager.domain.exception.TooManyRequestsException;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 
 import java.time.ZonedDateTime;
@@ -55,6 +56,13 @@ public class GlobalExceptionHandler {
                 "overlappingTags", overlappingTags,
                 "recordsToDelete", recordsToDelete
         ));
+    }
+
+    @ExceptionHandler(TooManyRequestsException.class)
+    public ResponseEntity<Map<String, String>> handleTooManyRequests(TooManyRequestsException e) {
+        log.warn("Rate limit exceeded: {}", e.getMessage());
+        return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+                .body(Map.of("error", e.getMessage()));
     }
 
     @ExceptionHandler(DomainException.class)
