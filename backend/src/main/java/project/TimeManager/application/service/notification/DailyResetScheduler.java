@@ -14,7 +14,8 @@ public class DailyResetScheduler {
 
     private final TagJpaRepository tagJpaRepository;
 
-    @Scheduled(cron = "0 0 0 * * *")
+    // 새벽 5시 KST 기준 일일 리셋 (Phase 2에서 사용자별 설정으로 확장 예정)
+    @Scheduled(cron = "0 0 5 * * *", zone = "Asia/Seoul")
     @Transactional
     public void resetDailyTimes() {
         log.info("[Daily Reset] 일일 시간 초기화 시작");

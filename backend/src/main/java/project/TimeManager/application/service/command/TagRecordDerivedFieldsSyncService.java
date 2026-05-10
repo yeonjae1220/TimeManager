@@ -9,7 +9,7 @@ import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.tag.model.Tag;
 
-import java.time.LocalDate;
+import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.List;
@@ -50,7 +50,17 @@ public class TagRecordDerivedFieldsSyncService {
         saveTagPort.saveTag(tag);
     }
 
-    private boolean isToday(ZonedDateTime dateTime) {
-        return dateTime.toLocalDate().equals(LocalDate.now(dateTime.getZone()));
+    private static final ZoneId USER_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int DAILY_RESET_HOUR = 5; // 새벽 5시 기준 (Phase 2에서 사용자별 설정으로 확장 예정)
+
+    private boolean isToday(ZonedDateTime sessionTime) {
+        ZonedDateTime now = ZonedDateTime.now(USER_ZONE);
+        ZonedDateTime todayReset = now.toLocalDate().atStartOfDay(USER_ZONE).plusHours(DAILY_RESET_HOUR);
+        if (now.isBefore(todayReset)) {
+            todayReset = todayReset.minusDays(1);
+        }
+        ZonedDateTime nextReset = todayReset.plusDays(1);
+        ZonedDateTime sessionInZone = sessionTime.withZoneSameInstant(USER_ZONE);
+        return !sessionInZone.isBefore(todayReset) && sessionInZone.isBefore(nextReset);
     }
 }
