@@ -12,6 +12,11 @@
       <span class="pull-spinner" :class="{ spinning: isPullRefreshing }"></span>
     </div>
 
+    <!-- (#8) Offline banner -->
+    <div v-if="!isOnline" class="offline-banner">
+      <span class="mono">오프라인 — 복귀 후 자동 동기화됩니다</span>
+    </div>
+
     <div class="topbar">
       <router-link to="/" class="topbar-brand">timemgr</router-link>
       <div class="topbar-actions">
@@ -100,6 +105,7 @@ import TagItem from '@/components/TagItem.vue';
 import { useTagStore } from '@/stores/tagStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
 import { peekTimerState } from '@/utils/timerPersistence';
+import { useNetworkStatus } from '@/composables/useNetworkStatus';
 
 const route = useRoute();
 const router = useRouter();
@@ -107,6 +113,7 @@ const memberId = route.params.id;
 
 const tagStore = useTagStore();
 const isLoading = ref(true);
+const { isOnline } = useNetworkStatus();
 
 const { isRefreshing: isPullRefreshing, pullDistance, threshold: pullThreshold } = usePullToRefresh(
   () => tagStore.refreshTags(memberId)
@@ -179,6 +186,9 @@ const findRunningTagInTree = (nodes) => {
 
 const getPersistedTimerExtraSeconds = (saved) => {
   if (!saved || saved.savedDate !== todayKey()) return 0;
+  // (#6) 25시간 이상 오래된 데이터는 날짜 문자열이 같아도 무시
+  // DST 전환, 시계 조정 등 엣지케이스에서 stale 데이터가 더해지는 것을 방지
+  if (Date.now() - (saved.savedAt || 0) > 25 * 60 * 60 * 1000) return 0;
 
   const target = tagStore.findTagById(saved.tagId);
   const serverDailyTotal = target?.dailyTotalTime || 0;
@@ -544,6 +554,16 @@ onBeforeUnmount(() => {
 }
 
 .mono { font-family: var(--font-mono); }
+
+/* ── Offline Banner (#8) ── */
+.offline-banner {
+  background: var(--text-2, #888);
+  color: var(--bg, #fff);
+  text-align: center;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
 
 /* Pull-to-refresh */
 .pull-indicator {
