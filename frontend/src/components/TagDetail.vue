@@ -264,9 +264,17 @@ const releaseWakeLock = async () => {
   }
 };
 
+let _lastVisibilityFetchAt = 0;
 const handleVisibilityChange = () => {
-  if (document.visibilityState === 'visible' && stopwatchState.isRunning) {
-    requestWakeLock();
+  if (document.visibilityState === 'visible') {
+    // 다른 디바이스에서 타이머 상태가 바뀌었을 수 있으므로 앱 복귀 시 즉시 동기화
+    // 10초 스로틀: 화면 깜빡임 등으로 인한 중복 API 호출 방지
+    const now = Date.now();
+    if (route.params.id && now - _lastVisibilityFetchAt > 10_000) {
+      _lastVisibilityFetchAt = now;
+      fetchTagData(route.params.id);
+    }
+    if (stopwatchState.isRunning) requestWakeLock();
   }
 };
 
@@ -306,8 +314,8 @@ const hydrateStopwatchState = () => {
   stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
   stopwatchState.totalTimeCal      = stopwatchState.totalTime;
 
+  cancelAnimationFrame(stopwatchState.rAF_ID);
   if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
-    cancelAnimationFrame(stopwatchState.rAF_ID);
     updateTimer();
     requestWakeLock();
   }
@@ -342,7 +350,8 @@ const applyTagData = (source, options = {}) => {
     stopwatchState.dailyGoalTime    = source.dailyGoalTime || 0;
     stopwatchState.tagTotalTime     = source.tagTotalTime || 0;
     stopwatchState.totalTime        = source.totalTime || 0;
-    if (!saved) clearTimerState();
+    // localStorage가 없거나, 서버가 stopped인데 localStorage가 running(크로스 디바이스 stop)인 경우 정리
+    if (!saved || (!source.state && saved.isRunning)) clearTimerState();
   }
   hydrateStopwatchState();
 };
@@ -431,7 +440,7 @@ const formattedTagTotalTime = computed(() => formatTime(stopwatchState.tagTotalT
 const formattedTotalTime    = computed(() => formatTime(stopwatchState.totalTimeCal));
 
 const updateTimer = () => {
-  if (stopwatchState.latestStartTime <= 0) return;
+  if (!stopwatchState.isRunning || stopwatchState.latestStartTime <= 0) return;
   const currentTime = Date.now();
   const deltaTime = Math.floor((currentTime - stopwatchState.latestStartTime) / 1000);
   if (deltaTime < 0) return;
