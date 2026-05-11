@@ -134,6 +134,26 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
+      - name: Run DB migrations via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.LENOVO_HOST }}
+          port: ${{ secrets.LENOVO_PORT }}
+          username: ${{ secrets.LENOVO_USER }}
+          key: ${{ secrets.LENOVO_SSH_KEY }}
+          script: |
+            set -e
+            POSTGRES_POD=$(sudo kubectl get pods -n timemanager -l app=postgres \
+              -o jsonpath='{.items[0].metadata.name}')
+            echo "Running migrations on pod: $POSTGRES_POD"
+            sudo kubectl exec "$POSTGRES_POD" -n timemanager -- sh -c '
+              psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
+                ALTER TABLE member ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) NOT NULL DEFAULT '"'"'Asia/Seoul'"'"';
+                ALTER TABLE member ADD COLUMN IF NOT EXISTS daily_reset_hour INTEGER NOT NULL DEFAULT 5;
+              SQL
+            '
+            echo "Migrations complete"
+
       - name: Deploy via SSH
         uses: appleboy/ssh-action@v1.0.3
         env:
