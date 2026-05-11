@@ -17,6 +17,7 @@ import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.Ove
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
+import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
@@ -48,6 +49,7 @@ class RecordCommandServiceTest {
     @Mock SaveRecordPort saveRecordPort;
     @Mock UpdateTagTimeBatchPort updateTagTimeBatchPort;
     @Mock FindOverlappingRecordsPort findOverlappingRecordsPort;
+    @Mock LoadMemberPort loadMemberPort;
 
     RecordCommandService recordCommandService;
 
@@ -77,7 +79,7 @@ class RecordCommandServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         TagRecordDerivedFieldsSyncService syncService =
-                new TagRecordDerivedFieldsSyncService(loadTagPort, loadRecordsByTagPort, saveTagPort);
+                new TagRecordDerivedFieldsSyncService(loadTagPort, loadRecordsByTagPort, saveTagPort, loadMemberPort);
         recordCommandService = new RecordCommandService(
                 loadTagPort,
                 loadRecordPort,
