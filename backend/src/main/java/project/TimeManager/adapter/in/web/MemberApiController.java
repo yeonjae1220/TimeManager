@@ -50,7 +50,7 @@ public class MemberApiController {
     public ResponseEntity<MemberProfileResult> updateProfile(
             @PathVariable Long id,
             @AuthenticationPrincipal Long principalId,
-            @RequestBody UpdateMemberProfileRequest request) {
+            @Valid @RequestBody UpdateMemberProfileRequest request) {
         if (!principalId.equals(id)) {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }

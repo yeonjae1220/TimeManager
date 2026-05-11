@@ -8,6 +8,9 @@ import project.TimeManager.application.dto.result.MemberProfileResult;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.OAuthProvider;
+
+import java.time.DateTimeException;
+import java.time.ZoneId;
 import project.TimeManager.domain.port.in.member.UpdateMemberProfileUseCase;
 import project.TimeManager.domain.port.out.auth.PasswordHasherPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
@@ -47,6 +50,13 @@ public class UpdateMemberProfileCommandService implements UpdateMemberProfileUse
         }
 
         String newTimezone = command.timezone();
+        if (newTimezone != null) {
+            try {
+                ZoneId.of(newTimezone);
+            } catch (DateTimeException e) {
+                throw new DomainException("유효하지 않은 타임존입니다: " + newTimezone);
+            }
+        }
         Integer newDailyResetHour = command.dailyResetHour();
 
         if (newName == null && newHashedPassword == null && newTimezone == null && newDailyResetHour == null) {

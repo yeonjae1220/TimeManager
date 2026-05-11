@@ -42,7 +42,7 @@ public class MemberJpaEntity {
     @Enumerated(EnumType.STRING)
     private MemberRole role = MemberRole.MEMBER;
 
-    @Column(name = "timezone", nullable = false)
+    @Column(name = "timezone", nullable = false, length = 50)
     private String timezone = "Asia/Seoul";
 
     @Column(name = "daily_reset_hour", nullable = false)
