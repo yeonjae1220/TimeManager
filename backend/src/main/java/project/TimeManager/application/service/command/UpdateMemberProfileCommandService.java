@@ -46,16 +46,21 @@ public class UpdateMemberProfileCommandService implements UpdateMemberProfileUse
             newHashedPassword = passwordHasherPort.hash(command.newPassword());
         }
 
-        if (newName == null && newHashedPassword == null) {
+        String newTimezone = command.timezone();
+        Integer newDailyResetHour = command.dailyResetHour();
+
+        if (newName == null && newHashedPassword == null && newTimezone == null && newDailyResetHour == null) {
             return new MemberProfileResult(
                     member.getId().value(),
                     member.getName(),
                     member.getEmail(),
-                    member.getProvider().name()
+                    member.getProvider().name(),
+                    member.getTimezone(),
+                    member.getDailyResetHour()
             );
         }
 
-        updateMemberPort.updateMember(command.memberId(), newName, newHashedPassword);
+        updateMemberPort.updateMember(command.memberId(), newName, newHashedPassword, newTimezone, newDailyResetHour);
 
         Member updated = loadMemberPort.loadMember(command.memberId())
                 .orElseThrow(() -> new DomainException("존재하지 않는 회원입니다"));
@@ -63,7 +68,9 @@ public class UpdateMemberProfileCommandService implements UpdateMemberProfileUse
                 updated.getId().value(),
                 updated.getName(),
                 updated.getEmail(),
-                updated.getProvider().name()
+                updated.getProvider().name(),
+                updated.getTimezone(),
+                updated.getDailyResetHour()
         );
     }
 }

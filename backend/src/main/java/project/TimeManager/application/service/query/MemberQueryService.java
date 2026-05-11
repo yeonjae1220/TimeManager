@@ -32,7 +32,9 @@ public class MemberQueryService implements GetMemberQuery, GetMemberProfileUseCa
                 member.getId().value(),
                 member.getName(),
                 member.getEmail(),
-                member.getProvider().name()
+                member.getProvider().name(),
+                member.getTimezone(),
+                member.getDailyResetHour()
         );
     }
 }

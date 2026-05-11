@@ -93,6 +93,46 @@
         </div>
       </div>
 
+      <!-- Timer Settings -->
+      <div class="profile-section">
+        <span class="profile-section-label">timer settings</span>
+        <div class="timer-settings-info">
+          <p class="settings-desc">일일 타이머가 초기화되는 기준 시각을 설정합니다.</p>
+        </div>
+        <div class="field">
+          <label>Timezone</label>
+          <select v-model="timerSettings.timezone" class="settings-select">
+            <option value="Asia/Seoul">Asia/Seoul (KST, UTC+9)</option>
+            <option value="Asia/Tokyo">Asia/Tokyo (JST, UTC+9)</option>
+            <option value="Asia/Shanghai">Asia/Shanghai (CST, UTC+8)</option>
+            <option value="America/New_York">America/New_York (EST, UTC-5)</option>
+            <option value="America/Los_Angeles">America/Los_Angeles (PST, UTC-8)</option>
+            <option value="Europe/London">Europe/London (GMT, UTC+0)</option>
+            <option value="UTC">UTC</option>
+          </select>
+        </div>
+        <div class="field">
+          <label>Daily reset time</label>
+          <select v-model.number="timerSettings.dailyResetHour" class="settings-select">
+            <option v-for="h in 24" :key="h-1" :value="h-1">
+              {{ String(h-1).padStart(2,'0') }}:00{{ h-1 === 0 ? ' (자정)' : h-1 === 5 ? ' (새벽 5시, 기본값)' : '' }}
+            </option>
+          </select>
+        </div>
+        <p v-if="timerError" class="form-error">{{ timerError }}</p>
+        <p v-if="timerSuccess" class="form-success">Saved.</p>
+        <div class="section-footer">
+          <button
+            class="btn btn-primary section-btn"
+            :disabled="!timerSettingsChanged || timerSaving"
+            @click="saveTimerSettings"
+          >
+            <span v-if="timerSaving">...</span>
+            <span v-else>Save</span>
+          </button>
+        </div>
+      </div>
+
       <!-- Danger Zone -->
       <div class="profile-section profile-danger">
         <span class="profile-section-label">danger zone</span>
@@ -127,7 +167,7 @@
 </template>
 
 <script setup>
-import { ref, reactive, onMounted } from 'vue';
+import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/composables/useAuth';
@@ -150,6 +190,17 @@ const pwError = ref('');
 const pwSuccess = ref(false);
 const pwSaving = ref(false);
 
+const timerSettings = reactive({ timezone: 'Asia/Seoul', dailyResetHour: 5 });
+const timerError = ref('');
+const timerSuccess = ref(false);
+const timerSaving = ref(false);
+
+const timerSettingsChanged = computed(() =>
+  profile.value &&
+  (timerSettings.timezone !== profile.value.timezone ||
+   timerSettings.dailyResetHour !== profile.value.dailyResetHour)
+);
+
 const showDeleteConfirm = ref(false);
 const deleteError = ref('');
 const deleting = ref(false);
@@ -163,6 +214,8 @@ async function loadProfile() {
     const res = await memberApi.getProfile(authStore.memberId);
     profile.value = res.data;
     editName.value = res.data.name;
+    timerSettings.timezone = res.data.timezone || 'Asia/Seoul';
+    timerSettings.dailyResetHour = res.data.dailyResetHour ?? 5;
   } catch {
     await router.push('/login');
   } finally {
@@ -213,6 +266,25 @@ async function changePassword() {
     pwError.value = e.response?.data?.error || '비밀번호 변경에 실패했습니다';
   } finally {
     pwSaving.value = false;
+  }
+}
+
+async function saveTimerSettings() {
+  timerError.value = '';
+  timerSuccess.value = false;
+  timerSaving.value = true;
+  try {
+    const res = await memberApi.updateProfile(authStore.memberId, {
+      timezone: timerSettings.timezone,
+      dailyResetHour: timerSettings.dailyResetHour,
+    });
+    profile.value = res.data;
+    timerSuccess.value = true;
+    setTimeout(() => { timerSuccess.value = false; }, 2000);
+  } catch (e) {
+    timerError.value = e.response?.data?.error || '저장에 실패했습니다';
+  } finally {
+    timerSaving.value = false;
   }
 }
 

@@ -27,6 +27,10 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0")
     void resetAllDailyTimes();
 
+    @Modifying
+    @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0 WHERE t.member.id = :memberId")
+    void resetDailyTimesByMemberId(@Param("memberId") Long memberId);
+
     int countByParent_Id(Long parentId);
 
     @Modifying

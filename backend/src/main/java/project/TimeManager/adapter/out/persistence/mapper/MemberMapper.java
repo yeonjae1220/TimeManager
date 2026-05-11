@@ -16,7 +16,9 @@ public class MemberMapper {
                 entity.getPassword(),
                 entity.getProvider(),
                 entity.getProviderId(),
-                entity.getRole()
+                entity.getRole(),
+                entity.getTimezone(),
+                entity.getDailyResetHour()
         );
     }
 
@@ -28,6 +30,8 @@ public class MemberMapper {
                 : project.TimeManager.domain.member.model.OAuthProvider.LOCAL);
         entity.setProviderId(domain.getProviderId());
         entity.setRole(domain.getRole());
+        entity.setTimezone(domain.getTimezone());
+        entity.setDailyResetHour(domain.getDailyResetHour());
         return entity;
     }
 }

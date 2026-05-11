@@ -42,6 +42,12 @@ public class MemberJpaEntity {
     @Enumerated(EnumType.STRING)
     private MemberRole role = MemberRole.MEMBER;
 
+    @Column(name = "timezone", nullable = false)
+    private String timezone = "Asia/Seoul";
+
+    @Column(name = "daily_reset_hour", nullable = false)
+    private int dailyResetHour = 5;
+
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();
 

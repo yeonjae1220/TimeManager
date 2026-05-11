@@ -17,7 +17,9 @@ import project.TimeManager.domain.port.out.member.SaveMemberPort;
 import project.TimeManager.domain.port.out.member.UpdateMemberPort;
 import project.TimeManager.domain.exception.DomainException;
 
+import java.util.List;
 import java.util.Optional;
+import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
@@ -55,7 +57,7 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
     }
 
     @Override
-    public void updateMember(Long memberId, String newName, String newHashedPassword) {
+    public void updateMember(Long memberId, String newName, String newHashedPassword, String timezone, Integer dailyResetHour) {
         MemberJpaEntity entity = memberJpaRepository.findById(memberId)
                 .orElseThrow(() -> new DomainException("존재하지 않는 회원입니다"));
         if (newName != null && !newName.isBlank()) {
@@ -63,6 +65,12 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
         }
         if (newHashedPassword != null) {
             entity.setPassword(newHashedPassword);
+        }
+        if (timezone != null) {
+            entity.setTimezone(timezone);
+        }
+        if (dailyResetHour != null) {
+            entity.setDailyResetHour(dailyResetHour);
         }
         memberJpaRepository.save(entity);
     }
@@ -88,6 +96,13 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
     @Override
     public long count() {
         return memberJpaRepository.count();
+    }
+
+    @Override
+    public List<Member> loadAllMembers() {
+        return memberJpaRepository.findAll().stream()
+                .map(memberMapper::toDomain)
+                .collect(Collectors.toList());
     }
 
 }

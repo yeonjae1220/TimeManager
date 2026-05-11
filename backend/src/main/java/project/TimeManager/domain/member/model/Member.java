@@ -9,6 +9,8 @@ public class Member {
     private OAuthProvider provider;
     private String providerId;
     private MemberRole role;
+    private String timezone = "Asia/Seoul";
+    private int dailyResetHour = 5;
 
     private Member() {}
 
@@ -102,6 +104,22 @@ public class Member {
         return member;
     }
 
+    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
+                                      OAuthProvider provider, String providerId, MemberRole role,
+                                      String timezone, int dailyResetHour) {
+        Member member = new Member();
+        member.id = id;
+        member.name = name;
+        member.email = email;
+        member.hashedPassword = hashedPassword;
+        member.provider = provider != null ? provider : OAuthProvider.LOCAL;
+        member.providerId = providerId;
+        member.role = role != null ? role : MemberRole.MEMBER;
+        member.timezone = timezone != null ? timezone : "Asia/Seoul";
+        member.dailyResetHour = dailyResetHour;
+        return member;
+    }
+
     public MemberId getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
@@ -109,4 +127,6 @@ public class Member {
     public OAuthProvider getProvider() { return provider; }
     public String getProviderId() { return providerId; }
     public MemberRole getRole() { return role != null ? role : MemberRole.MEMBER; }
+    public String getTimezone() { return timezone; }
+    public int getDailyResetHour() { return dailyResetHour; }
 }

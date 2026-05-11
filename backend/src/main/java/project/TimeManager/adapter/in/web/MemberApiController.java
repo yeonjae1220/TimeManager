@@ -55,7 +55,8 @@ public class MemberApiController {
             return ResponseEntity.status(HttpStatus.FORBIDDEN).build();
         }
         MemberProfileResult result = updateMemberProfileUseCase.updateProfile(
-                new UpdateMemberProfileCommand(id, request.name(), request.newPassword(), request.currentPassword()));
+                new UpdateMemberProfileCommand(id, request.name(), request.newPassword(), request.currentPassword(),
+                        request.timezone(), request.dailyResetHour()));
         return ResponseEntity.ok(result);
     }
 

@@ -4,6 +4,8 @@ public record UpdateMemberProfileCommand(
         Long memberId,
         String newName,
         String newPassword,
-        String currentPassword
+        String currentPassword,
+        String timezone,
+        Integer dailyResetHour
 ) {
 }
