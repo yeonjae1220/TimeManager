@@ -15,6 +15,7 @@ import project.TimeManager.domain.port.out.tag.LoadTagResultPort;
 import project.TimeManager.domain.port.out.tag.LoadTagsByMemberPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagsOrderPort;
+import project.TimeManager.domain.port.out.tag.ResetTagDailyTimesPort;
 import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TimerState;
@@ -27,7 +28,7 @@ import java.util.stream.Collectors;
 @Component
 @RequiredArgsConstructor
 @Slf4j
-public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort, SaveTagsOrderPort {
+public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort, SaveTagsOrderPort, ResetTagDailyTimesPort {
 
     private final TagJpaRepository tagJpaRepository;
     private final MemberJpaRepository memberJpaRepository;
@@ -104,5 +105,10 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
     public Optional<TagResult> loadTagResult(Long tagId) {
         return tagJpaRepository.findById(tagId)
                 .map(tagMapper::toResult);
+    }
+
+    @Override
+    public void resetDailyTimesByMemberId(Long memberId) {
+        tagJpaRepository.resetDailyTimesByMemberId(memberId);
     }
 }
