@@ -6,6 +6,8 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.mockito.junit.jupiter.MockitoSettings;
+import org.mockito.quality.Strictness;
 import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.EditRecordTimeCommand;
 import project.TimeManager.application.dto.result.RecordResult;
@@ -17,6 +19,7 @@ import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.Ove
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 import project.TimeManager.domain.port.out.record.SaveRecordPort;
+import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
@@ -39,6 +42,7 @@ import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.BDDMockito.*;
 
 @ExtendWith(MockitoExtension.class)
+@MockitoSettings(strictness = Strictness.LENIENT)
 @DisplayName("RecordCommandService")
 class RecordCommandServiceTest {
 
@@ -78,6 +82,8 @@ class RecordCommandServiceTest {
 
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
+        given(loadMemberPort.loadMember(1L)).willReturn(Optional.of(
+                Member.reconstitute(MemberId.of(1L), "TestUser", "test@test.com", "hashed")));
         TagRecordDerivedFieldsSyncService syncService =
                 new TagRecordDerivedFieldsSyncService(loadTagPort, loadRecordsByTagPort, saveTagPort, loadMemberPort);
         recordCommandService = new RecordCommandService(
