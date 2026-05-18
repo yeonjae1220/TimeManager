@@ -52,3 +52,31 @@ export function peekTimerState() {
         return null;
     }
 }
+
+// 재전송 시도 여부를 localStorage에 영속화
+// 페이지 재로드 시 모듈 레벨 변수가 초기화되는 문제를 해결
+export function markRetryAttempted() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        data.retryAttempted = true;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.warn('타이머 재전송 마킹 실패:', e);
+    }
+}
+
+// API 호출이 네트워크 오류로 실패했을 때 retryAttempted 마킹을 해제
+// 다음 온라인 복귀 시 재전송을 허용하기 위해 retryAttempted 필드만 제거
+export function clearRetryAttempted() {
+    try {
+        const raw = localStorage.getItem(STORAGE_KEY);
+        if (!raw) return;
+        const data = JSON.parse(raw);
+        delete data.retryAttempted;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(data));
+    } catch (e) {
+        console.warn('타이머 재전송 마킹 해제 실패:', e);
+    }
+}

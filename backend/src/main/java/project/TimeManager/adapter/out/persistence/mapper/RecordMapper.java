@@ -30,7 +30,8 @@ public class RecordMapper {
                 entity.getId(),
                 entity.getStartTime(),
                 entity.getEndTime(),
-                entity.getTotalTime()
+                entity.getTotalTime(),
+                entity.getTag().getId()
         );
     }
 }

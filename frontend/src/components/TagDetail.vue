@@ -13,6 +13,11 @@
       <span class="pull-spinner" :class="{ spinning: isPullRefreshing }"></span>
     </div>
 
+    <!-- (#8) Offline banner -->
+    <div v-if="!isOnline" class="offline-banner">
+      <span class="mono">오프라인 — 타이머 데이터는 온라인 복귀 후 자동 동기화됩니다</span>
+    </div>
+
     <!-- Topbar -->
     <div class="topbar">
       <router-link :to="`/members/${tag?.memberId ?? 1}/tags`" class="topbar-back">
@@ -221,6 +226,7 @@ import { useTagStore } from '@/stores/tagStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
 import { useLiveIndicator } from '@/composables/useLiveIndicator';
+import { useNetworkStatus } from '@/composables/useNetworkStatus';
 
 const route = useRoute();
 const tag = ref(null);
@@ -229,6 +235,7 @@ const tagStore = useTagStore();
 const isModalOpen = ref(false);
 
 const { startLive, stopLive } = useLiveIndicator();
+const { isOnline } = useNetworkStatus();
 
 const handleModalClose = () => {
   isModalOpen.value = false;
@@ -278,13 +285,15 @@ const handleVisibilityChange = () => {
   }
 };
 
-document.addEventListener('visibilitychange', handleVisibilityChange);
-
 // Push notification state
 const isPushSubscribed = ref(false);
 const isPushSupported = 'serviceWorker' in navigator && 'PushManager' in window;
 
 onMounted(async () => {
+  // (#4) Register listeners inside onMounted so they are tied to component lifecycle
+  document.addEventListener('visibilitychange', handleVisibilityChange);
+  window.addEventListener('online', handleOnline);
+
   const sub = await getCurrentSubscription();
   isPushSubscribed.value = !!sub;
 });
@@ -525,6 +534,7 @@ const resetStopwatch = async () => {
       { elapsedTime: stopwatchState.elapsedTime },
       { headers: { 'Content-Type': 'application/json' } }
     );
+    clearTimerState(); // (#2) reset 성공 시 로컬 타이머 상태 정리
     tagStore.refreshTags(tag.value.memberId);
   } catch (error) {
     // BackgroundSync가 온라인 복귀 시 자동 재전송
@@ -549,12 +559,14 @@ watch(
   { immediate: true }
 );
 
-// 온라인 복귀 시 서버 데이터로 자동 갱신
-// 타이머 재전송은 tagStore의 online 리스너가 먼저 처리 후 이 함수가 호출됨
-const handleOnline = () => {
+// (#7) 온라인 복귀 시 서버 데이터로 자동 갱신
+// retry가 완료된 후 fetch해야 서버의 최신 상태(기록 포함)를 반영할 수 있음
+const handleOnline = async () => {
   const tagId = route.params.id;
   if (tagId) {
-    // 즉시 갱신: tagStore.retryPendingTimerOp과 병렬 실행
+    // tagStore의 retryPendingTimerOp이 진행 중이면 완료를 기다린 후 fetch
+    const retryPromise = tagStore.getRetryPromise?.();
+    if (retryPromise) await retryPromise;
     fetchTagData(tagId);
     // 재전송 완료 후 서버 상태(기록 포함) 반영을 위한 지연 갱신
     setTimeout(() => {
@@ -562,7 +574,6 @@ const handleOnline = () => {
     }, 2000);
   }
 };
-window.addEventListener('online', handleOnline);
 
 onBeforeUnmount(() => {
   cancelAnimationFrame(stopwatchState.rAF_ID);
@@ -575,6 +586,16 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
+/* ── Offline Banner (#8) ── */
+.offline-banner {
+  background: var(--text-2, #888);
+  color: var(--bg, #fff);
+  text-align: center;
+  padding: 6px 16px;
+  font-size: 0.75rem;
+  opacity: 0.85;
+}
+
 /* ── Running State Tint ── */
 .detail-page { position: relative; }
 

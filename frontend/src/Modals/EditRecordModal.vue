@@ -16,6 +16,14 @@
       <!-- ── 일반 폼 ── -->
       <div v-if="!overlapData" class="fields-stack">
         <div class="field">
+          <label>Tag</label>
+          <select v-model="selectedTagId" class="tag-select">
+            <option v-for="tag in flatTagList" :key="tag.id" :value="tag.id">
+              {{ tag.name }}
+            </option>
+          </select>
+        </div>
+        <div class="field">
           <label>Start time</label>
           <input type="datetime-local" v-model="formattedStartTime" />
         </div>
@@ -83,9 +91,10 @@
 </template>
 
 <script setup>
-import { defineProps, defineEmits, ref, watch, onBeforeUnmount } from 'vue';
+import { defineProps, defineEmits, ref, computed, watch, onBeforeUnmount } from 'vue';
 import apiClient from '@/utils/apiClient';
 import { DateTime } from 'luxon';
+import { useTagStore } from '@/stores/tagStore';
 
 const props = defineProps({
   isOpen:     Boolean,
@@ -94,12 +103,26 @@ const props = defineProps({
 
 const emit = defineEmits(['close']);
 
+const tagStore = useTagStore();
+
 const formattedStartTime = ref('');
 const formattedEndTime   = ref('');
+const selectedTagId      = ref(null);
 const errorMessage       = ref('');
 const overlapData        = ref(null);
 const overlapStep        = ref(1);
 const panelRef           = ref(null);
+
+// 태그 트리를 flat 목록으로 변환 (중첩 태그 포함, 순환 참조 방어)
+const flatTagList = computed(() => {
+  const flatten = (nodes, visited = new Set()) =>
+    nodes.flatMap((n) => {
+      if (visited.has(n.id)) return [];
+      visited.add(n.id);
+      return [n, ...flatten(n.children ?? [], visited)];
+    });
+  return flatten(tagStore.tagList);
+});
 
 const onKeydown = (e) => { if (e.key === 'Escape') closeModal(); };
 const onDocumentClick = (e) => {
@@ -133,6 +156,7 @@ watch(
       formattedEndTime.value = rec.endTime
         ? DateTime.fromISO(rec.endTime).toFormat("yyyy-MM-dd'T'HH:mm")
         : '';
+      selectedTagId.value = rec.tagId ?? null;
     }
   },
   { immediate: true }
@@ -143,11 +167,17 @@ const fmtTime = (iso) =>
   DateTime.fromISO(iso).toFormat('MM/dd HH:mm');
 
 // ── 페이로드 빌더 ──────────────────────────────────────────
-const buildPayload = (force) => ({
-  newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
-  newEndTime:   DateTime.fromFormat(formattedEndTime.value,   "yyyy-MM-dd'T'HH:mm").toISO(),
-  forceOverwrite: force,
-});
+const buildPayload = (force) => {
+  const payload = {
+    newStartTime: DateTime.fromFormat(formattedStartTime.value, "yyyy-MM-dd'T'HH:mm").toISO(),
+    newEndTime:   DateTime.fromFormat(formattedEndTime.value,   "yyyy-MM-dd'T'HH:mm").toISO(),
+    forceOverwrite: force,
+  };
+  if (selectedTagId.value !== props.recordData?.tagId) {
+    payload.newTagId = selectedTagId.value;
+  }
+  return payload;
+};
 
 // ── 수정 저장 ────────────────────────────────────────────
 const updateRecord = async () => {
@@ -205,6 +235,17 @@ const closeModal = () => {
   display: flex;
   flex-direction: column;
   gap: 24px;
+}
+
+.tag-select {
+  width: 100%;
+  padding: 6px 10px;
+  border: 1px solid var(--border, #333);
+  border-radius: 6px;
+  background: var(--surface, #1a1a1a);
+  color: var(--text, #fff);
+  font-size: 13px;
+  cursor: pointer;
 }
 
 .error-msg {

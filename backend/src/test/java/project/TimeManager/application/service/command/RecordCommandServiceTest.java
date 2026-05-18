@@ -72,7 +72,7 @@ class RecordCommandServiceTest {
     }
 
     private RecordResult stubRecordResult(Long recordId, ZonedDateTime start, ZonedDateTime end, Long totalTime) {
-        return new RecordResult(recordId, start, end, totalTime);
+        return new RecordResult(recordId, start, end, totalTime, 1L);
     }
 
     private void setUpSyncDefaults(Long tagId, ZonedDateTime start, ZonedDateTime end, Long totalTime) {
@@ -166,7 +166,7 @@ class RecordCommandServiceTest {
                     .willReturn(List.of(stubRecordResult(recordId, START, END.plusHours(1), 7200L)));
 
             ZonedDateTime newEnd = END.plusHours(1); // 7200초
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L, false);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L, false, null);
 
             recordCommandService.editRecordTime(command);
 
@@ -187,7 +187,7 @@ class RecordCommandServiceTest {
                     .willReturn(List.of(stubRecordResult(recordId, START, END, 3600L)));
 
             // 동일한 시간 범위로 수정
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false, null);
 
             recordCommandService.editRecordTime(command);
 
@@ -199,11 +199,83 @@ class RecordCommandServiceTest {
         void shouldThrow_whenRecordNotFound() {
             given(loadRecordPort.loadRecord(anyLong())).willReturn(Optional.empty());
 
-            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END, 1L, false);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(999L, START, END, 1L, false, null);
 
             assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
                     .isInstanceOf(DomainException.class)
                     .hasMessageContaining("Record not found");
+        }
+
+        @Test
+        @DisplayName("newTagId가 다르면 oldTag에서 차감 newTag에 가산된다")
+        void shouldMoveRecord_whenNewTagIdDiffers() {
+            Long recordId = 10L;
+            Long oldTagIdVal = 1L;
+            Long newTagIdVal = 2L;
+            TagId tagId = TagId.of(oldTagIdVal);
+            TimeRange originalRange = new TimeRange(START, END); // 3600초
+            Record record = Record.reconstitute(RecordId.of(recordId), tagId, originalRange, 3600L);
+
+            given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(oldTagIdVal)).willReturn(Optional.of(stubTag(oldTagIdVal)));
+            given(loadTagPort.loadTag(newTagIdVal)).willReturn(Optional.of(stubTag(newTagIdVal)));
+            given(loadRecordsByTagPort.loadRecordsByTagId(oldTagIdVal)).willReturn(List.of());
+            given(loadRecordsByTagPort.loadRecordsByTagId(newTagIdVal)).willReturn(List.of());
+
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false, newTagIdVal);
+
+            recordCommandService.editRecordTime(command);
+
+            then(updateTagTimeBatchPort).should().updateTagTimeBatch(eq(oldTagIdVal), eq(-3600L));
+            then(updateTagTimeBatchPort).should().updateTagTimeBatch(eq(newTagIdVal), eq(3600L));
+        }
+
+        @Test
+        @DisplayName("newTagId가 null이면 기존 태그에 delta만 반영된다")
+        void shouldKeepTag_whenNewTagIdIsNull() {
+            Long recordId = 10L;
+            TagId tagId = TagId.of(1L);
+            TimeRange originalRange = new TimeRange(START, END); // 3600초
+            Record record = Record.reconstitute(RecordId.of(recordId), tagId, originalRange, 3600L);
+
+            given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(1L)).willReturn(Optional.of(stubTag(1L)));
+            given(loadRecordsByTagPort.loadRecordsByTagId(1L))
+                    .willReturn(List.of(stubRecordResult(recordId, START, END.plusHours(1), 7200L)));
+
+            ZonedDateTime newEnd = END.plusHours(1);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, newEnd, 1L, false, null);
+
+            recordCommandService.editRecordTime(command);
+
+            then(updateTagTimeBatchPort).should().updateTagTimeBatch(eq(1L), eq(3600L));
+            then(updateTagTimeBatchPort).shouldHaveNoMoreInteractions();
+        }
+
+        @Test
+        @DisplayName("다른 멤버의 태그로 변경하면 DomainException이 발생한다")
+        void shouldThrow_whenNewTagBelongsToOtherMember() {
+            Long recordId = 10L;
+            TagId tagId = TagId.of(1L);
+            Record record = Record.reconstitute(RecordId.of(recordId), tagId, new TimeRange(START, END), 3600L);
+
+            Tag otherMemberTag = Tag.reconstitute(
+                    TagId.of(2L), "OtherTag", TagType.CUSTOM,
+                    0L, 0L, 0L, 0L, 0L, 0L,
+                    ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()),
+                    ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()),
+                    TimerState.STOPPED,
+                    MemberId.of(99L), null);
+
+            given(loadRecordPort.loadRecord(recordId)).willReturn(Optional.of(record));
+            given(loadTagPort.loadTag(1L)).willReturn(Optional.of(stubTag(1L)));
+            given(loadTagPort.loadTag(2L)).willReturn(Optional.of(otherMemberTag));
+
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false, 2L);
+
+            assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
+                    .isInstanceOf(DomainException.class)
+                    .hasMessageContaining("접근 권한이 없습니다");
         }
     }
 
@@ -275,7 +347,7 @@ class RecordCommandServiceTest {
             given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), eq(recordId)))
                     .willReturn(List.of());
 
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END, 1L, false, null);
 
             assertThatNoException().isThrownBy(() -> recordCommandService.editRecordTime(command));
         }
@@ -294,7 +366,7 @@ class RecordCommandServiceTest {
             given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), eq(recordId)))
                     .willReturn(List.of(overlap));
 
-            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END.plusHours(1), 1L, false);
+            EditRecordTimeCommand command = new EditRecordTimeCommand(recordId, START, END.plusHours(1), 1L, false, null);
 
             assertThatThrownBy(() -> recordCommandService.editRecordTime(command))
                     .isInstanceOf(RecordOverlapException.class);

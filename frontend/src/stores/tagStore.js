@@ -2,14 +2,16 @@ import { defineStore } from 'pinia';
 import { toRaw } from 'vue';
 import { get, set } from 'idb-keyval';
 import apiClient from '@/utils/apiClient';
-import { peekTimerState, clearTimerState } from '@/utils/timerPersistence';
+import { peekTimerState, clearTimerState, markRetryAttempted, clearRetryAttempted } from '@/utils/timerPersistence';
 
 const cacheKey = (memberId) => `tags-${memberId}`;
 
 // 온라인 복귀 시 자동 갱신을 위한 전역 리스너
 let onlineListenerRegistered = false;
-// 앱 시작 시 1회 재전송 시도 여부 (중복 재전송 방지)
-let startupRetryAttempted = false;
+// refreshTags debounce 타이머 (#5)
+let _refreshDebounceTimer = null;
+// retryPendingTimerOp 진행 중인 Promise — 외부에서 완료 대기에 사용 (#7)
+let _retryPromise = null;
 
 export const useTagStore = defineStore('tag', {
     state: () => ({
@@ -98,8 +100,8 @@ export const useTagStore = defineStore('tag', {
                 // 앱 재시작 시 미전송 start/stop을 즉시 재전송 (근본 수정)
                 // online 이벤트는 오프라인→온라인 전환에서만 발생하므로,
                 // 이미 온라인인 상태로 재시작한 경우에는 별도 처리 필요
-                if (navigator.onLine && !startupRetryAttempted) {
-                    startupRetryAttempted = true;
+                // (#3) retryAttempted 필드로 중복 재전송 방지 (localStorage 영속화)
+                if (navigator.onLine && !localTimer.retryAttempted) {
                     this.retryPendingTimerOp().then(() => {
                         if (this._activeMemberId) this.refreshTags(this._activeMemberId);
                     });
@@ -112,8 +114,25 @@ export const useTagStore = defineStore('tag', {
             await this.refreshTags(memberId);
         },
 
+        // (#5) 300ms debounce — 연속 호출 시 마지막 호출만 실행
+        // isRefreshing 중 호출은 기존 _pendingRefreshMemberId 큐 메커니즘으로 처리
         async refreshTags(memberId) {
-            // 진행 중인 요청이 있으면 완료 후 한 번 더 실행하도록 예약만 하고 반환
+            if (this.isRefreshing) {
+                // 진행 중인 요청이 있으면 완료 후 한 번 더 실행하도록 예약만 하고 반환
+                this._pendingRefreshMemberId = memberId;
+                return;
+            }
+
+            if (_refreshDebounceTimer) {
+                clearTimeout(_refreshDebounceTimer);
+            }
+            _refreshDebounceTimer = setTimeout(() => {
+                _refreshDebounceTimer = null;
+                this._doRefreshTags(memberId);
+            }, 300);
+        },
+
+        async _doRefreshTags(memberId) {
             if (this.isRefreshing) {
                 this._pendingRefreshMemberId = memberId;
                 return;
@@ -167,7 +186,7 @@ export const useTagStore = defineStore('tag', {
                 if (this._pendingRefreshMemberId) {
                     const pending = this._pendingRefreshMemberId;
                     this._pendingRefreshMemberId = null;
-                    this.refreshTags(pending);
+                    this._doRefreshTags(pending);
                 }
             }
         },
@@ -191,37 +210,64 @@ export const useTagStore = defineStore('tag', {
         // 오프라인 중 실패한 타이머 동작(stop/start)을 온라인 복귀 시 수동 재전송
         // BackgroundSync 대신 사용: SW 제어 여부와 무관하게 동작하며 record 이중 생성 방지
         async retryPendingTimerOp() {
-            const saved = peekTimerState();
-            if (!saved) return;
+            const inner = (async () => {
+                const saved = peekTimerState();
+                if (!saved) return;
 
-            try {
-                if (!saved.isRunning && saved.latestEndTime) {
-                    // 오프라인 stop 재전송
-                    await apiClient.post(
-                        `/api/v1/tags/${saved.tagId}/timer/stop`,
-                        {
-                            elapsedTime: saved.elapsedTime,
-                            timestamps: {
-                                startTime: new Date(saved.latestStartTime).toISOString(),
-                                endTime: new Date(saved.latestEndTime).toISOString(),
+                // (#3) localStorage에 영속화된 retryAttempted 필드로 중복 재전송 방지
+                if (saved.retryAttempted) return;
+
+                // API 호출 전에 마킹 — 재로드/크래시 후 중복 재전송 방지
+                markRetryAttempted();
+
+                try {
+                    if (!saved.isRunning && saved.latestEndTime) {
+                        // 오프라인 stop 재전송
+                        await apiClient.post(
+                            `/api/v1/tags/${saved.tagId}/timer/stop`,
+                            {
+                                elapsedTime: saved.elapsedTime,
+                                timestamps: {
+                                    startTime: new Date(saved.latestStartTime).toISOString(),
+                                    endTime: new Date(saved.latestEndTime).toISOString(),
+                                },
                             },
-                        },
-                        { headers: { 'Content-Type': 'application/json' } }
-                    );
-                    clearTimerState();
-                    console.log('[tagStore] 오프라인 stop 재전송 완료:', saved.tagId);
-                } else if (saved.isRunning && saved.latestStartTime) {
-                    // 오프라인 start 재전송
-                    await apiClient.post(
-                        `/api/v1/tags/${saved.tagId}/timer/start`,
-                        { startTime: new Date(saved.latestStartTime).toISOString() },
-                        { headers: { 'Content-Type': 'application/json' } }
-                    );
-                    console.log('[tagStore] 오프라인 start 재전송 완료:', saved.tagId);
+                            { headers: { 'Content-Type': 'application/json' } }
+                        );
+                        clearTimerState();
+                        console.log('[tagStore] 오프라인 stop 재전송 완료:', saved.tagId);
+                    } else if (saved.isRunning && saved.latestStartTime) {
+                        // 오프라인 start 재전송
+                        await apiClient.post(
+                            `/api/v1/tags/${saved.tagId}/timer/start`,
+                            { startTime: new Date(saved.latestStartTime).toISOString() },
+                            { headers: { 'Content-Type': 'application/json' } }
+                        );
+                        clearTimerState(); // (#1) start 재전송 성공 후 상태 정리
+                        console.log('[tagStore] 오프라인 start 재전송 완료:', saved.tagId);
+                    }
+                } catch (e) {
+                    console.warn('[tagStore] 오프라인 타이머 재전송 실패:', e.message);
+                    // 서버 응답이 없는 네트워크 오류(일시적)면 retryAttempted 마킹 해제
+                    // → 다음 온라인 복귀 시 재전송 허용
+                    // 서버가 응답한 HTTP 오류(4xx/5xx)는 마킹 유지 → 무한 재전송 방지
+                    const isNetworkError = !e.response;
+                    if (isNetworkError) clearRetryAttempted();
                 }
-            } catch (e) {
-                console.warn('[tagStore] 오프라인 타이머 재전송 실패:', e.message);
+            })();
+
+            // (#7) 외부에서 진행 중인 retry Promise에 접근할 수 있도록 모듈 레벨에 보관
+            _retryPromise = inner;
+            try {
+                await inner;
+            } finally {
+                _retryPromise = null;
             }
+        },
+
+        // (#7) 현재 진행 중인 retryPendingTimerOp Promise를 반환 (완료 대기용)
+        getRetryPromise() {
+            return _retryPromise;
         },
 
         async clearCache() {
