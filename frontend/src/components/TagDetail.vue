@@ -216,23 +216,41 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onBeforeUnmount, watch, reactive, watchEffect, computed } from 'vue';
+import { ref, onMounted, onBeforeUnmount, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import apiClient from '@/utils/apiClient';
 import TagModal from '@/Modals/EditTagModal.vue';
 import { subscribePush, unsubscribePush, getCurrentSubscription } from '@/utils/push.js';
-import { saveTimerState, loadTimerState, clearTimerState } from '@/utils/timerPersistence.js';
 import { useTagStore } from '@/stores/tagStore';
 import { useAuthStore } from '@/stores/authStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
 import { useLiveIndicator } from '@/composables/useLiveIndicator';
 import { useNetworkStatus } from '@/composables/useNetworkStatus';
+import { useTagTimer } from '@/composables/useTagTimer';
 
 const route = useRoute();
-const tag = ref(null);
 const router = useRouter();
 const tagStore = useTagStore();
 const isModalOpen = ref(false);
+
+const {
+  tag,
+  stopwatchState,
+  loadTag,
+  startStopwatch: _startStopwatch,
+  stopStopwatch: _stopStopwatch,
+  resetStopwatch: _resetStopwatch,
+  cleanup: timerCleanup,
+  getPendingStop,
+  formattedStartTime,
+  formattedEndTime,
+  formattedElapsedTime,
+  formattedDailyTotalTime,
+  dailyGoalTime,
+  formattedRemainingTime,
+  formattedTagTotalTime,
+  formattedTotalTime,
+  formatTime,
+} = useTagTimer();
 
 const { startLive, stopLive } = useLiveIndicator();
 const { isOnline } = useNetworkStatus();
@@ -240,7 +258,7 @@ const { isOnline } = useNetworkStatus();
 const handleModalClose = () => {
   isModalOpen.value = false;
   fetchTagData(tag.value.id);
-  tagStore.refreshTags(tag.value.memberId);
+  if (tag.value.memberId) tagStore.refreshTags(tag.value.memberId);
 };
 
 const handleModalMutated = () => {
@@ -309,244 +327,45 @@ const togglePushNotification = async () => {
   }
 };
 
-// stop API가 진행 중일 때 Records 이동 시 완료 대기
-let _pendingStop = null;
-
 const goToRecordsPage = async (tagId) => {
-  if (_pendingStop) await _pendingStop;
+  const pending = getPendingStop();
+  if (pending) await pending;
   router.push(`/records/${tagId}`);
 };
 
-const hydrateStopwatchState = () => {
-  stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
-  stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
-  stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
-  stopwatchState.totalTimeCal      = stopwatchState.totalTime;
-
-  cancelAnimationFrame(stopwatchState.rAF_ID);
-  if (stopwatchState.isRunning && stopwatchState.latestStartTime > 0) {
-    updateTimer();
-    requestWakeLock();
-  }
-};
-
-// ── 태그 데이터를 tag.value + stopwatchState에 적용하는 헬퍼 ──
-const applyTagData = (source, options = {}) => {
-  const isTreeNode = Array.isArray(source.children);
-  tag.value = isTreeNode
-    ? { ...source, childrenList: source.children.map(c => c.id) }
-    : source;
-
-  const saved = options.saved;
-  if (saved && saved.savedAt > (source.latestStartTimeMs || 0) && saved.savedAt > (source.latestStopTimeMs || 0)) {
-    // 로컬 타이머 상태가 서버/캐시보다 최신 → 로컬 우선
-    const isSavedToday = saved.savedDate === new Date().toLocaleDateString('sv');
-    stopwatchState.isRunning       = saved.isRunning;
-    stopwatchState.latestStartTime = saved.latestStartTime;
-    stopwatchState.latestEndTime   = saved.latestEndTime;
-    stopwatchState.elapsedTime     = saved.elapsedTime;
-    // dailyTotalTime: 오늘 저장된 경우만 localStorage 사용, 날짜가 바뀌었으면 서버 값(초기화된 0) 사용
-    stopwatchState.dailyTotalTime  = isSavedToday ? saved.dailyTotalTime : (source.dailyTotalTime || 0);
-    stopwatchState.dailyGoalTime   = saved.dailyGoalTime || source.dailyGoalTime || 0;
-    stopwatchState.tagTotalTime    = saved.tagTotalTime;
-    stopwatchState.totalTime       = saved.totalTime;
-  } else {
-    stopwatchState.isRunning        = source.state || false;
-    stopwatchState.latestStartTime  = source.latestStartTimeMs || 0;
-    stopwatchState.latestEndTime    = source.latestStopTimeMs || 0;
-    stopwatchState.elapsedTime      = source.elapsedTime || 0;
-    stopwatchState.dailyTotalTime   = source.dailyTotalTime || 0;
-    stopwatchState.dailyGoalTime    = source.dailyGoalTime || 0;
-    stopwatchState.tagTotalTime     = source.tagTotalTime || 0;
-    stopwatchState.totalTime        = source.totalTime || 0;
-    // localStorage가 없거나, 서버가 stopped인데 localStorage가 running(크로스 디바이스 stop)인 경우 정리
-    if (!saved || (!source.state && saved.isRunning)) clearTimerState();
-  }
-  hydrateStopwatchState();
-};
-
 const fetchTagData = async (tagId) => {
-  const numId = Number(tagId);
-  const saved = loadTimerState(numId);
-
-  // ── Phase 1: 캐시 데이터 즉시 표시 (Stale) ──
-  // 딥링크 대응: tagStore가 비어있으면 IndexedDB에서 로드
-  if (!tagStore.hasCachedData) {
-    const authStore = useAuthStore();
-    if (authStore.memberId) {
-      await tagStore.loadTags(authStore.memberId);
-    }
-  }
-
-  const cached = tagStore.findTagById(numId);
-  if (cached) {
-    applyTagData(cached, { saved });
-  } else if (saved) {
-    tag.value = { id: numId, name: '...', memberId: null };
-    applyTagData(tag.value, { saved });
-  }
-
-  // ── Phase 2: API에서 최신 데이터 가져오기 (Revalidate) ──
-  try {
-    const response = await apiClient.get(`/api/v1/tags/${tagId}`);
-    if (route.params.id != tagId) return; // 네비게이션 race condition 방지
-    // Phase 1 이후 사용자가 타이머를 조작했을 수 있으므로 localStorage를 재로드
-    const freshSaved = loadTimerState(numId);
-    applyTagData(response.data, { saved: freshSaved });
-  } catch (error) {
-    console.error('태그 데이터 네트워크 조회 실패:', error);
-    // Phase 1에서 이미 캐시 데이터 표시 중 → 추가 작업 불필요
-  }
-};
-
-const stopwatchState = reactive({
-  isRunning: false,
-  latestStartTime: 0,
-  latestEndTime: 0,
-  elapsedTime: 0,
-  dailyTotalTime: 0,
-  dailyGoalTime: 0,
-  tagTotalTime: 0,
-  totalTime: 0,
-  rAF_ID: 0,
-  elapsedTimeCal: 0,
-  dailyTotalTimeCal: 0,
-  tagTotalTimeCal: 0,
-  totalTimeCal: 0,
-});
-
-const formattedStartTime = ref('—');
-const formattedEndTime   = ref('—');
-
-watchEffect(() => {
-  if (!stopwatchState?.latestStartTime) return;
-  const date = new Date(stopwatchState.latestStartTime);
-  formattedStartTime.value = date.getFullYear() === 1970 ? '—' : date.toLocaleTimeString();
-});
-
-watchEffect(() => {
-  if (!stopwatchState?.latestEndTime) return;
-  const date = new Date(stopwatchState.latestEndTime);
-  formattedEndTime.value = date.getFullYear() === 1970 ? '—' : date.toLocaleTimeString();
-});
-
-const formatTime = (seconds) => {
-  if (!Number.isFinite(seconds) || seconds < 0) return '00:00:00';
-  const h = String(Math.floor(seconds / 3600)).padStart(2, '0');
-  const m = String(Math.floor((seconds % 3600) / 60)).padStart(2, '0');
-  const s = String(Math.floor(seconds % 60)).padStart(2, '0');
-  return `${h}:${m}:${s}`;
-};
-
-const formattedElapsedTime    = computed(() => formatTime(stopwatchState.elapsedTimeCal));
-const formattedDailyTotalTime = computed(() => formatTime(stopwatchState.dailyTotalTimeCal));
-const dailyGoalTime           = computed(() => stopwatchState.dailyGoalTime || 0);
-const formattedRemainingTime  = computed(() => {
-  const r = dailyGoalTime.value - stopwatchState.dailyTotalTimeCal;
-  return formatTime(Math.max(0, r));
-});
-const formattedTagTotalTime = computed(() => formatTime(stopwatchState.tagTotalTimeCal));
-const formattedTotalTime    = computed(() => formatTime(stopwatchState.totalTimeCal));
-
-const updateTimer = () => {
-  if (!stopwatchState.isRunning || stopwatchState.latestStartTime <= 0) return;
-  const currentTime = Date.now();
-  const deltaTime = Math.floor((currentTime - stopwatchState.latestStartTime) / 1000);
-  if (deltaTime < 0) return;
-  stopwatchState.elapsedTimeCal    = deltaTime + stopwatchState.elapsedTime;
-  stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime + deltaTime;
-  stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime + deltaTime;
-  stopwatchState.totalTimeCal      = stopwatchState.totalTime + deltaTime;
-  stopwatchState.rAF_ID = requestAnimationFrame(updateTimer);
+  await loadTag(tagId, {
+    isStillActive: () => route.params.id == tagId,
+    ensureStoreLoaded: async () => {
+      if (!tagStore.hasCachedData) {
+        const authStore = useAuthStore();
+        if (authStore.memberId) await tagStore.loadTags(authStore.memberId);
+      }
+    },
+  });
+  // 로드 후 Wake Lock 상태 동기화
+  if (stopwatchState.isRunning) requestWakeLock();
 };
 
 const startStopwatch = async () => {
-  if (stopwatchState.isRunning) return;
-  stopwatchState.isRunning       = true;
-  stopwatchState.latestStartTime = Date.now();
-  updateTimer();
+  await _startStopwatch();
   requestWakeLock();
-  tagStore.setTagState(tag.value.id, true);
-  saveTimerState(tag.value.id, stopwatchState);
-  try {
-    await apiClient.post(
-      `/api/v1/tags/${tag.value.id}/timer/start`,
-      { startTime: new Date(stopwatchState.latestStartTime).toISOString() },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    tagStore.refreshTags(tag.value.memberId);
-  } catch (error) {
-    // BackgroundSync가 온라인 복귀 시 자동 재전송
-    console.warn('스톱워치 시작 요청 큐잉됨 (오프라인):', error.message);
-  }
+  startLive();
 };
 
 const stopStopwatch = async () => {
-  if (!stopwatchState.isRunning) return;
-  stopwatchState.isRunning = false;
-  cancelAnimationFrame(stopwatchState.rAF_ID);
+  await _stopStopwatch();
   releaseWakeLock();
-  tagStore.setTagState(tag.value.id, false);
-  stopwatchState.latestEndTime = Date.now();
-  const delta = Math.floor((stopwatchState.latestEndTime - stopwatchState.latestStartTime) / 1000);
-  stopwatchState.elapsedTime    += delta;
-  stopwatchState.dailyTotalTime += delta;
-  stopwatchState.tagTotalTime   += delta;
-  stopwatchState.totalTime      += delta;
-  stopwatchState.elapsedTimeCal    = stopwatchState.elapsedTime;
-  stopwatchState.dailyTotalTimeCal = stopwatchState.dailyTotalTime;
-  stopwatchState.tagTotalTimeCal   = stopwatchState.tagTotalTime;
-  stopwatchState.totalTimeCal      = stopwatchState.totalTime;
-  saveTimerState(tag.value.id, stopwatchState);
-  _pendingStop = (async () => {
-    try {
-      await apiClient.post(
-        `/api/v1/tags/${tag.value.id}/timer/stop`,
-        {
-          elapsedTime: stopwatchState.elapsedTime,
-          timestamps: {
-            startTime: new Date(stopwatchState.latestStartTime).toISOString(),
-            endTime:   new Date(stopwatchState.latestEndTime).toISOString(),
-          },
-        },
-        { headers: { 'Content-Type': 'application/json' } }
-      );
-      clearTimerState();
-      tagStore.refreshTags(tag.value.memberId);
-    } catch (error) {
-      // BackgroundSync가 온라인 복귀 시 자동 재전송
-      console.warn('스톱워치 종료 요청 큐잉됨 (오프라인):', error.message);
-    } finally {
-      _pendingStop = null;
-    }
-  })();
-  await _pendingStop;
+  stopLive();
 };
 
-const resetStopwatch = async () => {
-  if (stopwatchState.isRunning) return;
-  stopwatchState.elapsedTimeCal = 0;
-  stopwatchState.elapsedTime    = 0;
-  saveTimerState(tag.value.id, stopwatchState);
-  try {
-    await apiClient.post(
-      `/api/v1/tags/${tag.value.id}/timer/reset`,
-      { elapsedTime: stopwatchState.elapsedTime },
-      { headers: { 'Content-Type': 'application/json' } }
-    );
-    clearTimerState(); // (#2) reset 성공 시 로컬 타이머 상태 정리
-    tagStore.refreshTags(tag.value.memberId);
-  } catch (error) {
-    // BackgroundSync가 온라인 복귀 시 자동 재전송
-    console.warn('스톱워치 리셋 요청 큐잉됨 (오프라인):', error.message);
-  }
-};
+const resetStopwatch = _resetStopwatch;
 
 watch(
   () => route.params.id,
   (newId) => {
     if (newId) {
-      cancelAnimationFrame(stopwatchState.rAF_ID);
+      timerCleanup();
       fetchTagData(newId);
     }
   },
@@ -576,11 +395,10 @@ const handleOnline = async () => {
 };
 
 onBeforeUnmount(() => {
-  cancelAnimationFrame(stopwatchState.rAF_ID);
+  timerCleanup();
   releaseWakeLock();
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('online', handleOnline);
-  // 타이머가 실행 중이 아닐 때만 indicator 해제 — 다른 페이지로 이동해도 측정 중 표시 유지
   if (!stopwatchState.isRunning) stopLive();
 });
 </script>

@@ -43,7 +43,7 @@
         <p class="list-eyebrow mono">workspace</p>
         <div class="list-title-row">
           <h1 class="list-title">Tags</h1>
-          <span class="today-total mono">{{ formattedTodayTotalTime }}</span>
+          <router-link :to="`/members/${memberId}/timer`" class="today-total mono today-total--link">{{ formattedTodayTotalTime }}</router-link>
         </div>
       </div>
       <div class="list-header-right">
@@ -431,6 +431,16 @@ onBeforeUnmount(() => {
   color: var(--accent);
   letter-spacing: 0.08em;
   white-space: nowrap;
+}
+
+.today-total--link {
+  text-decoration: none;
+  border-bottom: 1px solid transparent;
+  transition: border-color var(--t);
+}
+
+.today-total--link:hover {
+  border-bottom-color: rgba(201,169,110,0.5);
 }
 
 .list-count {
