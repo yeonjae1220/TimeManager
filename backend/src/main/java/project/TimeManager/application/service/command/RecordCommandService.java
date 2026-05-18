@@ -20,6 +20,7 @@ import project.TimeManager.domain.port.out.tag.UpdateTagTimeBatchPort;
 import project.TimeManager.domain.record.model.Record;
 import project.TimeManager.domain.record.model.TimeRange;
 import project.TimeManager.domain.tag.model.Tag;
+import project.TimeManager.domain.tag.model.TagId;
 
 import java.util.HashSet;
 import java.util.List;
@@ -82,7 +83,18 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         }
 
         long oldTotalTime = record.getTotalTime();
+        Long oldTagId = record.getTagId().value();
         TimeRange newRange = new TimeRange(command.newStartTime(), command.newEndTime());
+
+        // 태그 변경 시 새 태그 검증
+        boolean tagChanging = command.newTagId() != null && !command.newTagId().equals(oldTagId);
+        if (tagChanging) {
+            Tag newTag = loadTagPort.loadTag(command.newTagId())
+                    .orElseThrow(() -> new DomainException("Tag not found: " + command.newTagId()));
+            if (!newTag.getMemberId().value().equals(command.memberId())) {
+                throw new DomainException("접근 권한이 없습니다");
+            }
+        }
 
         // 중복 검사 — 자기 자신(excludeRecordId)은 제외하고 검사
         List<OverlapResult> overlaps = findOverlappingRecordsPort.findOverlappingRecords(
@@ -91,18 +103,29 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
             throw new RecordOverlapException(overlaps);
         }
         Set<Long> affectedTagIds = new HashSet<>();
-        affectedTagIds.add(record.getTagId().value());
+        affectedTagIds.add(oldTagId);
 
         if (!overlaps.isEmpty()) {
             affectedTagIds.addAll(deleteOverlappingRecords(overlaps));
         }
 
         record.editTimeRange(newRange);
-        long delta = record.getTotalTime() - oldTotalTime;
+
+        if (tagChanging) {
+            record.moveToTag(TagId.of(command.newTagId()));
+            affectedTagIds.add(command.newTagId());
+        }
+
         saveRecordPort.saveRecord(record);
 
-        if (delta != 0) {
-            updateTagTimeBatchPort.updateTagTimeBatch(record.getTagId().value(), delta);
+        if (tagChanging) {
+            updateTagTimeBatchPort.updateTagTimeBatch(oldTagId, -oldTotalTime);
+            updateTagTimeBatchPort.updateTagTimeBatch(command.newTagId(), record.getTotalTime());
+        } else {
+            long delta = record.getTotalTime() - oldTotalTime;
+            if (delta != 0) {
+                updateTagTimeBatchPort.updateTagTimeBatch(oldTagId, delta);
+            }
         }
 
         if (!affectedTagIds.isEmpty()) {

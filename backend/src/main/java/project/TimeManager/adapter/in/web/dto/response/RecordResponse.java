@@ -9,6 +9,7 @@ public class RecordResponse {
     private ZonedDateTime startTime;
     private ZonedDateTime endTime;
     private Long totalTime;
+    private Long tagId;
 
     public static RecordResponse from(RecordResult result) {
         RecordResponse r = new RecordResponse();
@@ -16,6 +17,7 @@ public class RecordResponse {
         r.startTime = result.getStartTime();
         r.endTime = result.getEndTime();
         r.totalTime = result.getTotalTime();
+        r.tagId = result.getTagId();
         return r;
     }
 
@@ -23,4 +25,5 @@ public class RecordResponse {
     public ZonedDateTime getStartTime() { return startTime; }
     public ZonedDateTime getEndTime() { return endTime; }
     public Long getTotalTime() { return totalTime; }
+    public Long getTagId() { return tagId; }
 }

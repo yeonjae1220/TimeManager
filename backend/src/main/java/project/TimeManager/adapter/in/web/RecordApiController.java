@@ -67,7 +67,7 @@ public class RecordApiController {
                                                  @AuthenticationPrincipal Long memberId,
                                                  @Valid @RequestBody EditRecordTimeRequest request) {
         return ResponseEntity.ok(editRecordTimeUseCase.editRecordTime(
-                new EditRecordTimeCommand(recordId, request.getNewStartTime(), request.getNewEndTime(), memberId, request.isForceOverwrite())
+                new EditRecordTimeCommand(recordId, request.getNewStartTime(), request.getNewEndTime(), memberId, request.isForceOverwrite(), request.getNewTagId())
         ));
     }
 
