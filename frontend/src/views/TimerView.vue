@@ -253,6 +253,7 @@ const startStopwatch = async () => {
 
 const stopStopwatch = async () => {
   await _stopStopwatch();
+  persistedTimer.value = peekTimerState();
   releaseWakeLock();
   stopLive();
 };
@@ -352,14 +353,7 @@ const todayTotalSeconds = computed(() => {
   return treeTotal;
 });
 
-const formattedTodayTotal = computed(() => {
-  const s = todayTotalSeconds.value;
-  if (!Number.isFinite(s) || s < 0) return '00:00:00';
-  const h = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const sec = String(Math.floor(s % 60)).padStart(2, '0');
-  return `${h}:${m}:${sec}`;
-});
+const formattedTodayTotal = computed(() => formatTime(todayTotalSeconds.value));
 
 // ── Live indicator sync ──
 watch(() => stopwatchState.isRunning, (running) => {
@@ -414,7 +408,7 @@ onBeforeUnmount(() => {
   if (timerTick) window.clearInterval(timerTick);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('storage', syncTick);
-  if (!stopwatchState.isRunning) stopLive();
+  stopLive();
 });
 </script>
 
