@@ -250,6 +250,8 @@ const resetStopwatch = _resetStopwatch;
 
 // ── Tag selection ──
 const isSwitching = ref(false);
+let _currentLoadVersion = 0;
+let _unmounted = false;
 
 const selectTag = async (tagId) => {
   if (tag.value?.id === tagId || isSwitching.value) {
@@ -258,14 +260,15 @@ const selectTag = async (tagId) => {
   }
   isSwitching.value = true;
   showTagPicker.value = false;
+  const version = ++_currentLoadVersion;
   try {
     if (stopwatchState.isRunning) await stopStopwatch();
     timerCleanup();
     await loadTag(tagId, {
-      isStillActive: () => isSwitching.value,
+      isStillActive: () => version === _currentLoadVersion,
     });
   } finally {
-    isSwitching.value = false;
+    if (!_unmounted) isSwitching.value = false;
   }
 };
 
@@ -393,6 +396,7 @@ onMounted(() => {
 });
 
 onBeforeUnmount(() => {
+  _unmounted = true;
   timerCleanup();
   releaseWakeLock();
   if (timerTick) window.clearInterval(timerTick);
