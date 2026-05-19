@@ -35,7 +35,8 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
     if (!to.meta.requiresAuth) return next();
     const raw = localStorage.getItem('auth');
-    const parsed = raw ? JSON.parse(raw) : null;
+    let parsed = null;
+    try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
     const accessToken = parsed?.accessToken;
     if (!accessToken) return next('/login');
     if (to.meta.requiresAdmin && parsed?.role !== 'ADMIN') return next('/login');
