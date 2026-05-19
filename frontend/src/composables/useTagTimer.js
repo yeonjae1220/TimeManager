@@ -8,6 +8,8 @@ export function useTagTimer() {
   const tag = ref(null);
   let _pendingStop = null;
 
+  const nowMs = ref(Date.now());
+
   const stopwatchState = reactive({
     isRunning: false,
     latestStartTime: 0,
@@ -60,6 +62,7 @@ export function useTagTimer() {
   const updateTimer = () => {
     if (!stopwatchState.isRunning || stopwatchState.latestStartTime <= 0) return;
     const currentTime = Date.now();
+    nowMs.value = currentTime;
     const deltaTime = Math.floor((currentTime - stopwatchState.latestStartTime) / 1000);
     if (deltaTime < 0) return;
     stopwatchState.elapsedTimeCal    = deltaTime + stopwatchState.elapsedTime;
@@ -227,6 +230,7 @@ export function useTagTimer() {
   return {
     tag,
     stopwatchState,
+    nowMs,
     loadTag,
     applyTagData,
     startStopwatch,
