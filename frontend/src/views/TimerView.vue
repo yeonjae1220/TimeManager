@@ -16,15 +16,6 @@
       </router-link>
     </div>
 
-    <!-- Today total hero -->
-    <header class="timer-header">
-      <p class="header-eyebrow mono">today</p>
-      <div class="header-total-row">
-        <span class="header-total mono">{{ formattedTodayTotal }}</span>
-        <span class="header-total-label mono">total</span>
-      </div>
-    </header>
-
     <!-- Tag selector -->
     <section class="tag-selector-section">
       <p class="section-eyebrow mono">recording</p>
@@ -55,27 +46,13 @@
       </div>
     </section>
 
-    <!-- Timer display -->
+    <!-- Timer hero (session elapsed) -->
     <section class="timer-section" v-if="tag">
       <div class="timer-wrap">
         <div class="timer-display" :class="{ 'timer-active': stopwatchState.isRunning }">
           {{ formattedElapsedTime }}
         </div>
         <span class="timer-unit mono">elapsed</span>
-      </div>
-
-      <!-- Daily progress bar -->
-      <div class="daily-progress" v-if="dailyGoalTime > 0">
-        <div class="progress-track">
-          <div
-            class="progress-fill"
-            :style="{ width: Math.min(100, (stopwatchState.dailyTotalTimeCal / dailyGoalTime) * 100) + '%' }"
-          ></div>
-        </div>
-        <div class="progress-labels">
-          <span class="mono">{{ formattedDailyTotalTime }}</span>
-          <span class="mono progress-sep">/ {{ formatTime(dailyGoalTime) }}</span>
-        </div>
       </div>
     </section>
 
@@ -120,6 +97,40 @@
         </svg>
         Reset
       </button>
+    </section>
+
+    <!-- Totals row (synced via shared nowMs) -->
+    <section class="totals-section" v-if="tag">
+      <div class="totals-row">
+        <div class="total-cell">
+          <span class="total-label mono">today</span>
+          <span class="total-val mono">{{ formattedTodayTotal }}</span>
+        </div>
+        <div class="total-sep"></div>
+        <router-link :to="`/tags/${tag.id}`" class="total-cell total-cell--link">
+          <span class="total-label mono">tag today</span>
+          <span class="total-val-row">
+            <span class="total-val mono">{{ formattedDailyTotalTime }}</span>
+            <svg class="total-link-icon" width="10" height="10" viewBox="0 0 10 10" fill="none">
+              <path d="M2 5h6M5.5 2.5L8 5l-2.5 2.5" stroke="currentColor" stroke-width="1.1" stroke-linecap="round" stroke-linejoin="round"/>
+            </svg>
+          </span>
+        </router-link>
+      </div>
+
+      <!-- Daily goal progress -->
+      <div class="daily-progress" v-if="dailyGoalTime > 0">
+        <div class="progress-track">
+          <div
+            class="progress-fill"
+            :style="{ width: Math.min(100, (stopwatchState.dailyTotalTimeCal / dailyGoalTime) * 100) + '%' }"
+          ></div>
+        </div>
+        <div class="progress-labels">
+          <span class="mono">{{ formattedDailyTotalTime }}</span>
+          <span class="mono progress-sep">/ {{ formatTime(dailyGoalTime) }}</span>
+        </div>
+      </div>
     </section>
 
     <!-- Stats for selected tag -->
@@ -191,6 +202,7 @@ const { startLive, stopLive } = useLiveIndicator();
 const {
   tag,
   stopwatchState,
+  nowMs,
   loadTag,
   startStopwatch: _startStopwatch,
   stopStopwatch: _stopStopwatch,
@@ -208,7 +220,6 @@ const {
 } = useTagTimer();
 
 const showTagPicker = ref(false);
-const nowMs = ref(Date.now());
 const persistedTimer = ref(peekTimerState());
 let timerTick = null;
 
@@ -242,6 +253,7 @@ const startStopwatch = async () => {
 
 const stopStopwatch = async () => {
   await _stopStopwatch();
+  persistedTimer.value = peekTimerState();
   releaseWakeLock();
   stopLive();
 };
@@ -288,7 +300,7 @@ const flattenTree = (nodes, depth = 0) => {
 
 const flatTagList = computed(() => flattenTree(tagStore.tagTree));
 
-// ── Today total (mirrors TagList logic) ──
+// ── Today total (uses shared nowMs from useTagTimer for sync) ──
 const sumDailyTotals = (nodes) => nodes.reduce((total, node) => {
   const own = node.type === 'ROOT' ? 0 : (node.dailyTotalTime || 0);
   const children = node.children?.length ? sumDailyTotals(node.children) : 0;
@@ -341,24 +353,19 @@ const todayTotalSeconds = computed(() => {
   return treeTotal;
 });
 
-const formattedTodayTotal = computed(() => {
-  const s = todayTotalSeconds.value;
-  if (!Number.isFinite(s) || s < 0) return '00:00:00';
-  const h = String(Math.floor(s / 3600)).padStart(2, '0');
-  const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0');
-  const sec = String(Math.floor(s % 60)).padStart(2, '0');
-  return `${h}:${m}:${sec}`;
-});
+const formattedTodayTotal = computed(() => formatTime(todayTotalSeconds.value));
 
 // ── Live indicator sync ──
 watch(() => stopwatchState.isRunning, (running) => {
   if (running) startLive(); else stopLive();
 }, { immediate: true });
 
-// ── Tick for today total ──
+// ── Tick: refresh persistedTimer + fallback nowMs when rAF is not running ──
+// (rAF provides precise sync when local timer is running; setInterval covers
+//  edge cases like persisted timer from another tab or server-running tag)
 const syncTick = () => {
   persistedTimer.value = peekTimerState();
-  nowMs.value = Date.now();
+  if (!stopwatchState.isRunning) nowMs.value = Date.now();
 };
 
 // ── Auto-select running tag on load ──
@@ -368,7 +375,6 @@ const initTimer = async () => {
     await tagStore.refreshTags(memberId.value);
   }
 
-  // If a tag is already running, select it
   const saved = peekTimerState();
   if (saved?.tagId) {
     await loadTag(saved.tagId);
@@ -402,7 +408,7 @@ onBeforeUnmount(() => {
   if (timerTick) window.clearInterval(timerTick);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
   window.removeEventListener('storage', syncTick);
-  if (!stopwatchState.isRunning) stopLive();
+  stopLive();
 });
 </script>
 
@@ -435,47 +441,9 @@ onBeforeUnmount(() => {
   opacity: 0.85;
 }
 
-/* ── Header ── */
-.timer-header {
-  padding: 48px 0 32px;
-  border-bottom: 1px solid var(--border-subtle);
-}
-
-.header-eyebrow {
-  font-size: 10px;
-  color: var(--text-3);
-  letter-spacing: 0.18em;
-  text-transform: uppercase;
-  margin-bottom: 12px;
-}
-
-.header-total-row {
-  display: flex;
-  align-items: baseline;
-  gap: 12px;
-}
-
-.header-total {
-  font-size: clamp(48px, 9vw, 72px);
-  font-weight: 400;
-  color: var(--text);
-  letter-spacing: -0.02em;
-  line-height: 1;
-  user-select: none;
-}
-
-.header-total-label {
-  font-size: 11px;
-  color: var(--text-3);
-  letter-spacing: 0.14em;
-  text-transform: uppercase;
-  align-self: flex-end;
-  padding-bottom: 8px;
-}
-
 /* ── Tag selector ── */
 .tag-selector-section {
-  padding: 28px 0 0;
+  padding: 48px 0 0;
   position: relative;
 }
 
@@ -566,10 +534,9 @@ onBeforeUnmount(() => {
   color: var(--text-3);
 }
 
-/* ── Timer section ── */
+/* ── Timer section (session hero) ── */
 .timer-section {
-  padding: 32px 0 24px;
-  border-bottom: 1px solid var(--border-subtle);
+  padding: 32px 0 8px;
 }
 
 .timer-empty { opacity: 0.4; }
@@ -578,7 +545,6 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: baseline;
   gap: 16px;
-  margin-bottom: 24px;
 }
 
 .timer-display {
@@ -615,32 +581,8 @@ onBeforeUnmount(() => {
   font-size: 12px;
   color: var(--text-3);
   letter-spacing: 0.04em;
+  margin-top: 14px;
 }
-
-/* Progress bar */
-.progress-track {
-  height: 1px;
-  background: var(--border);
-  border-radius: 1px;
-  overflow: hidden;
-  margin-bottom: 10px;
-}
-
-.progress-fill {
-  height: 100%;
-  background: var(--accent);
-  border-radius: 1px;
-  transition: width 1s linear;
-}
-
-.progress-labels {
-  display: flex;
-  gap: 8px;
-  font-size: 11px;
-  color: var(--text-2);
-}
-
-.progress-sep { color: var(--text-3); }
 
 /* ── Controls ── */
 .controls-section {
@@ -680,6 +622,97 @@ onBeforeUnmount(() => {
   border-color: rgba(111, 207, 151, 0.2);
   color: var(--running);
 }
+
+/* ── Totals section (synced) ── */
+.totals-section {
+  padding: 0 0 28px;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.totals-row {
+  display: flex;
+  align-items: stretch;
+  gap: 0;
+  margin-bottom: 20px;
+}
+
+.total-cell {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+  padding: 16px 0;
+}
+
+.total-sep {
+  width: 1px;
+  background: var(--border-subtle);
+  margin: 12px 24px;
+  flex-shrink: 0;
+}
+
+.total-cell--link {
+  text-decoration: none;
+  color: inherit;
+  border-radius: var(--radius);
+  transition: color var(--t);
+  cursor: pointer;
+}
+
+.total-cell--link:hover .total-label { color: var(--accent); }
+.total-cell--link:hover .total-val   { color: var(--accent); }
+.total-cell--link:hover .total-link-icon path { stroke: var(--accent); }
+
+.total-label {
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+.total-val-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.total-val {
+  font-size: 22px;
+  color: var(--text-2);
+  letter-spacing: -0.01em;
+}
+
+.total-link-icon {
+  color: var(--text-3);
+  flex-shrink: 0;
+  margin-top: 2px;
+  transition: color var(--t);
+}
+
+/* Progress bar */
+.progress-track {
+  height: 1px;
+  background: var(--border);
+  border-radius: 1px;
+  overflow: hidden;
+  margin-bottom: 10px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 1px;
+  transition: width 1s linear;
+}
+
+.progress-labels {
+  display: flex;
+  gap: 8px;
+  font-size: 11px;
+  color: var(--text-2);
+}
+
+.progress-sep { color: var(--text-3); }
 
 /* ── Stats grid ── */
 .stats-grid {
@@ -786,5 +819,6 @@ onBeforeUnmount(() => {
   .stats-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 10px; }
   .stat-cell:nth-child(n) { border-bottom: 1px solid var(--border-subtle); }
   .stat-cell:last-child { border-bottom: none; }
+  .total-sep { margin: 12px 16px; }
 }
 </style>
