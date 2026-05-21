@@ -176,7 +176,11 @@
           <span class="breakdown-dot" :class="t.state ? 'running' : 'stopped'"></span>
           <span class="breakdown-indent" :style="{ width: (t.depth * 10) + 'px' }"></span>
           <span class="breakdown-name">{{ t.name }}</span>
-          <span class="breakdown-time mono">{{ formatTime(t.dailyTotalTime || 0) }}</span>
+          <span class="breakdown-time mono">
+            {{ t.id === tag?.id
+                ? formatTime(stopwatchState.dailyTotalTimeCal)
+                : formatTime(t.dailyTotalTime || 0) }}
+          </span>
         </li>
       </ul>
     </section>
@@ -202,7 +206,6 @@ const { startLive, stopLive } = useLiveIndicator();
 const {
   tag,
   stopwatchState,
-  nowMs,
   loadTag,
   startStopwatch: _startStopwatch,
   stopStopwatch: _stopStopwatch,
@@ -220,8 +223,6 @@ const {
 } = useTagTimer();
 
 const showTagPicker = ref(false);
-const persistedTimer = ref(peekTimerState());
-let timerTick = null;
 
 // ── Wake Lock ──
 const wakeLock = ref(null);
@@ -253,7 +254,6 @@ const startStopwatch = async () => {
 
 const stopStopwatch = async () => {
   await _stopStopwatch();
-  persistedTimer.value = peekTimerState();
   releaseWakeLock();
   stopLive();
 };
@@ -300,13 +300,33 @@ const flattenTree = (nodes, depth = 0) => {
 
 const flatTagList = computed(() => flattenTree(tagStore.tagTree));
 
-// ── Today total (uses shared nowMs from useTagTimer for sync) ──
+// ── Today total ──
+// stopwatchState.dailyTotalTimeCal is always accurate:
+//   - running: updated every rAF frame
+//   - stopped: finalised immediately in stopStopwatch before any async ops
+// So we use it as the live contribution for the current tag, and subtract
+// the stale server value for that tag from the tree sum to avoid double-counting.
 const sumDailyTotals = (nodes) => nodes.reduce((total, node) => {
   const own = node.type === 'ROOT' ? 0 : (node.dailyTotalTime || 0);
   const children = node.children?.length ? sumDailyTotals(node.children) : 0;
   return total + own + children;
 }, 0);
 
+const todayTotalSeconds = computed(() => {
+  const serverTagDaily = tag.value
+    ? (tagStore.findTagById(tag.value.id)?.dailyTotalTime || 0)
+    : 0;
+  return sumDailyTotals(tagStore.tagTree) - serverTagDaily + stopwatchState.dailyTotalTimeCal;
+});
+
+const formattedTodayTotal = computed(() => formatTime(todayTotalSeconds.value));
+
+// ── Live indicator sync ──
+watch(() => stopwatchState.isRunning, (running) => {
+  if (running) startLive(); else stopLive();
+}, { immediate: true });
+
+// ── Auto-select running tag on load ──
 const findRunningTagInTree = (nodes) => {
   for (const node of nodes) {
     if (node.state === true && node.latestStartTimeMs) return node;
@@ -318,57 +338,6 @@ const findRunningTagInTree = (nodes) => {
   return null;
 };
 
-const todayKey = () => new Date().toLocaleDateString('sv');
-
-const todayTotalSeconds = computed(() => {
-  const treeTotal = sumDailyTotals(tagStore.tagTree);
-  const runningTag = findRunningTagInTree(tagStore.tagTree);
-
-  if (persistedTimer.value) {
-    const localIsStale = !runningTag || runningTag.id !== persistedTimer.value.tagId;
-    if (localIsStale) {
-      const target = tagStore.findTagById(persistedTimer.value.tagId);
-      const serverDaily = target?.dailyTotalTime || 0;
-      const localDaily = persistedTimer.value.dailyTotalTime || 0;
-      return treeTotal + Math.max(0, localDaily - serverDaily);
-    }
-    if (!persistedTimer.value || persistedTimer.value.savedDate !== todayKey()) return treeTotal;
-    if (Date.now() - (persistedTimer.value.savedAt || 0) > 25 * 60 * 60 * 1000) return treeTotal;
-    const target = tagStore.findTagById(persistedTimer.value.tagId);
-    const serverDaily = target?.dailyTotalTime || 0;
-    const localDaily = persistedTimer.value.dailyTotalTime || 0;
-    const replacementBase = Math.max(0, localDaily - serverDaily);
-    if (!persistedTimer.value.isRunning || !persistedTimer.value.latestStartTime) {
-      return treeTotal + replacementBase;
-    }
-    const liveDelta = Math.max(0, Math.floor((nowMs.value - persistedTimer.value.latestStartTime) / 1000));
-    return treeTotal + replacementBase + liveDelta;
-  }
-
-  if (runningTag) {
-    const liveDelta = Math.max(0, Math.floor((nowMs.value - runningTag.latestStartTimeMs) / 1000));
-    return treeTotal + liveDelta;
-  }
-
-  return treeTotal;
-});
-
-const formattedTodayTotal = computed(() => formatTime(todayTotalSeconds.value));
-
-// ── Live indicator sync ──
-watch(() => stopwatchState.isRunning, (running) => {
-  if (running) startLive(); else stopLive();
-}, { immediate: true });
-
-// ── Tick: refresh persistedTimer + fallback nowMs when rAF is not running ──
-// (rAF provides precise sync when local timer is running; setInterval covers
-//  edge cases like persisted timer from another tab or server-running tag)
-const syncTick = () => {
-  persistedTimer.value = peekTimerState();
-  if (!stopwatchState.isRunning) nowMs.value = Date.now();
-};
-
-// ── Auto-select running tag on load ──
 const initTimer = async () => {
   await tagStore.loadTagsFromCache(memberId.value);
   if (!tagStore.hasCachedData) {
@@ -388,7 +357,6 @@ const initTimer = async () => {
 
 const handleVisibilityChange = () => {
   if (document.visibilityState === 'visible') {
-    syncTick();
     tagStore.refreshTags(memberId.value);
     if (stopwatchState.isRunning) requestWakeLock();
   }
@@ -396,18 +364,14 @@ const handleVisibilityChange = () => {
 
 onMounted(() => {
   initTimer();
-  timerTick = window.setInterval(syncTick, 1000);
   document.addEventListener('visibilitychange', handleVisibilityChange);
-  window.addEventListener('storage', syncTick);
 });
 
 onBeforeUnmount(() => {
   _unmounted = true;
   timerCleanup();
   releaseWakeLock();
-  if (timerTick) window.clearInterval(timerTick);
   document.removeEventListener('visibilitychange', handleVisibilityChange);
-  window.removeEventListener('storage', syncTick);
   stopLive();
 });
 </script>
