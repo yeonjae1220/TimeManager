@@ -14,26 +14,56 @@
 
     <router-view></router-view>
 
-    <!-- PWA 설치 배너 (브라우저가 설치 가능 상태일 때만 노출) -->
+    <!-- Android/Chrome: 설치 프롬프트 배너 -->
     <transition name="install-slide">
-      <div v-if="installPrompt" class="install-banner">
+      <div v-if="installPrompt && !dismissed" class="install-banner">
         <span class="install-banner-text mono">앱으로 설치</span>
         <button class="install-banner-btn" @click="installApp">Install</button>
         <button class="install-banner-close" @click="dismissInstall" title="닫기">✕</button>
+      </div>
+    </transition>
+
+    <!-- iOS Safari: 홈 화면 추가 안내 배너 -->
+    <transition name="install-slide">
+      <div v-if="isIOS && !isStandalone && !dismissed" class="install-banner">
+        <span class="install-banner-text mono">앱으로 사용하기</span>
+        <button class="install-banner-btn" @click="showIOSGuide = true">추가 방법</button>
+        <button class="install-banner-close" @click="dismissInstall" title="닫기">✕</button>
+      </div>
+    </transition>
+
+    <!-- iOS 안내 모달 -->
+    <transition name="modal-fade">
+      <div v-if="showIOSGuide" class="modal-overlay ios-guide-overlay" @click.self="showIOSGuide = false">
+        <div class="modal-panel ios-guide-panel">
+          <div class="modal-header">
+            <span class="modal-title">홈 화면에 추가</span>
+            <button class="modal-close" @click="showIOSGuide = false">✕</button>
+          </div>
+          <ol class="ios-guide-steps">
+            <li v-for="step in iosSteps" :key="step.num" class="ios-guide-step">
+              <span class="ios-step-num">{{ step.num }}</span>
+              <div>
+                <p class="ios-step-title">{{ step.title }}</p>
+                <p class="ios-step-desc mono">{{ step.desc }}</p>
+              </div>
+            </li>
+          </ol>
+          <button class="btn btn-primary ios-guide-confirm" @click="showIOSGuide = false">확인</button>
+        </div>
       </div>
     </transition>
   </div>
 </template>
 
 <script setup>
-import { ref, watch, onMounted, onBeforeUnmount } from 'vue';
+import { ref, computed, watch, onMounted, onBeforeUnmount } from 'vue';
 import { useNetworkStatus } from '@/composables/useNetworkStatus';
 
 const { isOnline } = useNetworkStatus();
 const showReconnected = ref(false);
 let reconnectTimer = null;
 
-// 오프라인 → 온라인 전환 시 "연결됨" 배너를 3초간 표시
 watch(isOnline, (online, wasOnline) => {
   if (online && wasOnline === false) {
     showReconnected.value = true;
@@ -43,6 +73,17 @@ watch(isOnline, (online, wasOnline) => {
 });
 
 const installPrompt = ref(null);
+const dismissed = ref(false);
+const showIOSGuide = ref(false);
+
+const isIOS = computed(() => /iphone|ipad|ipod/i.test(navigator.userAgent));
+const isStandalone = computed(() => window.matchMedia('(display-mode: standalone)').matches);
+
+const iosSteps = [
+  { num: '1', title: 'Safari 하단 공유 버튼 탭', desc: '화면 아래 가운데 □↑ 아이콘' },
+  { num: '2', title: '"홈 화면에 추가" 탭', desc: '목록 스크롤 후 + 아이콘 항목 선택' },
+  { num: '3', title: '오른쪽 위 "추가" 탭', desc: '홈 화면에 TimeMgr 아이콘이 생겨요' },
+];
 
 const onBeforeInstall = (e) => {
   e.preventDefault();
@@ -57,7 +98,7 @@ const installApp = async () => {
 };
 
 const dismissInstall = () => {
-  installPrompt.value = null;
+  dismissed.value = true;
 };
 
 onMounted(() => window.addEventListener('beforeinstallprompt', onBeforeInstall));
@@ -426,6 +467,70 @@ select option { background: #1b1b1b; color: var(--text); }
 .install-slide-leave-active { transition: opacity 200ms ease, transform 200ms ease; }
 .install-slide-enter-from,
 .install-slide-leave-to   { opacity: 0; transform: translateX(-50%) translateY(12px); }
+
+/* ─── iOS Guide Modal ────────────────────────────── */
+.modal-fade-enter-active,
+.modal-fade-leave-active { transition: opacity 160ms ease; }
+.modal-fade-enter-from,
+.modal-fade-leave-to { opacity: 0; }
+
+.ios-guide-overlay {
+  background: rgba(0,0,0,0.72);
+  backdrop-filter: blur(6px);
+  pointer-events: auto;
+  align-items: flex-end;
+}
+
+.ios-guide-panel { max-width: 400px; }
+
+.ios-guide-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  margin-bottom: 28px;
+}
+
+.ios-guide-step {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.ios-step-num {
+  flex-shrink: 0;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--accent-dim);
+  border: 1px solid rgba(201,169,110,0.3);
+  color: var(--accent);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 2px;
+}
+
+.ios-step-title {
+  font-size: 13px;
+  color: var(--text);
+  margin: 0 0 3px;
+}
+
+.ios-step-desc {
+  font-size: 10px;
+  color: var(--text-3);
+  letter-spacing: 0.04em;
+  margin: 0;
+}
+
+.ios-guide-confirm {
+  width: 100%;
+  height: 38px;
+  justify-content: center;
+}
 
 /* ─── Network Status Banner ─────────────────────── */
 .net-banner {
