@@ -1,13 +1,8 @@
 <template>
+  <AppShell>
   <div class="page profile-page">
     <div class="topbar">
-      <router-link to="/" class="topbar-brand">timemgr</router-link>
-      <button class="topbar-back" @click="router.back()">
-        <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-          <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-        </svg>
-        Back
-      </button>
+      <span class="topbar-brand">timemgr</span>
     </div>
 
     <div v-if="loading" class="profile-body">
@@ -164,11 +159,13 @@
       </div>
     </div>
   </div>
+  </AppShell>
 </template>
 
 <script setup>
 import { ref, reactive, computed, onMounted } from 'vue';
 import { useRouter } from 'vue-router';
+import AppShell from '@/components/layout/AppShell.vue';
 import { useAuthStore } from '@/stores/authStore';
 import { useAuth } from '@/composables/useAuth';
 import { memberApi } from '@/api/memberApi';
