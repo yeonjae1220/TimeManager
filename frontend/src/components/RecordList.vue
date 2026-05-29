@@ -2,12 +2,12 @@
   <div class="page">
     <div class="topbar">
       <router-link to="/" class="topbar-brand">timemgr</router-link>
-      <router-link :to="`/tags/${tagId}`" class="topbar-back">
+      <button class="topbar-back" @click="$router.back()">
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
           <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
         </svg>
-        Tag
-      </router-link>
+        Back
+      </button>
     </div>
 
     <header class="records-header">

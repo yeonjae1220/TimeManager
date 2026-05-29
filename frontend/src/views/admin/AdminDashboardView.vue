@@ -4,7 +4,7 @@
       <router-link to="/" class="topbar-brand">timemgr <span class="admin-badge">admin</span></router-link>
       <nav class="admin-nav">
         <router-link to="/admin/members">Members</router-link>
-        <router-link :to="`/members/${authStore.memberId}/tags`">App</router-link>
+        <router-link :to="`/members/${authStore.memberId}/today`">App</router-link>
       </nav>
     </div>
 

@@ -71,7 +71,7 @@ const authStore = useAuthStore();
 
 onMounted(() => {
   if (authStore.isAuthenticated && authStore.memberId) {
-    router.replace(`/members/${authStore.memberId}/tags`);
+    router.replace(`/members/${authStore.memberId}/today`);
   }
 });
 </script>
