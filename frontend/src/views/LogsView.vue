@@ -1,15 +1,8 @@
 <template>
+  <AppShell>
   <div class="page">
     <div class="topbar">
-      <router-link to="/" class="topbar-brand">timemgr</router-link>
-      <div class="topbar-actions">
-        <router-link :to="backTo" class="topbar-back">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          Tags
-        </router-link>
-      </div>
+      <router-link :to="memberId ? `/members/${memberId}/today` : '/'" class="topbar-brand">timemgr</router-link>
     </div>
 
     <header class="log-header">
@@ -165,6 +158,7 @@
       </div>
     </div>
   </div>
+  </AppShell>
 </template>
 
 <script setup>
@@ -173,6 +167,7 @@ import { DateTime } from 'luxon';
 import apiClient from '@/utils/apiClient';
 import { getDailyRange, getWeeklyRange, getMonthlyRange, formatRangeLabel, shiftDate, formatSeconds } from '@/utils/dateRange.js';
 import DayTimeline from '@/components/DayTimeline.vue';
+import AppShell from '@/components/layout/AppShell.vue';
 
 const tabs = [
   { key: 'daily', label: '일간' },
@@ -189,7 +184,6 @@ const openTags = ref(new Set());
 
 const auth = JSON.parse(localStorage.getItem('auth') || '{}');
 const memberId = auth.memberId;
-const backTo = memberId ? `/members/${memberId}/tags` : '/';
 
 const rangeLabel = computed(() => formatRangeLabel(activeTab.value, selectedDate.value));
 

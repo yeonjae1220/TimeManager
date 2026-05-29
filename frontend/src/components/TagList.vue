@@ -1,4 +1,5 @@
 <template>
+  <AppShell>
   <div class="page">
     <!-- Pull-to-refresh indicator -->
     <div
@@ -18,16 +19,8 @@
     </div>
 
     <div class="topbar">
-      <router-link to="/" class="topbar-brand">timemgr</router-link>
+      <router-link :to="`/members/${memberId}/today`" class="topbar-brand">timemgr</router-link>
       <div class="topbar-actions">
-        <router-link to="/" class="topbar-back">
-          <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
-            <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>
-          </svg>
-          Home
-        </router-link>
-        <router-link to="/logs" class="btn btn-ghost profile-btn">Log</router-link>
-        <router-link to="/profile" class="btn btn-ghost profile-btn">Profile</router-link>
         <button
           class="edit-toggle"
           :class="{ 'edit-toggle--active': editMode }"
@@ -43,7 +36,7 @@
         <p class="list-eyebrow mono">workspace</p>
         <div class="list-title-row">
           <h1 class="list-title">Tags</h1>
-          <router-link :to="`/members/${memberId}/timer`" class="today-total mono today-total--link">{{ formattedTodayTotalTime }}</router-link>
+          <router-link :to="`/members/${memberId}/today`" class="today-total mono today-total--link">{{ formattedTodayTotalTime }}</router-link>
         </div>
       </div>
       <div class="list-header-right">
@@ -95,6 +88,7 @@
       />
     </ul>
   </div>
+  </AppShell>
 </template>
 
 <script setup>
@@ -102,6 +96,7 @@ import { ref, onMounted, onBeforeUnmount, computed, provide, readonly, nextTick 
 import { useRoute, useRouter } from 'vue-router';
 import apiClient from '@/utils/apiClient';
 import TagItem from '@/components/TagItem.vue';
+import AppShell from '@/components/layout/AppShell.vue';
 import { useTagStore } from '@/stores/tagStore';
 import { usePullToRefresh } from '@/composables/usePullToRefresh';
 import { peekTimerState } from '@/utils/timerPersistence';
@@ -138,7 +133,7 @@ const fetchTags = async () => {
     // 캐시 있음 → 즉시 렌더, 백그라운드 갱신
     isLoading.value = false;
     // write 직후(setTagState 포함) 5초 이내라면 백그라운드 갱신 생략
-    // write 완료 후 TagDetail의 refreshTags가 최신 서버 상태를 동기화함
+    // write 완료 후 TodayView의 refreshTags가 최신 서버 상태를 동기화함
     const isRecentlyUpdated = tagStore.lastFetchedAt && Date.now() - tagStore.lastFetchedAt < 5_000;
     if (!isRecentlyUpdated) {
       tagStore.refreshTags(memberId);
@@ -269,7 +264,7 @@ const submitTopTag = async () => {
 };
 
 const navigateToDetail = (tagId) => {
-  router.push(`/tags/${tagId}`);
+  router.push({ name: 'today', params: { id: memberId }, query: { tagId } });
 };
 
 const handleDrop = async (newParentId, movedId) => {

@@ -10,7 +10,7 @@ export function useAuth() {
         const response = await authApi.login(email, password);
         const { accessToken, memberId } = response.data;
         authStore.setAuth({ accessToken, memberId });
-        await router.push(`/members/${memberId}/tags`);
+        await router.push(`/members/${memberId}/today`);
     }
 
     async function logout() {
@@ -28,7 +28,7 @@ export function useAuth() {
         const response = await authApi.googleLogin(code, redirectUri);
         const { accessToken, memberId } = response.data;
         authStore.setAuth({ accessToken, memberId });
-        await router.push(`/members/${memberId}/tags`);
+        await router.push(`/members/${memberId}/today`);
     }
 
     return { login, logout, register, googleLogin };
