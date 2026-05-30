@@ -135,19 +135,38 @@ jobs:
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
 
     steps:
-      - name: Deploy images
+      - name: Apply k8s secrets
         env:
+          DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          JWT_SECRET: ${{ secrets.JWT_SECRET }}
+          PUSH_VAPID_PUBLIC_KEY: ${{ secrets.PUSH_VAPID_PUBLIC_KEY }}
+          PUSH_VAPID_PRIVATE_KEY: ${{ secrets.PUSH_VAPID_PRIVATE_KEY }}
+          PUSH_VAPID_SUBJECT: ${{ secrets.PUSH_VAPID_SUBJECT }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
+          ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
         run: |
-          set -e
+          sudo kubectl create secret generic timemanager-secret \
+            --from-literal=DB_NAME="timemanager" \
+            --from-literal=DB_USER="timemanager" \
+            --from-literal=DB_PASSWORD="${DB_PASSWORD}" \
+            --from-literal=JWT_SECRET="${JWT_SECRET}" \
+            --from-literal=PUSH_VAPID_PUBLIC_KEY="${PUSH_VAPID_PUBLIC_KEY}" \
+            --from-literal=PUSH_VAPID_PRIVATE_KEY="${PUSH_VAPID_PRIVATE_KEY}" \
+            --from-literal=PUSH_VAPID_SUBJECT="${PUSH_VAPID_SUBJECT}" \
+            --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
+            --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
+            -n timemanager --dry-run=client -o yaml | sudo kubectl apply -f -
 
-          # Upsert k8s Secret with Google OAuth credentials
           sudo kubectl create secret generic timemanager-google-secret \
             --from-literal=GOOGLE_CLIENT_ID="${GOOGLE_CLIENT_ID}" \
             --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
-            -n timemanager \
-            --dry-run=client -o yaml | sudo kubectl apply -f -
+            -n timemanager --dry-run=client -o yaml | sudo kubectl apply -f -
+
+      - name: Deploy images
+        run: |
+          set -e
 
           sudo kubectl set image deployment/backend \
             backend=ghcr.io/yeonjae1220/timemanager:latest \

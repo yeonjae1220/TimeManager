@@ -46,9 +46,8 @@ const INITIAL_STATE: StopwatchState = {
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
-  const rafRef = useRef<number>(0)
 
-  const updateTimer = useCallback(() => {
+  const tick = useCallback(() => {
     setSw((prev) => {
       if (!prev.isRunning || prev.latestStartTime <= 0) return prev
       const delta = Math.floor((Date.now() - prev.latestStartTime) / 1000)
@@ -61,17 +60,15 @@ export function useTagTimer() {
         totalTimeCal: prev.totalTime + delta,
       }
     })
-    rafRef.current = requestAnimationFrame(updateTimer)
   }, [])
 
+  // 1초 인터벌 — RAF 60fps 대비 배터리/CPU 60배 절감
   useEffect(() => {
-    if (sw.isRunning) {
-      rafRef.current = requestAnimationFrame(updateTimer)
-    } else {
-      cancelAnimationFrame(rafRef.current)
-    }
-    return () => cancelAnimationFrame(rafRef.current)
-  }, [sw.isRunning, updateTimer])
+    if (!sw.isRunning) return
+    tick() // 즉시 1회 실행 (시작 시 0초 표시 방지)
+    const id = setInterval(tick, 1000)
+    return () => clearInterval(id)
+  }, [sw.isRunning, tick])
 
   const loadTag = useCallback(async (tagId: number, memberId: number) => {
     try {

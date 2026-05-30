@@ -11,6 +11,11 @@ export interface Tag {
   type: 'ROOT' | 'CATEGORY' | 'LEAF'
   state: boolean
   elapsedTime: number
+  dailyTotalTime?: number
+  dailyGoalTime?: number
+  tagTotalTime?: number
+  totalTime?: number
+  latestStartTimeMs?: number | null
   latestStopTimeMs: number | null
   children: Tag[]
 }
@@ -150,7 +155,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       set({ tagTree })
 
       try {
-        await idbSet(cacheKey(memberId), deepClone(tagTree))
+        await idbSet(cacheKey(memberId), tagTree)
       } catch (e) {
         console.warn('IndexedDB cache save failed:', e)
       }
@@ -183,7 +188,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       set({ tagTree, lastFetchedAt: Date.now() })
       const activeMemberId = get()._activeMemberId
       if (activeMemberId) {
-        idbSet(cacheKey(activeMemberId), deepClone(tagTree)).catch((e) =>
+        idbSet(cacheKey(activeMemberId), tagTree).catch((e) =>
           console.warn('IndexedDB optimistic update failed:', e)
         )
       }
@@ -236,14 +241,12 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   getRetryPromise: () => _retryPromise,
 
   handleOnline() {
+    const activeMemberId = get()._activeMemberId
+    if (!activeMemberId) return
+    // 재전송 완료 후 즉시 1회 갱신 — 매직 딜레이 없이 재전송 결과를 그대로 반영
     get().retryPendingTimerOp().then(() => {
-      const activeMemberId = get()._activeMemberId
-      if (!activeMemberId) return
-      get().refreshTags(activeMemberId)
-      setTimeout(() => {
-        const mid = get()._activeMemberId
-        if (mid) get().refreshTags(mid)
-      }, 2000)
+      const mid = get()._activeMemberId
+      if (mid) get().refreshTags(mid)
     })
   },
 

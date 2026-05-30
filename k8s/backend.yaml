@@ -71,6 +71,16 @@ spec:
                   name: timemanager-google-secret
                   key: GOOGLE_CLIENT_SECRET
                   optional: true
+            - name: ADMIN_EMAIL
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-secret
+                  key: ADMIN_EMAIL
+            - name: ADMIN_PASSWORD_BCRYPT
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-secret
+                  key: ADMIN_PASSWORD_BCRYPT
             - name: REDIS_HOST
               value: "redis"
             - name: REDIS_PORT

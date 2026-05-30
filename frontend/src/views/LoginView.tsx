@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
+import { saveOauthState } from '@/utils/oauthState'
 
 export default function LoginView() {
   const { login, googleLogin } = useAuth()
@@ -30,7 +31,7 @@ export default function LoginView() {
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
     if (!clientId) return
     const state = crypto.randomUUID()
-    sessionStorage.setItem('oauth_state', state)
+    saveOauthState(state)
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,

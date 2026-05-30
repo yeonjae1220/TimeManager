@@ -2,28 +2,36 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
+import { refreshAuth } from '@/utils/refreshAuth'
+
+function AuthSkeleton() {
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 260 }}>
+        {[70, 50, 50, 30].map((w, i) => (
+          <div key={i} style={{
+            height: 12, borderRadius: 6, background: 'var(--surface-2)',
+            width: `${w}%`, animation: 'pulse 1.4s ease infinite',
+            animationDelay: `${i * 0.12}s`,
+          }} />
+        ))}
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
+    </div>
+  )
+}
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { accessToken, memberId, setAuth, clearAuth } = useAuthStore()
+  const { accessToken, memberId, clearAuth } = useAuthStore()
   const router = useRouter()
   const [hydrated, setHydrated] = useState(false)
 
   useEffect(() => {
-    // accessToken은 메모리 전용 — 리로드 시 httpOnly 쿠키로 재발급 시도
     const init = async () => {
       if (!accessToken) {
-        try {
-          const { data } = await axios.post<{ accessToken: string; memberId: number }>(
-            '/api/v1/auth/refresh',
-            undefined,
-            { withCredentials: true }
-          )
-          setAuth(data.accessToken, data.memberId)
-        } catch {
-          clearAuth()
-        }
+        const token = await refreshAuth()
+        if (!token) clearAuth()
       }
       setHydrated(true)
     }
@@ -33,12 +41,10 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
 
   useEffect(() => {
     if (!hydrated) return
-    if (!accessToken || !memberId) {
-      router.replace('/login')
-    }
+    if (!accessToken || !memberId) router.replace('/login')
   }, [hydrated, accessToken, memberId, router])
 
-  if (!hydrated) return null
+  if (!hydrated) return <AuthSkeleton />
   if (!accessToken || !memberId) return null
 
   return <>{children}</>

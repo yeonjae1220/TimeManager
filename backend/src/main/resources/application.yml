@@ -57,3 +57,8 @@ google:
     client-secret: ${GOOGLE_CLIENT_SECRET:}
     token-uri: https://oauth2.googleapis.com/token
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
+
+admin:
+  email: ${ADMIN_EMAIL:admin@timemanager.local}
+  password:
+    bcrypt: ${ADMIN_PASSWORD_BCRYPT:$2a$10$placeholder-must-be-overridden-in-prod}

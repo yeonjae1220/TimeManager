@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
+import { consumeOauthState } from '@/utils/oauthState'
 
 export default function OAuthCallbackView() {
   const router = useRouter()
@@ -20,8 +21,8 @@ export default function OAuthCallbackView() {
     const code = params.get('code')
     const oauthError = params.get('error')
     const returnedState = params.get('state')
-    const savedState = sessionStorage.getItem('oauth_state')
-    sessionStorage.removeItem('oauth_state')
+    const savedState = consumeOauthState()
+    
 
     if (oauthError || !code) {
       router.replace('/login')

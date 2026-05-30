@@ -135,7 +135,9 @@ export default function TodayView() {
                   <span style={{ width: t.depth * 14 }} />
                   <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
                   <span style={{ flex: 1, textAlign: 'left' }}>{t.name}</span>
-                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{formatTime(0)}</span>
+                  {(t.dailyTotalTime ?? 0) > 0 && (
+                    <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{formatTime(t.dailyTotalTime ?? 0)}</span>
+                  )}
                 </button>
               ))}
             </div>
