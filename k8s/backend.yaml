@@ -86,7 +86,8 @@ spec:
             - name: REDIS_PORT
               value: "6379"
           readinessProbe:
-            tcpSocket:
+            httpGet:
+              path: /actuator/health/readiness
               port: 8080
             initialDelaySeconds: 40
             periodSeconds: 10
