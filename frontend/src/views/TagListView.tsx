@@ -3,7 +3,7 @@
 import { useEffect } from 'react'
 import { useParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
-import { useTagStore, type Tag } from '@/store/tagStore'
+import { useTagStore, selectTagList, type Tag } from '@/store/tagStore'
 
 function TagItem({ tag, depth = 0 }: { tag: Tag; depth?: number }) {
   const isRunning = tag.state
@@ -34,13 +34,12 @@ function TagItem({ tag, depth = 0 }: { tag: Tag; depth?: number }) {
 export default function TagListView() {
   const params = useParams()
   const memberId = Number(params?.id)
-  const tagStore = useTagStore()
+  const tagList = useTagStore(selectTagList)
+  const { loadTags, fetchError, isRefreshing } = useTagStore()
 
   useEffect(() => {
-    if (memberId) tagStore.loadTags(memberId)
-  }, [memberId, tagStore])
-
-  const tagList = tagStore.rootTag?.children ?? []
+    if (memberId) loadTags(memberId)
+  }, [memberId, loadTags])
 
   return (
     <AppShell>
@@ -54,13 +53,13 @@ export default function TagListView() {
             tags
           </p>
 
-          {tagStore.fetchError && (
+          {fetchError && (
             <p className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 16 }}>
               태그를 불러오지 못했습니다.
             </p>
           )}
 
-          {tagList.length === 0 && !tagStore.isRefreshing ? (
+          {tagList.length === 0 && !isRefreshing ? (
             <p style={{ fontSize: 13, color: 'var(--text-3)' }}>태그가 없습니다.</p>
           ) : (
             <div>

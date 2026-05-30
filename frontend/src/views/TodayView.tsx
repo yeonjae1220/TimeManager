@@ -3,7 +3,7 @@
 import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
-import { useTagStore } from '@/store/tagStore'
+import { useTagStore, type Tag } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 
 function todayLabel(): string {
@@ -14,7 +14,9 @@ export default function TodayView() {
   const params = useParams()
   const router = useRouter()
   const memberId = Number(params?.id)
-  const tagStore = useTagStore()
+  const tagTree = useTagStore((s) => s.tagTree)
+  const loadTags = useTagStore((s) => s.loadTags)
+  const setTagState = useTagStore((s) => s.setTagState)
 
   const {
     tag,
@@ -39,7 +41,7 @@ export default function TodayView() {
 
   useEffect(() => {
     if (!memberId) return
-    tagStore.loadTags(memberId)
+    loadTags(memberId)
     const handleOnline = () => setIsOnline(true)
     const handleOffline = () => setIsOnline(false)
     window.addEventListener('online', handleOnline)
@@ -49,10 +51,10 @@ export default function TodayView() {
       window.removeEventListener('online', handleOnline)
       window.removeEventListener('offline', handleOffline)
     }
-  }, [memberId, tagStore])
+  }, [memberId, loadTags])
 
-  function flattenTags(nodes: typeof tagStore.tagTree, depth = 0): Array<typeof tagStore.tagTree[0] & { depth: number }> {
-    const result: Array<typeof tagStore.tagTree[0] & { depth: number }> = []
+  function flattenTags(nodes: Tag[], depth = 0): Array<Tag & { depth: number }> {
+    const result: Array<Tag & { depth: number }> = []
     for (const node of nodes) {
       if (node.type === 'ROOT') {
         result.push(...flattenTags(node.children, 0))
@@ -66,7 +68,7 @@ export default function TodayView() {
     return result
   }
 
-  const flatTagList = flattenTags(tagStore.tagTree)
+  const flatTagList = flattenTags(tagTree)
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return

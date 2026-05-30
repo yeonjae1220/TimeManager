@@ -1,7 +1,7 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 
@@ -9,8 +9,13 @@ export default function OAuthCallbackView() {
   const router = useRouter()
   const { googleLogin } = useAuth()
   const [error, setError] = useState('')
+  const calledRef = useRef(false)
 
   useEffect(() => {
+    // OAuth authorization code는 1회만 사용 가능 — Strict Mode 이중 실행 방지
+    if (calledRef.current) return
+    calledRef.current = true
+
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const oauthError = params.get('error')

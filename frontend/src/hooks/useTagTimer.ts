@@ -47,7 +47,6 @@ export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
   const rafRef = useRef<number>(0)
-  const tagStore = useTagStore
 
   const updateTimer = useCallback(() => {
     setSw((prev) => {
@@ -120,7 +119,7 @@ export function useTagTimer() {
     const startTime = Date.now()
     const newSw = { ...sw, isRunning: true, latestStartTime: startTime }
     setSw(newSw)
-    tagStore.getState().setTagState(tag.id, true)
+    useTagStore.getState().setTagState(tag.id, true)
 
     saveTimerState({
       tagId: tag.id,
@@ -140,7 +139,7 @@ export function useTagTimer() {
     } catch (e) {
       console.warn('Start API failed (offline?):', e)
     }
-  }, [tag, sw, tagStore])
+  }, [tag, sw])
 
   const stopStopwatch = useCallback(async () => {
     if (!tag || !sw.isRunning) return
@@ -148,7 +147,7 @@ export function useTagTimer() {
     const elapsed = Math.floor((endTime - sw.latestStartTime) / 1000) + sw.elapsedTime
     const newSw = { ...sw, isRunning: false, latestEndTime: endTime, elapsedTime: elapsed, elapsedTimeCal: elapsed }
     setSw(newSw)
-    tagStore.getState().setTagState(tag.id, false)
+    useTagStore.getState().setTagState(tag.id, false)
 
     saveTimerState({
       tagId: tag.id,
@@ -173,7 +172,7 @@ export function useTagTimer() {
     } catch (e) {
       console.warn('Stop API failed (offline?):', e)
     }
-  }, [tag, sw, tagStore])
+  }, [tag, sw])
 
   const resetStopwatch = useCallback(() => {
     if (!tag || sw.isRunning) return

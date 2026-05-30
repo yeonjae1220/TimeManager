@@ -44,9 +44,6 @@ interface TagStoreState {
   _activeMemberId: number | null
   _pendingRefreshMemberId: number | null
 
-  rootTag: Tag | null
-  tagList: Tag[]
-  hasCachedData: boolean
   findById: (id: number) => Tag | null
 
   loadTagsFromCache: (memberId: number) => Promise<void>
@@ -67,15 +64,6 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   _activeMemberId: null,
   _pendingRefreshMemberId: null,
 
-  get rootTag() {
-    return get().tagTree.find((t) => t.type === 'ROOT') ?? null
-  },
-  get tagList() {
-    return get().rootTag?.children ?? []
-  },
-  get hasCachedData() {
-    return get().tagTree.length > 0
-  },
   findById: (id) => findTagById(get().tagTree, id),
 
   async loadTagsFromCache(memberId) {
@@ -183,7 +171,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       }
     } catch (error) {
       console.error('Tag fetch failed:', error)
-      if (!get().hasCachedData) set({ fetchError: true })
+      if (!selectHasCachedData(get())) set({ fetchError: true })
       if (get().tagTree.length === 0) {
         try {
           const cached = await idbGet(cacheKey(memberId)) as Tag[] | undefined
@@ -266,3 +254,13 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     set({ tagTree: [], lastFetchedAt: null, fetchError: false })
   },
 }))
+
+// Selectors — use these instead of inline getters to ensure reactivity
+export const selectRootTag = (s: TagStoreState) =>
+  s.tagTree.find((t) => t.type === 'ROOT') ?? null
+
+export const selectTagList = (s: TagStoreState) =>
+  selectRootTag(s)?.children ?? []
+
+export const selectHasCachedData = (s: TagStoreState) =>
+  s.tagTree.length > 0

@@ -17,12 +17,13 @@ interface AuthState {
   accessToken: string | null
   memberId: number | null
   role: string | null
-  isAuthenticated: boolean
-  isAdmin: boolean
   setAuth: (accessToken: string, memberId: number) => void
   setAccessToken: (token: string) => void
   clearAuth: () => void
 }
+
+export const isAuthenticated = (s: AuthState) => !!s.accessToken
+export const isAdmin = (s: AuthState) => s.role === 'ADMIN'
 
 export const useAuthStore = create<AuthState>()(
   persist(
@@ -30,8 +31,6 @@ export const useAuthStore = create<AuthState>()(
       accessToken: null,
       memberId: null,
       role: null,
-      get isAuthenticated() { return false },
-      get isAdmin() { return false },
 
       setAuth: (accessToken, memberId) =>
         set({ accessToken, memberId, role: extractRoleFromToken(accessToken) }),
