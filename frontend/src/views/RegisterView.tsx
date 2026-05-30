@@ -12,8 +12,18 @@ export default function RegisterView() {
   const [error, setError] = useState('')
   const [loading, setLoading] = useState(false)
 
+  function validatePassword(pw: string): string | null {
+    if (pw.length < 8) return '비밀번호는 8자 이상이어야 합니다.'
+    if (!/[A-Z]/.test(pw)) return '대문자를 포함해야 합니다.'
+    if (!/[a-z]/.test(pw)) return '소문자를 포함해야 합니다.'
+    if (!/[0-9]/.test(pw)) return '숫자를 포함해야 합니다.'
+    return null
+  }
+
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault()
+    const pwError = validatePassword(password)
+    if (pwError) { setError(pwError); return }
     setLoading(true)
     setError('')
     try {

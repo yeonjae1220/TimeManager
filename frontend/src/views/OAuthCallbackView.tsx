@@ -19,8 +19,17 @@ export default function OAuthCallbackView() {
     const params = new URLSearchParams(window.location.search)
     const code = params.get('code')
     const oauthError = params.get('error')
+    const returnedState = params.get('state')
+    const savedState = sessionStorage.getItem('oauth_state')
+    sessionStorage.removeItem('oauth_state')
 
     if (oauthError || !code) {
+      router.replace('/login')
+      return
+    }
+
+    // state 불일치 시 login CSRF 공격 차단
+    if (!returnedState || returnedState !== savedState) {
       router.replace('/login')
       return
     }

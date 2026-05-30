@@ -43,10 +43,12 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'timemgr-auth',
+      version: 2,
+      // accessToken, role은 XSS 탈취 위험으로 localStorage 제외 — 메모리에만 유지
+      // 페이지 리로드 시 httpOnly 쿠키의 refresh token으로 재발급
+      migrate: () => ({ accessToken: null, memberId: null, role: null }),
       partialize: (state) => ({
-        accessToken: state.accessToken,
         memberId: state.memberId,
-        role: state.role,
       }),
     }
   )

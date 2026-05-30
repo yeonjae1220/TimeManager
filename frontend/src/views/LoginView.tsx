@@ -29,11 +29,14 @@ export default function LoginView() {
     const redirectUri = `${window.location.origin}/oauth/callback`
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
     if (!clientId) return
+    const state = crypto.randomUUID()
+    sessionStorage.setItem('oauth_state', state)
     const params = new URLSearchParams({
       client_id: clientId,
       redirect_uri: redirectUri,
       response_type: 'code',
       scope: 'openid email profile',
+      state,
     })
     window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
   }
