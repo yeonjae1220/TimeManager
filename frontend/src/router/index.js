@@ -7,8 +7,6 @@ import RegisterView from "@/views/RegisterView.vue";
 import OAuthCallbackView from "@/views/OAuthCallbackView.vue";
 import ProfileView from "@/views/ProfileView.vue";
 import LandingView from "@/views/LandingView.vue";
-import AdminDashboardView from "@/views/admin/AdminDashboardView.vue";
-import AdminMembersView from "@/views/admin/AdminMembersView.vue";
 import LogsView from "@/views/LogsView.vue";
 
 const routes = [
@@ -18,13 +16,10 @@ const routes = [
     { path: "/oauth/callback", name: 'oauthCallback', component: OAuthCallbackView },
     { path: "/members/:id/today", name: 'today', component: TodayView, meta: { requiresAuth: true } },
     { path: "/members/:id/tags", name: 'tags', component: TagList, meta: { requiresAuth: true } },
-    // /timer → /today redirect (하위 호환)
     { path: "/members/:id/timer", redirect: to => `/members/${to.params.id}/today` },
     { path: "/records/:id", name: 'records', component: RecordList, props: true, meta: { requiresAuth: true } },
     { path: "/logs", name: 'logs', component: LogsView, meta: { requiresAuth: true } },
     { path: "/profile", name: 'profile', component: ProfileView, meta: { requiresAuth: true } },
-    { path: "/admin", name: 'adminDashboard', component: AdminDashboardView, meta: { requiresAuth: true, requiresAdmin: true } },
-    { path: "/admin/members", name: 'adminMembers', component: AdminMembersView, meta: { requiresAuth: true, requiresAdmin: true } },
 ];
 
 const router = createRouter({
@@ -37,9 +32,7 @@ router.beforeEach((to, from, next) => {
     const raw = localStorage.getItem('auth');
     let parsed = null;
     try { parsed = raw ? JSON.parse(raw) : null; } catch { parsed = null; }
-    const accessToken = parsed?.accessToken;
-    if (!accessToken) return next('/login');
-    if (to.meta.requiresAdmin && parsed?.role !== 'ADMIN') return next('/login');
+    if (!parsed?.accessToken) return next('/login');
     next();
 });
 

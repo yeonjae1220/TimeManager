@@ -21,6 +21,9 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     Optional<TagJpaEntity> findRunningByMemberId(@Param("memberId") Long memberId,
                                                   @Param("state") TimerState state);
 
+    @Query("SELECT t FROM TagJpaEntity t JOIN FETCH t.member WHERE t.timerState = :state")
+    List<TagJpaEntity> findAllByTimerState(@Param("state") TimerState state);
+
     Optional<TagJpaEntity> findByTypeAndMember(TagType type, MemberJpaEntity member);
 
     @Modifying

@@ -102,6 +102,13 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
     }
 
     @Override
+    public List<Tag> findAllRunningTags() {
+        return tagJpaRepository.findAllByTimerState(TimerState.RUNNING).stream()
+                .map(tagMapper::toDomain)
+                .collect(Collectors.toList());
+    }
+
+    @Override
     public Optional<TagResult> loadTagResult(Long tagId) {
         return tagJpaRepository.findById(tagId)
                 .map(tagMapper::toResult);

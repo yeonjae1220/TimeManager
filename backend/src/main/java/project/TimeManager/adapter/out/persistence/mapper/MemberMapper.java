@@ -18,7 +18,8 @@ public class MemberMapper {
                 entity.getProviderId(),
                 entity.getRole(),
                 entity.getTimezone(),
-                entity.getDailyResetHour()
+                entity.getDailyResetHour(),
+                entity.getCreatedAt()
         );
     }
 

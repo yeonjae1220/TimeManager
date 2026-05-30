@@ -1,0 +1,59 @@
+<!DOCTYPE html>
+<html xmlns:th="http://www.thymeleaf.org"
+      th:replace="~{admin/layout :: layout(~{::body}, '타이머 감지', 'timers')}"
+      lang="ko">
+<body>
+
+<div class="section-header">
+  <span class="section-title">
+    장기 실행 타이머
+    <span class="text-muted" style="font-size:13px; font-weight:400;">— 2시간 이상 RUNNING 상태</span>
+  </span>
+</div>
+
+<div class="card" style="padding:0; overflow:hidden;">
+  <div class="table-wrap">
+    <table>
+      <thead>
+        <tr>
+          <th>태그 ID</th>
+          <th>태그명</th>
+          <th>타입</th>
+          <th>멤버 ID</th>
+          <th>시작 시간</th>
+          <th>상태</th>
+          <th>액션</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr th:if="${stalledTags.empty}">
+          <td colspan="7" style="text-align:center; padding:40px; color:var(--text-muted);">
+            장기 실행 타이머가 없습니다. ✓
+          </td>
+        </tr>
+        <tr th:each="t : ${stalledTags}">
+          <td style="color:var(--text-muted);" th:text="${t.id.value()}"></td>
+          <td style="font-weight:500;" th:text="${t.name}"></td>
+          <td>
+            <span class="badge badge-member" th:text="${t.type.name()}"></span>
+          </td>
+          <td style="color:var(--text-muted);" th:text="${t.memberId.value()}"></td>
+          <td style="color:var(--text-muted);"
+              th:text="${#temporals.format(t.latestStartTime, 'MM-dd HH:mm')}"></td>
+          <td><span class="badge badge-running">RUNNING</span></td>
+          <td>
+            <form class="inline-form"
+                  th:action="@{/admin/timers/{id}/stop(id=${t.id.value()})}" method="post"
+                  onsubmit="return confirm('이 타이머를 강제 종료하시겠습니까?')">
+              <input type="hidden" th:name="${_csrf.parameterName}" th:value="${_csrf.token}"/>
+              <button type="submit" class="btn btn-warning btn-sm">강제 종료</button>
+            </form>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+</body>
+</html>

@@ -1,5 +1,7 @@
 package project.TimeManager.domain.member.model;
 
+import java.time.LocalDateTime;
+
 public class Member {
 
     private MemberId id;
@@ -11,6 +13,7 @@ public class Member {
     private MemberRole role;
     private String timezone = "Asia/Seoul";
     private int dailyResetHour = 5;
+    private LocalDateTime createdAt;
 
     private Member() {}
 
@@ -120,6 +123,14 @@ public class Member {
         return member;
     }
 
+    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
+                                      OAuthProvider provider, String providerId, MemberRole role,
+                                      String timezone, int dailyResetHour, LocalDateTime createdAt) {
+        Member member = reconstitute(id, name, email, hashedPassword, provider, providerId, role, timezone, dailyResetHour);
+        member.createdAt = createdAt;
+        return member;
+    }
+
     public MemberId getId() { return id; }
     public String getName() { return name; }
     public String getEmail() { return email; }
@@ -129,4 +140,5 @@ public class Member {
     public MemberRole getRole() { return role != null ? role : MemberRole.MEMBER; }
     public String getTimezone() { return timezone; }
     public int getDailyResetHour() { return dailyResetHour; }
+    public LocalDateTime getCreatedAt() { return createdAt; }
 }

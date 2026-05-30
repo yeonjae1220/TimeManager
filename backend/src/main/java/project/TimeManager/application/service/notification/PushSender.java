@@ -47,6 +47,12 @@ public class PushSender {
         pushService = new PushService(vapidPublicKey, vapidPrivateKey, vapidSubject);
     }
 
+    public void sendToAll(String title, String body) {
+        List<PushSubscription> subs = loadPushSubscriptionsPort.loadAllSubscriptions();
+        log.info("[Push] 전체 발송 시작: 구독자 수={}", subs.size());
+        subs.forEach(s -> send(s, title, body));
+    }
+
     public void sendToMember(Long memberId, String title, String body) {
         List<PushSubscription> subs = loadPushSubscriptionsPort.loadByMemberId(memberId);
         subs.forEach(s -> send(s, title, body));

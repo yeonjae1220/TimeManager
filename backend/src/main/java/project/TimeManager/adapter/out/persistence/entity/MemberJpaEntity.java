@@ -5,9 +5,11 @@ import lombok.AccessLevel;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import org.hibernate.annotations.CreationTimestamp;
 import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.member.model.OAuthProvider;
 
+import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -47,6 +49,10 @@ public class MemberJpaEntity {
 
     @Column(name = "daily_reset_hour", nullable = false)
     private int dailyResetHour = 5;
+
+    @CreationTimestamp
+    @Column(name = "created_at", nullable = false, updatable = false)
+    private LocalDateTime createdAt;
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();
