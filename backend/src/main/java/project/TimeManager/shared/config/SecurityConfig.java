@@ -84,7 +84,7 @@ public class SecurityConfig {
                         .sessionCreationPolicy(SessionCreationPolicy.IF_REQUIRED)
                         .maximumSessions(1)
                 )
-                .csrf(csrf -> {}) // CSRF 활성화 (Thymeleaf가 토큰 자동 삽입)
+                .csrf(Customizer.withDefaults()) // MEDIUM-1 fix: withDefaults()로 의도 명확화
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
                                 "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; frame-ancestors 'none'"))

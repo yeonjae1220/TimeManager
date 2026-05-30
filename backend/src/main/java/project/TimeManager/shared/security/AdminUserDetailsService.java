@@ -23,7 +23,8 @@ public class AdminUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         MemberJpaEntity entity = memberJpaRepository.findByEmail(email)
                 .filter(m -> m.getRole() == MemberRole.ADMIN)
-                .orElseThrow(() -> new UsernameNotFoundException("Admin not found: " + email));
+                // HIGH-1 fix: 이메일을 에러 메시지에 노출하지 않음
+                .orElseThrow(() -> new UsernameNotFoundException("인증에 실패했습니다"));
 
         return User.builder()
                 .username(entity.getEmail())

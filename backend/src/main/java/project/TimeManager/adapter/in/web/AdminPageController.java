@@ -24,8 +24,10 @@ public class AdminPageController {
 
     @GetMapping({"", "/", "/dashboard"})
     public String dashboard(Model model) {
+        // MEDIUM-4 fix: getStalledRunningTags를 한 번만 호출해 재사용
+        List<Tag> stalledTags = adminService.getStalledRunningTags(2);
         model.addAttribute("totalMembers", adminService.getTotalMemberCount());
-        model.addAttribute("stalledTimerCount", adminService.getStalledRunningTags(2).size());
+        model.addAttribute("stalledTimerCount", stalledTags.size());
         model.addAttribute("pushSubscriberCount", adminService.getPushSubscriberCount());
         return "admin/dashboard";
     }

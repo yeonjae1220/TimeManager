@@ -55,6 +55,11 @@ public class PushSubscriptionPersistenceAdapter implements SavePushSubscriptionP
         return repository.findByMemberId(memberId).stream().map(this::toDomain).toList();
     }
 
+    @Override
+    public long countAll() {
+        return repository.count();
+    }
+
     private PushSubscription toDomain(PushSubscriptionJpaEntity e) {
         return PushSubscription.reconstitute(e.getId(), e.getMemberId(), e.getEndpoint(), e.getP256dh(), e.getAuth());
     }

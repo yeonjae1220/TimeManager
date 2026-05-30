@@ -16,6 +16,7 @@ import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.tag.model.Tag;
 
+import java.time.Duration;
 import java.time.ZonedDateTime;
 import java.util.List;
 
@@ -64,15 +65,19 @@ public class AdminService {
     }
 
     public void forceStopTimer(Long tagId) {
+        ZonedDateTime now = ZonedDateTime.now();
         Tag tag = loadTagPort.loadTag(tagId)
                 .orElseThrow(() -> new IllegalArgumentException("태그를 찾을 수 없습니다: " + tagId));
-        tag.stop(ZonedDateTime.now(), 0L);
+        // HIGH-2 fix: 강제 종료 시점까지의 실제 경과 시간 계산
+        long elapsed = Duration.between(tag.getLatestStartTime(), now).toSeconds();
+        tag.stop(now, elapsed);
         saveTagPort.saveTag(tag);
     }
 
     @Transactional(readOnly = true)
     public long getPushSubscriberCount() {
-        return loadPushSubscriptionsPort.loadAllSubscriptions().size();
+        // HIGH-3 fix: 전체 로드 없이 COUNT 쿼리 사용
+        return loadPushSubscriptionsPort.countAll();
     }
 
     public void sendPushToAll(String title, String body) {
