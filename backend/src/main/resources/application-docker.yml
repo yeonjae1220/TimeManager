@@ -4,9 +4,11 @@ spring:
     username: ${DB_USER:timemanager}
     password: ${DB_PASSWORD:timemanager}
     driver-class-name: org.postgresql.Driver
+  flyway:
+    enabled: true           # 프로덕션에서 Flyway 활성화 — 기동 시 자동 마이그레이션
   jpa:
     hibernate:
-      ddl-auto: validate   # 프로덕션 — 스키마 자동 변경 불허
+      ddl-auto: validate   # 프로덕션 — 스키마 자동 변경 불허 (Flyway가 담당)
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect

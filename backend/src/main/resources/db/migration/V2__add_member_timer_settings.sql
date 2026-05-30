@@ -1,0 +1,3 @@
+-- 멤버별 타이머 설정 컬럼 추가
+ALTER TABLE member ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) NOT NULL DEFAULT 'Asia/Seoul';
+ALTER TABLE member ADD COLUMN IF NOT EXISTS daily_reset_hour INTEGER NOT NULL DEFAULT 5;
