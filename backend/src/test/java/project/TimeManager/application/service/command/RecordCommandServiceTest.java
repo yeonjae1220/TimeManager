@@ -83,7 +83,7 @@ class RecordCommandServiceTest {
     @org.junit.jupiter.api.BeforeEach
     void setUp() {
         given(loadMemberPort.loadMember(1L)).willReturn(Optional.of(
-                Member.reconstitute(MemberId.of(1L), "TestUser", "test@test.com", "hashed")));
+                Member.reconstitute(MemberId.of(1L), "TestUser", "test@test.com", "hashed", null, null, null, null, 5, null)));
         TagRecordDerivedFieldsSyncService syncService =
                 new TagRecordDerivedFieldsSyncService(loadTagPort, loadRecordsByTagPort, saveTagPort, loadMemberPort);
         recordCommandService = new RecordCommandService(

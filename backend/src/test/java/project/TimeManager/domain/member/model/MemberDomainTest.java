@@ -107,7 +107,7 @@ class MemberDomainTest {
         void shouldSetAllFields() {
             MemberId memberId = MemberId.of(42L);
 
-            Member member = Member.reconstitute(memberId, "홍길동", "hong@example.com", "hashed_pw");
+            Member member = Member.reconstitute(memberId, "홍길동", "hong@example.com", "hashed_pw", null, null, null, null, 5, null);
 
             assertThat(member.getId()).isEqualTo(memberId);
             assertThat(member.getName()).isEqualTo("홍길동");
