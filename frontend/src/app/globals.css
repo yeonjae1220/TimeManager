@@ -1,0 +1,329 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,300;0,9..40,400;0,9..40,500;1,9..40,400&family=DM+Serif+Display&family=IBM+Plex+Mono:wght@400;500&display=swap');
+
+:root {
+  --font-sans: 'DM Sans', sans-serif;
+  --font-serif: 'DM Serif Display', serif;
+  --font-mono: 'IBM Plex Mono', monospace;
+
+  --bg: #0c0c0c;
+  --bg-2: #141414;
+  --bg-3: #1c1c1c;
+  --surface: #1a1a1a;
+  --surface-2: #242424;
+  --border: #2a2a2a;
+  --border-subtle: #1e1e1e;
+
+  --text: #f0f0f0;
+  --text-2: #888;
+  --text-3: #555;
+
+  --accent: #a78bfa;
+  --accent-bg: #a78bfa18;
+  --running: #34d399;
+  --danger: #f87171;
+
+  --t: 120ms ease;
+  --radius: 8px;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-size: 14px;
+  line-height: 1.6;
+  -webkit-font-smoothing: antialiased;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button {
+  cursor: pointer;
+  border: none;
+  background: none;
+  font-family: inherit;
+  color: inherit;
+}
+
+button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.mono { font-family: var(--font-mono); }
+
+/* Common page layout */
+.page {
+  max-width: 480px;
+  margin: 0 auto;
+  padding: 0 20px;
+}
+
+/* Topbar */
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 52px;
+  position: sticky;
+  top: 0;
+  background: var(--bg);
+  z-index: 100;
+  border-bottom: 1px solid var(--border-subtle);
+}
+
+.topbar-brand {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 500;
+  letter-spacing: 0.1em;
+  color: var(--text);
+  text-transform: uppercase;
+}
+
+/* Buttons */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border-radius: var(--radius);
+  font-family: var(--font-mono);
+  font-weight: 500;
+  letter-spacing: 0.04em;
+  transition: all var(--t);
+  cursor: pointer;
+  border: none;
+  height: 36px;
+  padding: 0 16px;
+  font-size: 12px;
+}
+
+.btn-primary {
+  background: var(--accent);
+  color: var(--bg);
+}
+
+.btn-primary:hover { opacity: 0.9; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-2);
+  border: 1px solid var(--border);
+}
+
+.btn-ghost:hover {
+  color: var(--text);
+  border-color: var(--text-3);
+}
+
+.btn-google {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  height: 40px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+  color: var(--text);
+  font-family: var(--font-sans);
+  font-weight: 400;
+  transition: all var(--t);
+}
+
+.btn-google:hover {
+  background: var(--surface);
+  border-color: var(--text-3);
+}
+
+/* Auth pages */
+.auth-page { }
+
+.auth-body {
+  padding: 40px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.auth-eyebrow {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--accent);
+  letter-spacing: 0.2em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.auth-title {
+  font-family: var(--font-serif);
+  font-size: clamp(36px, 6vw, 52px);
+  line-height: 1.08;
+  color: var(--text);
+  letter-spacing: -0.01em;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.field label {
+  font-size: 11px;
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.field input {
+  height: 40px;
+  padding: 0 12px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  color: var(--text);
+  font-size: 13px;
+  font-family: var(--font-sans);
+  outline: none;
+  transition: border-color var(--t);
+}
+
+.field input:focus { border-color: var(--accent); }
+
+.auth-error {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--danger);
+}
+
+.auth-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  color: var(--text-3);
+  font-size: 11px;
+  font-family: var(--font-mono);
+}
+
+.auth-divider::before,
+.auth-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.auth-switch {
+  font-size: 12px;
+  color: var(--text-2);
+  text-align: center;
+}
+
+.auth-link {
+  color: var(--accent);
+  text-decoration: none;
+}
+
+.auth-link:hover { text-decoration: underline; }
+
+/* App Shell */
+.app-shell {
+  min-height: 100dvh;
+  padding-bottom: calc(60px + env(safe-area-inset-bottom));
+}
+
+/* Tab Bar */
+.tab-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  display: flex;
+  align-items: stretch;
+  background: var(--bg);
+  border-top: 1px solid var(--border-subtle);
+  z-index: 200;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.tab-bar--running-line {
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 2px;
+  background: var(--running);
+  box-shadow: 0 0 12px var(--running);
+  animation: scan-tab 3s ease infinite;
+}
+
+@keyframes scan-tab {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+
+.tab {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 10px 0 8px;
+  color: var(--text-3);
+  text-decoration: none;
+  transition: color var(--t);
+}
+
+.tab:hover { color: var(--text-2); }
+
+.tab--active { color: var(--accent); }
+
+.tab-label {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+
+/* Offline banner */
+.offline-banner {
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--border);
+  padding: 8px 20px;
+  text-align: center;
+  font-size: 11px;
+  color: var(--text-2);
+  margin: 0 -20px;
+}
+
+/* Spinner */
+.spinner {
+  width: 28px;
+  height: 28px;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}

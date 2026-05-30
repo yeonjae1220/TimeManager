@@ -24,3 +24,6 @@ frontend/bower_components/
 
 ### k8s ###
 k8s/secret.yaml
+# Next.js
+frontend/.next/
+frontend/next-env.d.ts
