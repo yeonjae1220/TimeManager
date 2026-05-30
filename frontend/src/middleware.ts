@@ -6,13 +6,14 @@ export function middleware(request: NextRequest) {
 
   const csp = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}'`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",
     "connect-src 'self' https://timemgr.mungji.com",
     "frame-src 'none'",
     "object-src 'none'",
+    "base-uri 'self'",
   ].join('; ')
 
   const requestHeaders = new Headers(request.headers)
