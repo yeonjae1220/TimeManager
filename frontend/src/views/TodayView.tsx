@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import { useTagStore, type Tag } from '@/store/tagStore'
@@ -16,7 +16,7 @@ export default function TodayView() {
   const memberId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
-  const setTagState = useTagStore((s) => s.setTagState)
+  const handleOnline = useTagStore((s) => s.handleOnline)
 
   const {
     tag,
@@ -42,33 +42,40 @@ export default function TodayView() {
   useEffect(() => {
     if (!memberId) return
     loadTags(memberId)
-    const handleOnline = () => setIsOnline(true)
-    const handleOffline = () => setIsOnline(false)
-    window.addEventListener('online', handleOnline)
-    window.addEventListener('offline', handleOffline)
+
+    const onOnline = () => {
+      setIsOnline(true)
+      handleOnline()
+    }
+    const onOffline = () => setIsOnline(false)
+
+    window.addEventListener('online', onOnline)
+    window.addEventListener('offline', onOffline)
     setIsOnline(navigator.onLine)
+
     return () => {
-      window.removeEventListener('online', handleOnline)
-      window.removeEventListener('offline', handleOffline)
+      window.removeEventListener('online', onOnline)
+      window.removeEventListener('offline', onOffline)
     }
-  }, [memberId, loadTags])
+  }, [memberId, loadTags, handleOnline])
 
-  function flattenTags(nodes: Tag[], depth = 0): Array<Tag & { depth: number }> {
-    const result: Array<Tag & { depth: number }> = []
-    for (const node of nodes) {
-      if (node.type === 'ROOT') {
-        result.push(...flattenTags(node.children, 0))
-      } else if (node.type === 'CATEGORY') {
-        result.push({ ...node, depth })
-        result.push(...flattenTags(node.children, depth + 1))
-      } else {
-        result.push({ ...node, depth })
+  const flatTagList = useMemo(() => {
+    function flatten(nodes: Tag[], depth = 0): Array<Tag & { depth: number }> {
+      const result: Array<Tag & { depth: number }> = []
+      for (const node of nodes) {
+        if (node.type === 'ROOT') {
+          result.push(...flatten(node.children, 0))
+        } else if (node.type === 'CATEGORY') {
+          result.push({ ...node, depth })
+          result.push(...flatten(node.children, depth + 1))
+        } else {
+          result.push({ ...node, depth })
+        }
       }
+      return result
     }
-    return result
-  }
-
-  const flatTagList = flattenTags(tagTree)
+    return flatten(tagTree)
+  }, [tagTree])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return

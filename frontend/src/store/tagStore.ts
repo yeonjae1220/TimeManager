@@ -17,7 +17,6 @@ export interface Tag {
 
 const cacheKey = (memberId: number) => `tags-${memberId}`
 
-let onlineListenerRegistered = false
 let _refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let _retryPromise: Promise<void> | null = null
 
@@ -53,6 +52,7 @@ interface TagStoreState {
   setTagState: (tagId: number, state: boolean) => void
   retryPendingTimerOp: () => Promise<void>
   getRetryPromise: () => Promise<void> | null
+  handleOnline: () => void
   clearCache: () => Promise<void>
 }
 
@@ -68,21 +68,6 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
   async loadTagsFromCache(memberId) {
     set({ fetchError: false, _activeMemberId: memberId })
-
-    if (!onlineListenerRegistered) {
-      onlineListenerRegistered = true
-      window.addEventListener('online', async () => {
-        await get().retryPendingTimerOp()
-        const activeMemberId = get()._activeMemberId
-        if (activeMemberId) {
-          get().refreshTags(activeMemberId)
-          setTimeout(() => {
-            const mid = get()._activeMemberId
-            if (mid) get().refreshTags(mid)
-          }, 2000)
-        }
-      })
-    }
 
     const FRESH_THRESHOLD_MS = 30_000
     const state = get()
@@ -249,6 +234,18 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   getRetryPromise: () => _retryPromise,
+
+  handleOnline() {
+    get().retryPendingTimerOp().then(() => {
+      const activeMemberId = get()._activeMemberId
+      if (!activeMemberId) return
+      get().refreshTags(activeMemberId)
+      setTimeout(() => {
+        const mid = get()._activeMemberId
+        if (mid) get().refreshTags(mid)
+      }, 2000)
+    })
+  },
 
   async clearCache() {
     set({ tagTree: [], lastFetchedAt: null, fetchError: false })
