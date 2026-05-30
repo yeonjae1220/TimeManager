@@ -36,6 +36,11 @@ public class SecurityConfig {
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
     private final AdminUserDetailsService adminUserDetailsService;
 
+    /**
+     * TM1: cors.allowed-origins 빈값 처리 명확화
+     * - 미설정(빈 문자열): CORS 설정 미등록 → same-origin 요청만 허용 (k8s 운영 환경)
+     * - 설정 시: 명시된 오리진만 허용 (로컬 개발: http://localhost:3000,http://localhost:5173)
+     */
     @Value("${cors.allowed-origins:}")
     private String allowedOriginsRaw;
 

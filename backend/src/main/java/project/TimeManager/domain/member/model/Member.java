@@ -71,45 +71,13 @@ public class Member {
         return member;
     }
 
-    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword) {
-        Member member = new Member();
-        member.id = id;
-        member.name = name;
-        member.email = email;
-        member.hashedPassword = hashedPassword;
-        member.provider = OAuthProvider.LOCAL;
-        return member;
-    }
-
-    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
-                                      OAuthProvider provider, String providerId) {
-        Member member = new Member();
-        member.id = id;
-        member.name = name;
-        member.email = email;
-        member.hashedPassword = hashedPassword;
-        member.provider = provider != null ? provider : OAuthProvider.LOCAL;
-        member.providerId = providerId;
-        member.role = MemberRole.MEMBER;
-        return member;
-    }
-
-    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
-                                      OAuthProvider provider, String providerId, MemberRole role) {
-        Member member = new Member();
-        member.id = id;
-        member.name = name;
-        member.email = email;
-        member.hashedPassword = hashedPassword;
-        member.provider = provider != null ? provider : OAuthProvider.LOCAL;
-        member.providerId = providerId;
-        member.role = role != null ? role : MemberRole.MEMBER;
-        return member;
-    }
-
+    /**
+     * TM2: 5개 오버로드를 단일 메서드로 통합.
+     * null-safe 기본값: provider=LOCAL, role=MEMBER, timezone=Asia/Seoul.
+     */
     public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
                                       OAuthProvider provider, String providerId, MemberRole role,
-                                      String timezone, int dailyResetHour) {
+                                      String timezone, int dailyResetHour, LocalDateTime createdAt) {
         Member member = new Member();
         member.id = id;
         member.name = name;
@@ -120,13 +88,6 @@ public class Member {
         member.role = role != null ? role : MemberRole.MEMBER;
         member.timezone = timezone != null ? timezone : "Asia/Seoul";
         member.dailyResetHour = dailyResetHour;
-        return member;
-    }
-
-    public static Member reconstitute(MemberId id, String name, String email, String hashedPassword,
-                                      OAuthProvider provider, String providerId, MemberRole role,
-                                      String timezone, int dailyResetHour, LocalDateTime createdAt) {
-        Member member = reconstitute(id, name, email, hashedPassword, provider, providerId, role, timezone, dailyResetHour);
         member.createdAt = createdAt;
         return member;
     }
