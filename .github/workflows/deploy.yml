@@ -145,6 +145,7 @@ jobs:
             psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" <<SQL
               ALTER TABLE member ADD COLUMN IF NOT EXISTS timezone VARCHAR(50) NOT NULL DEFAULT '"'"'Asia/Seoul'"'"';
               ALTER TABLE member ADD COLUMN IF NOT EXISTS daily_reset_hour INTEGER NOT NULL DEFAULT 5;
+              ALTER TABLE member ADD COLUMN IF NOT EXISTS created_at TIMESTAMP DEFAULT NOW() NOT NULL;
             SQL
           '
           echo "Migrations complete"
