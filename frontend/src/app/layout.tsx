@@ -24,6 +24,13 @@ export const metadata: Metadata = {
     description: '시간 추적 앱 — 태그별 스톱워치로 매 순간을 기록하세요.',
   },
   robots: { index: true, follow: true },
+  icons: {
+    icon: [
+      { url: '/favicon.svg', type: 'image/svg+xml' },
+      { url: '/favicon.ico' },
+    ],
+    apple: '/icons/apple-touch-icon.png',
+  },
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {

@@ -1,9 +1,10 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
-import { useTagStore, type Tag } from '@/store/tagStore'
+import TagPickerModal from '@/components/TagPickerModal'
+import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 
 function todayLabel(): string {
@@ -17,6 +18,9 @@ export default function TodayView() {
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
   const handleOnline = useTagStore((s) => s.handleOnline)
+  const recentTagIds = useTagStore((s) => s.recentTagIds)
+  const addRecentTag = useTagStore((s) => s.addRecentTag)
+  const findById = useTagStore((s) => s.findById)
 
   const {
     tag,
@@ -59,36 +63,24 @@ export default function TodayView() {
     }
   }, [memberId, loadTags, handleOnline])
 
-  const flatTagList = useMemo(() => {
-    function flatten(nodes: Tag[], depth = 0): Array<Tag & { depth: number }> {
-      const result: Array<Tag & { depth: number }> = []
-      for (const node of nodes) {
-        if (node.type === 'ROOT') {
-          result.push(...flatten(node.children, 0))
-        } else if (node.type === 'CATEGORY') {
-          result.push({ ...node, depth })
-          result.push(...flatten(node.children, depth + 1))
-        } else {
-          result.push({ ...node, depth })
-        }
-      }
-      return result
-    }
-    return flatten(tagTree)
-  }, [tagTree])
-
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return
     setIsSwitching(true)
     setShowTagPicker(false)
     await loadTag(tagId, memberId)
+    addRecentTag(tagId)
     setIsSwitching(false)
-  }, [memberId, isSwitching, loadTag])
+  }, [memberId, isSwitching, loadTag, addRecentTag])
 
   const goToRecords = () => {
     if (!tag) return
     router.push(`/records/${tag.id}`)
   }
+
+  const recentTags = recentTagIds
+    .map((id) => findById(id))
+    .filter((t): t is NonNullable<typeof t> => t !== null && t.type !== 'DISCARDED' && t.id !== tag?.id)
+    .slice(0, 3)
 
   return (
     <AppShell isRunning={sw.isRunning}>
@@ -114,34 +106,15 @@ export default function TodayView() {
             recording
           </p>
           <button
-            onClick={() => setShowTagPicker(!showTagPicker)}
+            onClick={() => setShowTagPicker(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', color: 'var(--text)' }}
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: sw.isRunning ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
             <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{tag?.name ?? '태그를 선택하세요'}</span>
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ transform: showTagPicker ? 'rotate(180deg)' : undefined, transition: 'transform 0.15s' }}>
+            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </button>
-
-          {showTagPicker && (
-            <div style={{ marginTop: 4, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', maxHeight: 280, overflowY: 'auto' }}>
-              {flatTagList.map((t) => (
-                <button
-                  key={t.id}
-                  onClick={() => selectTag(t.id)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 8, width: '100%', padding: '9px 14px', background: t.id === tag?.id ? 'var(--accent-bg)' : 'transparent', border: 'none', cursor: 'pointer', color: t.id === tag?.id ? 'var(--accent)' : 'var(--text)', fontSize: 13 }}
-                >
-                  <span style={{ width: t.depth * 14 }} />
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: t.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
-                  <span style={{ flex: 1, textAlign: 'left' }}>{t.name}</span>
-                  {(t.dailyTotalTime ?? 0) > 0 && (
-                    <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{formatTime(t.dailyTotalTime ?? 0)}</span>
-                  )}
-                </button>
-              ))}
-            </div>
-          )}
         </section>
 
         {/* Timer display */}
@@ -222,6 +195,36 @@ export default function TodayView() {
           </button>
         </section>
 
+        {/* Recent tags */}
+        {recentTags.length > 0 && (
+          <section style={{ marginBottom: 24 }}>
+            <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>recent</p>
+            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+              {recentTags.map((t) => (
+                <button
+                  key={t.id}
+                  onClick={() => selectTag(t.id)}
+                  disabled={isSwitching}
+                  style={{
+                    display: 'flex', alignItems: 'center', gap: 6,
+                    height: 30, padding: '0 12px',
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border)',
+                    borderRadius: 'var(--radius)',
+                    color: 'var(--text-2)',
+                    fontSize: 12,
+                    cursor: isSwitching ? 'not-allowed' : 'pointer',
+                    opacity: isSwitching ? 0.5 : 1,
+                  }}
+                >
+                  <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
+                  {t.name}
+                </button>
+              ))}
+            </div>
+          </section>
+        )}
+
         {/* Stats */}
         {tag && (
           <>
@@ -267,6 +270,16 @@ export default function TodayView() {
           </>
         )}
       </div>
+
+      {/* Tag picker modal */}
+      {showTagPicker && (
+        <TagPickerModal
+          tagTree={tagTree}
+          currentTagId={tag?.id ?? null}
+          onSelect={selectTag}
+          onClose={() => setShowTagPicker(false)}
+        />
+      )}
     </AppShell>
   )
 }

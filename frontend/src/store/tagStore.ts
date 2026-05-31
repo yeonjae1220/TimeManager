@@ -8,7 +8,7 @@ import { peekTimerState, clearTimerState, markRetryAttempted, clearRetryAttempte
 export interface Tag {
   id: number
   name: string
-  type: 'ROOT' | 'CATEGORY' | 'LEAF'
+  type: 'ROOT' | 'CATEGORY' | 'LEAF' | 'DISCARDED'
   state: boolean
   elapsedTime: number
   dailyTotalTime?: number
@@ -40,6 +40,24 @@ function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj))
 }
 
+const RECENT_TAGS_KEY = 'recentTagIds'
+
+function loadRecentTagIds(): number[] {
+  if (typeof window === 'undefined') return []
+  try {
+    const raw = localStorage.getItem(RECENT_TAGS_KEY)
+    return raw ? JSON.parse(raw) : []
+  } catch {
+    return []
+  }
+}
+
+function saveRecentTagIds(ids: number[]) {
+  try {
+    localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(ids))
+  } catch { /* ignore */ }
+}
+
 interface TagStoreState {
   tagTree: Tag[]
   lastFetchedAt: number | null
@@ -47,8 +65,10 @@ interface TagStoreState {
   fetchError: boolean
   _activeMemberId: number | null
   _pendingRefreshMemberId: number | null
+  recentTagIds: number[]
 
   findById: (id: number) => Tag | null
+  addRecentTag: (tagId: number) => void
 
   loadTagsFromCache: (memberId: number) => Promise<void>
   loadTags: (memberId: number) => Promise<void>
@@ -68,8 +88,16 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   fetchError: false,
   _activeMemberId: null,
   _pendingRefreshMemberId: null,
+  recentTagIds: loadRecentTagIds(),
 
   findById: (id) => findTagById(get().tagTree, id),
+
+  addRecentTag(tagId) {
+    const prev = get().recentTagIds.filter((id) => id !== tagId)
+    const next = [tagId, ...prev].slice(0, 3)
+    set({ recentTagIds: next })
+    saveRecentTagIds(next)
+  },
 
   async loadTagsFromCache(memberId) {
     set({ fetchError: false, _activeMemberId: memberId })
