@@ -36,3 +36,8 @@ jwt:
 
 cors:
   allowed-origins: "http://localhost:3000,http://localhost:5173"
+
+admin:
+  email: admin@test.example.com
+  password:
+    bcrypt: "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi."
