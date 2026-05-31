@@ -1,5 +1,5 @@
 # ── Stage 1: Build ────────────────────────────────────────────────────────────
-FROM node:18-alpine AS build
+FROM node:20-alpine AS builder
 WORKDIR /app
 
 COPY package*.json ./
@@ -7,14 +7,23 @@ RUN npm ci
 
 COPY . .
 
-ARG VUE_APP_GOOGLE_CLIENT_ID
-ENV VUE_APP_GOOGLE_CLIENT_ID=$VUE_APP_GOOGLE_CLIENT_ID
+ARG NEXT_PUBLIC_GOOGLE_CLIENT_ID
+ENV NEXT_PUBLIC_GOOGLE_CLIENT_ID=$NEXT_PUBLIC_GOOGLE_CLIENT_ID
 
-RUN OUTPUT_DIR=dist npx vue-cli-service build
+RUN npm run build
 
-# ── Stage 2: Serve with Nginx ─────────────────────────────────────────────────
-FROM nginx:alpine
-COPY --from=build /app/dist /usr/share/nginx/html
-COPY nginx.conf /etc/nginx/conf.d/default.conf
+# ── Stage 2: Next.js standalone runtime ───────────────────────────────────────
+FROM node:20-alpine AS runner
+WORKDIR /app
 
-EXPOSE 80
+ENV NODE_ENV=production
+
+COPY --from=builder /app/.next/standalone ./
+COPY --from=builder /app/.next/static ./.next/static
+COPY --from=builder /app/public ./public
+
+EXPOSE 3000
+ENV PORT=3000
+ENV HOSTNAME=0.0.0.0
+
+CMD ["node", "server.js"]
