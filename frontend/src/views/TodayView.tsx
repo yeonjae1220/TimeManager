@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore } from '@/store/tagStore'
@@ -14,6 +14,7 @@ function todayLabel(): string {
 export default function TodayView() {
   const params = useParams()
   const router = useRouter()
+  const searchParams = useSearchParams()
   const memberId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
@@ -45,6 +46,11 @@ export default function TodayView() {
 
   useEffect(() => {
     if (!memberId) return
+    const tagIdParam = searchParams?.get('tagId')
+    if (tagIdParam) {
+      const tagId = Number(tagIdParam)
+      if (tagId) loadTag(tagId, memberId).then(() => addRecentTag(tagId))
+    }
     loadTags(memberId)
 
     const onOnline = () => {

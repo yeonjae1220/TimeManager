@@ -6,11 +6,13 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
+import project.TimeManager.application.dto.command.RenameTagCommand;
 import project.TimeManager.application.dto.command.ReorderTagsCommand;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
@@ -22,7 +24,7 @@ import project.TimeManager.domain.tag.model.Tag;
 @Transactional
 @RequiredArgsConstructor
 @Slf4j
-public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, ReorderTagsUseCase {
+public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, RenameTagUseCase, ReorderTagsUseCase {
 
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
@@ -74,6 +76,22 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, Reor
         updateTagTimeBatchPort.updateTagTimeBatch(command.newParentTagId(), tagTotalTime);
 
         log.info("Tag moved: id={}, newParentId={}", command.tagId(), command.newParentTagId());
+        return command.tagId();
+    }
+
+    @Override
+    public Long renameTag(RenameTagCommand command) {
+        Tag tag = loadTagPort.loadTag(command.tagId())
+                .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+
+        if (!tag.getMemberId().value().equals(command.memberId())) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+
+        tag.rename(command.newName());
+        saveTagPort.saveTag(tag);
+
+        log.info("Tag renamed: id={}, newName={}", command.tagId(), command.newName());
         return command.tagId();
     }
 

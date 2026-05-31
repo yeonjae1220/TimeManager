@@ -111,6 +111,10 @@ public class Tag {
         this.parentId = newParentId;
     }
 
+    public void rename(String newName) {
+        this.name = newName;
+    }
+
     public void updateTagTotalTime(Long delta) {
         this.tagTotalTime += delta;
     }

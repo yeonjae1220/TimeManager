@@ -70,6 +70,12 @@ interface TagStoreState {
   findById: (id: number) => Tag | null
   addRecentTag: (tagId: number) => void
 
+  createTag: (name: string, parentTagId: number) => Promise<void>
+  renameTag: (tagId: number, name: string) => Promise<void>
+  moveTag: (tagId: number, newParentTagId: number) => Promise<void>
+  reorderTags: (parentTagId: number, orderedTagIds: number[]) => Promise<void>
+  discardTag: (tagId: number, discardedParentId: number) => Promise<void>
+
   loadTagsFromCache: (memberId: number) => Promise<void>
   loadTags: (memberId: number) => Promise<void>
   refreshTags: (memberId: number) => void
@@ -97,6 +103,36 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     const next = [tagId, ...prev].slice(0, 3)
     set({ recentTagIds: next })
     saveRecentTagIds(next)
+  },
+
+  async createTag(name, parentTagId) {
+    await apiClient.post('/api/v1/tags', { tagName: name, parentTagId })
+    const mid = get()._activeMemberId
+    if (mid) await get()._doRefreshTags(mid)
+  },
+
+  async renameTag(tagId, name) {
+    await apiClient.patch(`/api/v1/tags/${tagId}/name`, { name })
+    const mid = get()._activeMemberId
+    if (mid) await get()._doRefreshTags(mid)
+  },
+
+  async moveTag(tagId, newParentTagId) {
+    await apiClient.patch(`/api/v1/tags/${tagId}`, { newParentTagId })
+    const mid = get()._activeMemberId
+    if (mid) await get()._doRefreshTags(mid)
+  },
+
+  async reorderTags(parentTagId, orderedTagIds) {
+    await apiClient.patch('/api/v1/tags/reorder', { parentTagId, orderedTagIds })
+    const mid = get()._activeMemberId
+    if (mid) await get()._doRefreshTags(mid)
+  },
+
+  async discardTag(tagId, discardedParentId) {
+    await apiClient.patch(`/api/v1/tags/${tagId}`, { newParentTagId: discardedParentId })
+    const mid = get()._activeMemberId
+    if (mid) await get()._doRefreshTags(mid)
   },
 
   async loadTagsFromCache(memberId) {

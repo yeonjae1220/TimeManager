@@ -8,6 +8,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.MoveTagRequest;
+import project.TimeManager.adapter.in.web.dto.request.RenameTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.ReorderTagsRequest;
 import project.TimeManager.adapter.in.web.dto.request.ResetTimerRequest;
 import project.TimeManager.adapter.in.web.dto.request.StartTimerRequest;
@@ -16,6 +17,7 @@ import project.TimeManager.adapter.in.web.dto.response.TagResponse;
 import project.TimeManager.adapter.in.web.dto.response.TagTreeResponse;
 import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
+import project.TimeManager.application.dto.command.RenameTagCommand;
 import project.TimeManager.application.dto.command.ReorderTagsCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
@@ -26,6 +28,7 @@ import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.GetTagListQuery;
 import project.TimeManager.domain.port.in.tag.GetTagQuery;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
 import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
@@ -47,6 +50,7 @@ public class TagApiController {
     private final ResetTimerUseCase resetTimerUseCase;
     private final CreateTagUseCase createTagUseCase;
     private final MoveTagUseCase moveTagUseCase;
+    private final RenameTagUseCase renameTagUseCase;
     private final ReorderTagsUseCase reorderTagsUseCase;
 
     @GetMapping
@@ -87,6 +91,15 @@ public class TagApiController {
                                         @Valid @RequestBody MoveTagRequest request) {
         return ResponseEntity.ok(moveTagUseCase.moveTag(
                 new MoveTagCommand(tagId, request.newParentTagId(), memberId)
+        ));
+    }
+
+    @PatchMapping("/{tagId}/name")
+    public ResponseEntity<Long> renameTag(@PathVariable Long tagId,
+                                          @AuthenticationPrincipal Long memberId,
+                                          @Valid @RequestBody RenameTagRequest request) {
+        return ResponseEntity.ok(renameTagUseCase.renameTag(
+                new RenameTagCommand(tagId, request.name(), memberId)
         ));
     }
 
