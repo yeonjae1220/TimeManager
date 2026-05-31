@@ -92,6 +92,13 @@ spec:
             initialDelaySeconds: 40
             periodSeconds: 10
             failureThreshold: 5
+          livenessProbe:
+            httpGet:
+              path: /actuator/health/liveness
+              port: 8080
+            initialDelaySeconds: 60
+            periodSeconds: 15
+            failureThreshold: 3
           resources:
             requests:
               memory: "512Mi"
