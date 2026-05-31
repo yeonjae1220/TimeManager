@@ -12,7 +12,7 @@ spring:
     properties:
       hibernate:
         dialect: org.hibernate.dialect.PostgreSQLDialect
-        format_sql: true
+        format_sql: false
   data:
     redis:
       host: redis
@@ -26,6 +26,23 @@ google:
     client-secret: ${GOOGLE_CLIENT_SECRET:}
     token-uri: https://oauth2.googleapis.com/token
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
+
+management:
+  health:
+    probes:
+      enabled: true
+  endpoints:
+    web:
+      exposure:
+        include: health
+  endpoint:
+    health:
+      show-details: never
+      group:
+        liveness:
+          include: livenessState
+        readiness:
+          include: readinessState, db, redis
 
 logging:
   level:
