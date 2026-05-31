@@ -55,14 +55,18 @@ public class SecurityConfig {
     @Value("${admin.password.bcrypt}")
     private String adminPasswordBcrypt;
 
+    private static final java.util.Set<String> KNOWN_TEST_HASHES = java.util.Set.of(
+            "$2a$10$92IXUNpkjO0rOQ5byMi.Ye4oKoEa3Ro9llC/.og/at2uheWG/igi."
+    );
+
     @PostConstruct
     public void validateAdminCredentials() {
         if (adminEmail == null || adminEmail.isBlank()) {
             throw new IllegalStateException("[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
         }
-        if (adminEmail.endsWith(".local")) {
+        if (adminEmail.endsWith(".local") || adminEmail.endsWith(".example.com")) {
             throw new IllegalStateException(
-                    "[Admin] ADMIN_EMAIL 기본값(.local)이 운영 환경에서 사용되었습니다. ADMIN_EMAIL을 실제 값으로 설정하세요.");
+                    "[Admin] ADMIN_EMAIL 기본값이 운영 환경에서 사용되었습니다. ADMIN_EMAIL을 실제 값으로 설정하세요.");
         }
         if (adminPasswordBcrypt == null
                 || adminPasswordBcrypt.contains("placeholder")
@@ -72,6 +76,10 @@ public class SecurityConfig {
                     && !adminPasswordBcrypt.startsWith("$2y$"))) {
             throw new IllegalStateException(
                     "[Admin] ADMIN_PASSWORD_BCRYPT가 유효한 BCrypt 해시가 아닙니다.");
+        }
+        if (KNOWN_TEST_HASHES.contains(adminPasswordBcrypt)) {
+            throw new IllegalStateException(
+                    "[Admin] ADMIN_PASSWORD_BCRYPT가 공개된 테스트 해시입니다. 운영 환경에서 사용할 수 없습니다.");
         }
         log.info("[Admin] admin 계정 설정이 유효합니다: email={}", adminEmail);
     }
