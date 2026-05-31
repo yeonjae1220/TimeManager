@@ -6,6 +6,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.web.servlet.FilterRegistrationBean;
+import org.springframework.core.env.Environment;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -39,6 +40,7 @@ import java.util.List;
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final Environment environment;
 
     /**
      * TM1: cors.allowed-origins 빈값 처리 명확화
@@ -61,6 +63,11 @@ public class SecurityConfig {
 
     @PostConstruct
     public void validateAdminCredentials() {
+        boolean isTest = Arrays.asList(environment.getActiveProfiles()).contains("test");
+        if (isTest) {
+            log.info("[Admin] test 프로파일 — admin 자격증명 검증 생략");
+            return;
+        }
         if (adminEmail == null || adminEmail.isBlank()) {
             throw new IllegalStateException("[Admin] ADMIN_EMAIL 환경변수가 설정되지 않았습니다.");
         }
