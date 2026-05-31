@@ -3,8 +3,6 @@ kind: Ingress
 metadata:
   name: timemanager-ingress
   namespace: timemanager
-  annotations:
-    nginx.ingress.kubernetes.io/rewrite-target: /
 spec:
   ingressClassName: nginx
   rules:
