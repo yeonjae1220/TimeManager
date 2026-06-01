@@ -1,11 +1,12 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
+import { peekTimerState } from '@/utils/timerPersistence'
 
 function todayLabel(): string {
   return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
@@ -19,8 +20,8 @@ export default function TodayView() {
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
   const handleOnline = useTagStore((s) => s.handleOnline)
-  const recentTagIds = useTagStore((s) => s.recentTagIds)
   const addRecentTag = useTagStore((s) => s.addRecentTag)
+  const recentTagIds = useTagStore((s) => s.recentTagIds)
   const findById = useTagStore((s) => s.findById)
 
   const {
@@ -43,14 +44,25 @@ export default function TodayView() {
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const didAutoLoad = useRef(false)
 
   useEffect(() => {
     if (!memberId) return
-    const tagIdParam = searchParams?.get('tagId')
-    if (tagIdParam) {
-      const tagId = Number(tagIdParam)
-      if (tagId) loadTag(tagId, memberId).then(() => addRecentTag(tagId))
+
+    if (!didAutoLoad.current) {
+      didAutoLoad.current = true
+      const tagIdParam = searchParams?.get('tagId')
+      if (tagIdParam) {
+        const tagId = Number(tagIdParam)
+        if (tagId) loadTag(tagId, memberId).then(() => addRecentTag(tagId)).catch(() => {})
+      } else {
+        const saved = peekTimerState()
+        const recentIds = useTagStore.getState().recentTagIds
+        const autoTagId = saved?.tagId ?? recentIds[0] ?? null
+        if (autoTagId) loadTag(autoTagId, memberId).then(() => addRecentTag(autoTagId)).catch(() => {})
+      }
     }
+
     loadTags(memberId)
 
     const onOnline = () => {
@@ -67,7 +79,7 @@ export default function TodayView() {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
     }
-  }, [memberId, loadTags, handleOnline])
+  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return
