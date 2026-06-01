@@ -1,19 +1,59 @@
 'use client'
 
 import Link from 'next/link'
-import { useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
+import { refreshAuth } from '@/utils/refreshAuth'
+
+function LandingSplash() {
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+      <div style={{ display: 'flex', flexDirection: 'column', gap: 12, width: 260 }}>
+        {[70, 50, 50, 30].map((w, i) => (
+          <div key={i} style={{
+            height: 12, borderRadius: 6, background: 'var(--surface-2)',
+            width: `${w}%`, animation: 'pulse 1.4s ease infinite',
+            animationDelay: `${i * 0.12}s`,
+          }} />
+        ))}
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
+    </div>
+  )
+}
 
 export default function LandingView() {
   const router = useRouter()
   const { accessToken, memberId } = useAuthStore()
+  // memberId가 persist에 남아 있으면 refresh token으로 세션 복원을 시도한다.
+  // 복원하는 동안 랜딩 대신 스플래시를 보여 깜빡임을 막는다.
+  // SSR/CSR 모두 true로 시작해 hydration 불일치를 막는다.
+  // useEffect에서 memberId 없으면 즉시 false로 전환.
+  const [restoring, setRestoring] = useState(true)
 
   useEffect(() => {
     if (accessToken && memberId) {
       router.replace(`/members/${memberId}/today`)
+      return
     }
-  }, [accessToken, memberId, router])
+
+    if (!accessToken && memberId) {
+      refreshAuth().then((token) => {
+        if (token) {
+          router.replace(`/members/${memberId}/today`)
+        } else {
+          setRestoring(false)
+        }
+      })
+      return
+    }
+
+    setRestoring(false)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  if (restoring) return <LandingSplash />
 
   return (
     <div className="page landing-page">
