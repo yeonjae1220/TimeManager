@@ -88,13 +88,13 @@ export default function TodayView() {
     .filter((t): t is NonNullable<typeof t> => t !== null && t.type !== 'DISCARDED' && t.id !== tag?.id)
     .slice(0, 3)
 
+  const timerProgress = sw.dailyGoalTime > 0
+    ? Math.min(100, Math.max(0, (sw.dailyTotalTimeCal / sw.dailyGoalTime) * 100))
+    : 100
+
   return (
     <AppShell isRunning={sw.isRunning}>
       <div className="page today-page" style={{ position: 'relative' }}>
-        {sw.isRunning && (
-          <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: 2, background: 'var(--running)', boxShadow: '0 0 8px var(--running)' }} />
-        )}
-
         {!isOnline && (
           <div className="offline-banner">
             <span className="mono">오프라인 — 복귀 후 자동 동기화됩니다</span>
@@ -126,10 +126,31 @@ export default function TodayView() {
         {/* Timer display */}
         {tag ? (
           <section style={{ textAlign: 'center', padding: '32px 0 24px' }}>
-            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'clamp(36px, 12vw, 64px)', fontWeight: 500, color: sw.isRunning ? 'var(--running)' : 'var(--text)', letterSpacing: '-0.02em', transition: 'color 0.2s' }}>
+            <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'clamp(36px, 12vw, 64px)', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.02em', transition: 'color 0.2s' }}>
               {formattedElapsedTime}
             </div>
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>elapsed</span>
+            <div
+              aria-hidden="true"
+              style={{
+                width: 'min(220px, 58vw)',
+                height: 2,
+                margin: '14px auto 0',
+                overflow: 'hidden',
+                background: 'var(--border-subtle)',
+                borderRadius: 999,
+              }}
+            >
+              <div
+                style={{
+                  width: sw.isRunning ? `${timerProgress}%` : 0,
+                  height: '100%',
+                  background: 'var(--text-2)',
+                  opacity: sw.isRunning ? 0.45 : 0,
+                  transition: 'width 0.6s ease, opacity 0.2s ease',
+                }}
+              />
+            </div>
           </section>
         ) : (
           <section style={{ textAlign: 'center', padding: '32px 0 24px' }}>

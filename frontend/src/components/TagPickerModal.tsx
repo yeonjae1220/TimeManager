@@ -49,6 +49,10 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
     }
   }, [onSelect])
 
+  const selectTag = useCallback((tagId: number) => {
+    onSelect(tagId)
+  }, [onSelect])
+
   const navigateBack = useCallback(() => {
     setPathIds((prev) => prev.slice(0, -1))
   }, [])
@@ -117,40 +121,73 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
           const isActive = t.id === currentTagId
 
           return (
-            <button
+            <div
               key={t.id}
-              onClick={() => navigateInto(t)}
               style={{
                 display: 'flex',
                 alignItems: 'center',
-                gap: 12,
-                width: '100%',
-                padding: '12px 20px',
-                background: isActive ? 'var(--accent-bg)' : 'transparent',
-                border: 'none',
                 borderBottom: '1px solid var(--border-subtle)',
-                cursor: 'pointer',
+                background: isActive ? 'var(--accent-bg)' : 'transparent',
                 color: isActive ? 'var(--accent)' : 'var(--text)',
-                textAlign: 'left',
               }}
             >
-              <span style={{
-                width: 7, height: 7, borderRadius: '50%',
-                background: t.state ? 'var(--running)' : isActive ? 'var(--accent)' : 'var(--text-3)',
-                flexShrink: 0,
-              }} />
-              <span style={{ flex: 1, fontSize: 14 }}>{t.name}</span>
-              {(t.dailyTotalTime ?? 0) > 0 && (
-                <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>
-                  {Math.floor((t.dailyTotalTime ?? 0) / 3600)}h {Math.floor(((t.dailyTotalTime ?? 0) % 3600) / 60)}m
-                </span>
-              )}
+              <button
+                onClick={() => navigateInto(t)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 12,
+                  flex: 1,
+                  padding: '12px 20px',
+                  background: 'none',
+                  border: 'none',
+                  cursor: 'pointer',
+                  color: 'inherit',
+                  textAlign: 'left',
+                  minWidth: 0,
+                }}
+              >
+                <span style={{
+                  width: 7, height: 7, borderRadius: '50%',
+                  background: t.state ? 'var(--running)' : isActive ? 'var(--accent)' : 'var(--text-3)',
+                  flexShrink: 0,
+                }} />
+                <span style={{ flex: 1, fontSize: 14, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
+                {(t.dailyTotalTime ?? 0) > 0 && (
+                  <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', flexShrink: 0 }}>
+                    {Math.floor((t.dailyTotalTime ?? 0) / 3600)}h {Math.floor(((t.dailyTotalTime ?? 0) % 3600) / 60)}m
+                  </span>
+                )}
+                {hasChildren && (
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
+                    <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                )}
+              </button>
               {hasChildren && (
-                <svg width="12" height="12" viewBox="0 0 12 12" fill="none" style={{ flexShrink: 0, opacity: 0.4 }}>
-                  <path d="M4 2l4 4-4 4" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
+                <button
+                  onClick={() => selectTag(t.id)}
+                  aria-label={`${t.name} 태그 선택`}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    width: 40,
+                    height: 44,
+                    flexShrink: 0,
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    color: isActive ? 'var(--accent)' : 'var(--text-3)',
+                    borderLeft: '1px solid var(--border-subtle)',
+                  }}
+                >
+                  <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+                    <path d="M2 7l4 4 6-7" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                </button>
               )}
-            </button>
+            </div>
           )
         })}
       </div>
