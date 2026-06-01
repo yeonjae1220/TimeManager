@@ -61,10 +61,10 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', padding: '20px' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: '20px' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-    <div style={{ width: '100%', maxWidth: 400, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', maxHeight: '70vh', overflow: 'hidden', boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+      <div style={{ width: '100%', maxWidth: 400, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', maxHeight: '70vh', overflow: 'hidden', boxShadow: 'var(--shadow-modal)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
         {pathIds.length > 0 ? (

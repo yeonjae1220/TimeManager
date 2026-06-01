@@ -1,10 +1,25 @@
 import type { Metadata } from 'next'
 import { headers } from 'next/headers'
+import { THEME_STORAGE_KEY } from '@/utils/theme'
 import './globals.css'
 
 export const dynamic = 'force-dynamic'
 
 const BASE_URL = 'https://timemgr.mungji.com'
+
+const themeScript = `
+(function () {
+  try {
+    var stored = window.localStorage.getItem('${THEME_STORAGE_KEY}');
+    var theme = stored === 'light' ? 'light' : 'dark';
+    document.documentElement.dataset.theme = theme;
+    document.documentElement.style.colorScheme = theme;
+  } catch (_) {
+    document.documentElement.dataset.theme = 'dark';
+    document.documentElement.style.colorScheme = 'dark';
+  }
+})();
+`
 
 // eslint-disable-next-line react-refresh/only-export-components
 export const metadata: Metadata = {
@@ -36,7 +51,10 @@ export const metadata: Metadata = {
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? ''
   return (
-    <html lang="ko">
+    <html lang="ko" data-theme="dark" suppressHydrationWarning>
+      <head>
+        <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
+      </head>
       <body data-nonce={nonce}>{children}</body>
     </html>
   )

@@ -2,11 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import { Moon, Sun } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import { useAuthStore } from '@/store/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { memberApi } from '@/api/member'
 import apiClient from '@/utils/apiClient'
+import { THEME_STORAGE_KEY } from '@/utils/theme'
+
+type ThemeMode = 'dark' | 'light'
 
 interface Profile {
   id: number
@@ -38,6 +42,31 @@ export default function ProfileView() {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
+  const [theme, setTheme] = useState<ThemeMode>('dark')
+
+  useEffect(() => {
+    const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
+    setTheme(current)
+  }, [])
+
+  function handleThemeChange(nextTheme: ThemeMode) {
+    if (nextTheme === theme) return
+
+    const root = document.documentElement
+    root.classList.add('theme-transition')
+    root.dataset.theme = nextTheme
+    root.style.colorScheme = nextTheme
+    try {
+      localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
+    } catch {
+      // Keep the in-session theme change even if browser storage is unavailable.
+    }
+    setTheme(nextTheme)
+
+    window.setTimeout(() => {
+      root.classList.remove('theme-transition')
+    }, 240)
+  }
 
   useEffect(() => {
     if (!memberId) return
@@ -142,8 +171,61 @@ export default function ProfileView() {
                 <input
                   value={name}
                   onChange={(e) => setName(e.target.value)}
-                  style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                  style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                 />
+              </div>
+
+              {/* Theme */}
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>THEME</label>
+                <div
+                  role="radiogroup"
+                  aria-label="Theme"
+                  style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: 3,
+                    padding: 3,
+                    background: 'var(--surface-2)',
+                    border: '1px solid var(--border-subtle)',
+                    borderRadius: 'var(--radius)',
+                  }}
+                >
+                  {([
+                    { value: 'dark' as const, label: 'Dark', Icon: Moon },
+                    { value: 'light' as const, label: 'Light', Icon: Sun },
+                  ]).map(({ value, label, Icon }) => {
+                    const selected = theme === value
+                    return (
+                      <button
+                        key={value}
+                        type="button"
+                        role="radio"
+                        aria-checked={selected}
+                        onClick={() => handleThemeChange(value)}
+                        className="mono"
+                        style={{
+                          height: 34,
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          gap: 7,
+                          border: '1px solid',
+                          borderColor: selected ? 'var(--accent)' : 'transparent',
+                          borderRadius: 'calc(var(--radius) - 2px)',
+                          background: selected ? 'var(--accent-bg)' : 'transparent',
+                          color: selected ? 'var(--accent)' : 'var(--text-2)',
+                          fontSize: 11,
+                          letterSpacing: '0.05em',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Icon size={14} strokeWidth={1.8} />
+                        {label}
+                      </button>
+                    )
+                  })}
+                </div>
               </div>
 
               {/* Daily reset hour */}
@@ -177,7 +259,7 @@ export default function ProfileView() {
                       value={currentPassword}
                       onChange={(e) => setCurrentPassword(e.target.value)}
                       placeholder="현재 비밀번호"
-                      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -187,7 +269,7 @@ export default function ProfileView() {
                       value={newPassword}
                       onChange={(e) => setNewPassword(e.target.value)}
                       placeholder="새 비밀번호 (변경 시에만)"
-                      style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                     />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
@@ -197,7 +279,7 @@ export default function ProfileView() {
                       value={confirmPassword}
                       onChange={(e) => setConfirmPassword(e.target.value)}
                       placeholder="새 비밀번호 확인"
-                      style={{ background: 'var(--surface-2)', border: `1px solid ${newPassword && confirmPassword && newPassword !== confirmPassword ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+                      style={{ background: 'var(--input-bg)', border: `1px solid ${newPassword && confirmPassword && newPassword !== confirmPassword ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
                     />
                   </div>
                 </>

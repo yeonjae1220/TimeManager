@@ -44,7 +44,7 @@ function UndoToast({ onUndo, onDismiss }: UndoToastProps) {
   }, [onDismiss])
 
   return (
-    <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: '0 4px 16px rgba(0,0,0,0.3)', zIndex: 300, whiteSpace: 'nowrap' }}>
+    <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-floating)', zIndex: 300, whiteSpace: 'nowrap' }}>
       <span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>삭제됨</span>
       <button
         onClick={onUndo}

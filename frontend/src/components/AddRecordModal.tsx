@@ -58,10 +58,10 @@ export default function AddRecordModal({ tagTree, defaultTagId, onClose, onSaved
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', padding: 20 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: 20 }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+      <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 18, boxShadow: 'var(--shadow-modal)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>add session</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}>
@@ -73,7 +73,7 @@ export default function AddRecordModal({ tagTree, defaultTagId, onClose, onSaved
           <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>TAG</label>
           <button
             onClick={() => setShowTagPicker(true)}
-            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--surface-2)', border: `1px solid ${!tagId && error ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 'var(--radius)', color: tagId ? 'var(--text)' : 'var(--text-3)', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 12px', background: 'var(--input-bg)', border: `1px solid ${!tagId && error ? 'var(--danger)' : 'var(--border)'}`, borderRadius: 'var(--radius)', color: tagId ? 'var(--text)' : 'var(--text-3)', fontSize: 13, cursor: 'pointer', textAlign: 'left' }}
           >
             <span style={{ flex: 1 }}>{selectedTag?.name ?? '태그를 선택하세요'}</span>
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
@@ -82,12 +82,12 @@ export default function AddRecordModal({ tagTree, defaultTagId, onClose, onSaved
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>START</label>
-          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font-mono)', outline: 'none' }} />
+          <input type="datetime-local" value={startTime} onChange={(e) => setStartTime(e.target.value)} style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font-mono)', outline: 'none' }} />
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
           <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>END</label>
-          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font-mono)', outline: 'none' }} />
+          <input type="datetime-local" value={endTime} onChange={(e) => setEndTime(e.target.value)} style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 12, fontFamily: 'var(--font-mono)', outline: 'none' }} />
         </div>
 
         <label style={{ display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer' }}>

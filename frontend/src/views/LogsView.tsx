@@ -528,9 +528,9 @@ function TagTab({ memberId }: { memberId: number }) {
       </div>
       {period === 'custom' && (
         <div style={{ display: 'flex', gap: 8, marginBottom: 20, alignItems: 'center' }}>
-          <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }} />
+          <input type="date" value={customStart} onChange={(e) => setCustomStart(e.target.value)} style={{ flex: 1, background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }} />
           <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>~</span>
-          <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }} />
+          <input type="date" value={customEnd} onChange={(e) => setCustomEnd(e.target.value)} style={{ flex: 1, background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }} />
         </div>
       )}
 
@@ -611,7 +611,7 @@ export default function LogsView() {
                 key={t.key}
                 onClick={() => setActiveTab(t.key)}
                 className="mono"
-                style={{ flex: 1, padding: '6px 0', background: activeTab === t.key ? 'var(--surface)' : 'transparent', border: 'none', borderRadius: 'calc(var(--radius) - 2px)', color: activeTab === t.key ? 'var(--text)' : 'var(--text-3)', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeTab === t.key ? '0 1px 4px rgba(0,0,0,0.15)' : undefined }}
+                style={{ flex: 1, padding: '6px 0', background: activeTab === t.key ? 'var(--surface)' : 'transparent', border: 'none', borderRadius: 'calc(var(--radius) - 2px)', color: activeTab === t.key ? 'var(--text)' : 'var(--text-3)', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeTab === t.key ? 'var(--shadow-active)' : undefined }}
               >
                 {t.label}
               </button>

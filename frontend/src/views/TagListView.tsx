@@ -117,10 +117,10 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
 
   return (
     <div
-      style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)', padding: 20 }}
+      style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: 20 }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: '0 8px 32px rgba(0,0,0,0.4)' }}>
+      <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: 'var(--shadow-modal)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>edit tag</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}>
@@ -133,7 +133,7 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
-            style={{ background: 'var(--surface-2)', border: `1px solid ${isDuplicateName ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            style={{ background: 'var(--input-bg)', border: `1px solid ${isDuplicateName ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           />
           {isDuplicateName && (
             <p className="mono" style={{ fontSize: 10, color: 'var(--warning, #f59e0b)' }}>같은 계층에 동일한 이름이 있습니다 (저장은 허용됩니다)</p>
@@ -145,7 +145,7 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
           <select
             value={selectedParent}
             onChange={(e) => setSelectedParent(Number(e.target.value))}
-            style={{ background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
+            style={{ background: 'var(--input-bg)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           >
             {parentOptions.map((p) => (
               <option key={p.id} value={p.id}>
@@ -219,7 +219,7 @@ function AddTagForm({ parentId: _parentId, siblingNames, onAdd, onCancel }: AddT
         value={name}
         onChange={(e) => setName(e.target.value)}
         placeholder="태그 이름"
-        style={{ flex: 1, background: 'var(--surface-2)', border: `1px solid ${isDuplicate ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }}
+        style={{ flex: 1, background: 'var(--input-bg)', border: `1px solid ${isDuplicate ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }}
       />
       {isDuplicate && <span className="mono" style={{ fontSize: 9, color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>중복 이름</span>}
       <button type="submit" disabled={saving || !name.trim()} style={{ padding: '6px 12px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: saving || !name.trim() ? 0.4 : 1 }}>

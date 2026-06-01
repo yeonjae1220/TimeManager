@@ -46,6 +46,39 @@ const INITIAL_STATE: StopwatchState = {
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
+  const wakeLockRef = useRef<WakeLockSentinel | null>(null)
+  const isRunningRef = useRef(false)
+
+  const requestWakeLock = useCallback(async () => {
+    if (!('wakeLock' in navigator)) return
+    try {
+      wakeLockRef.current = await navigator.wakeLock.request('screen')
+      wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null })
+    } catch (e) {
+      console.warn('Wake Lock 요청 실패:', e)
+    }
+  }, [])
+
+  const releaseWakeLock = useCallback(async () => {
+    if (wakeLockRef.current) {
+      await wakeLockRef.current.release()
+      wakeLockRef.current = null
+    }
+  }, [])
+
+  // isRunningRef를 sw.isRunning과 동기화 — visibilitychange 핸들러에서 안전하게 읽기 위함
+  useEffect(() => { isRunningRef.current = sw.isRunning }, [sw.isRunning])
+
+  // 탭이 다시 활성화되면 타이머 실행 중일 때 Wake Lock 재취득
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isRunningRef.current) {
+        requestWakeLock()
+      }
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [requestWakeLock])
 
   const tick = useCallback(() => {
     setSw((prev) => {
@@ -106,10 +139,11 @@ export function useTagTimer() {
         totalTimeCal: data.totalTime || 0,
       }
       setSw(newSw)
+      if (newSw.isRunning) requestWakeLock()
     } catch (e) {
       console.error('Failed to load tag:', e)
     }
-  }, [])
+  }, [requestWakeLock])
 
   const startStopwatch = useCallback(async () => {
     if (!tag || sw.isRunning) return
@@ -128,6 +162,7 @@ export function useTagTimer() {
       dailyTotalTime: sw.dailyTotalTime,
       dailyGoalTime: sw.dailyGoalTime,
     })
+    requestWakeLock()
 
     try {
       await apiClient.post(`/api/v1/tags/${tag.id}/timer/start`, {
@@ -136,7 +171,7 @@ export function useTagTimer() {
     } catch (e) {
       console.warn('Start API failed (offline?):', e)
     }
-  }, [tag, sw])
+  }, [tag, sw, requestWakeLock])
 
   const stopStopwatch = useCallback(async () => {
     if (!tag || !sw.isRunning) return
@@ -145,6 +180,7 @@ export function useTagTimer() {
     const newSw = { ...sw, isRunning: false, latestEndTime: endTime, elapsedTime: elapsed, elapsedTimeCal: elapsed }
     setSw(newSw)
     useTagStore.getState().setTagState(tag.id, false)
+    releaseWakeLock()
 
     saveTimerState({
       tagId: tag.id,
@@ -169,7 +205,7 @@ export function useTagTimer() {
     } catch (e) {
       console.warn('Stop API failed (offline?):', e)
     }
-  }, [tag, sw])
+  }, [tag, sw, releaseWakeLock])
 
   const resetStopwatch = useCallback(() => {
     if (!tag || sw.isRunning) return
