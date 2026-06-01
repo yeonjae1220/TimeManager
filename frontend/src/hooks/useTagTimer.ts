@@ -46,22 +46,39 @@ const INITIAL_STATE: StopwatchState = {
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
+  const [isWakeLockActive, setIsWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const isRunningRef = useRef(false)
 
   const requestWakeLock = useCallback(async () => {
     if (!('wakeLock' in navigator)) return
+    // 이미 보유 중이면 중복 취득 방지
+    if (wakeLockRef.current) return
+    // 문서가 보이지 않으면 취득 불가(NotAllowedError) — visibilitychange에서 재시도
+    if (document.visibilityState !== 'visible') return
     try {
-      wakeLockRef.current = await navigator.wakeLock.request('screen')
-      wakeLockRef.current.addEventListener('release', () => { wakeLockRef.current = null })
+      const sentinel = await navigator.wakeLock.request('screen')
+      wakeLockRef.current = sentinel
+      setIsWakeLockActive(true)
+      sentinel.addEventListener('release', () => {
+        wakeLockRef.current = null
+        setIsWakeLockActive(false)
+      })
     } catch (e) {
+      // 자동 절전·백그라운드 전환 등으로 거부될 수 있음 — 조용히 무시하고 재시도에 맡김
       console.warn('Wake Lock 요청 실패:', e)
+      setIsWakeLockActive(false)
     }
   }, [])
 
   const releaseWakeLock = useCallback(async () => {
+    setIsWakeLockActive(false)
     if (wakeLockRef.current) {
-      await wakeLockRef.current.release()
+      try {
+        await wakeLockRef.current.release()
+      } catch {
+        /* 이미 해제됨 — 무시 */
+      }
       wakeLockRef.current = null
     }
   }, [])
@@ -70,6 +87,7 @@ export function useTagTimer() {
   useEffect(() => { isRunningRef.current = sw.isRunning }, [sw.isRunning])
 
   // 탭이 다시 활성화되면 타이머 실행 중일 때 Wake Lock 재취득
+  // (OS가 백그라운드 전환 시 자동으로 wake lock을 해제하므로 복귀 시 재취득 필요)
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'visible' && isRunningRef.current) {
@@ -79,6 +97,16 @@ export function useTagTimer() {
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
   }, [requestWakeLock])
+
+  // 언마운트 시 wake lock 해제 — today 화면을 떠나면 sentinel 정리
+  useEffect(() => {
+    return () => {
+      if (wakeLockRef.current) {
+        wakeLockRef.current.release().catch(() => {})
+        wakeLockRef.current = null
+      }
+    }
+  }, [])
 
   const tick = useCallback(() => {
     setSw((prev) => {
@@ -141,7 +169,7 @@ export function useTagTimer() {
       setSw(newSw)
       if (newSw.isRunning) requestWakeLock()
     } catch (e) {
-      console.error('Failed to load tag:', e)
+      console.error('Failed to load tag:', e instanceof Error ? e.message : String(e))
     }
   }, [requestWakeLock])
 
@@ -228,6 +256,7 @@ export function useTagTimer() {
   return {
     tag,
     sw,
+    isWakeLockActive,
     loadTag,
     startStopwatch,
     stopStopwatch,

@@ -27,6 +27,7 @@ export default function TodayView() {
   const {
     tag,
     sw,
+    isWakeLockActive,
     loadTag,
     startStopwatch,
     stopStopwatch,
@@ -163,6 +164,28 @@ export default function TodayView() {
                 }}
               />
             </div>
+            {sw.isRunning && isWakeLockActive && (
+              <div
+                role="status"
+                aria-label="화면 절전 방지 활성"
+                style={{
+                  display: 'inline-flex', alignItems: 'center', gap: 6,
+                  marginTop: 14, padding: '4px 10px',
+                  background: 'var(--surface-2)', border: '1px solid var(--border)',
+                  borderRadius: 999,
+                }}
+              >
+                <span aria-hidden="true" style={{ display: 'inline-flex' }}>
+                  <svg width="11" height="11" viewBox="0 0 14 14" fill="none">
+                    <rect x="2.5" y="1" width="9" height="12" rx="1.6" stroke="var(--running)" strokeWidth="1.2" />
+                    <circle cx="7" cy="10" r="0.9" fill="var(--running)" />
+                  </svg>
+                </span>
+                <span className="mono" style={{ fontSize: 9, color: 'var(--text-2)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
+                  화면 절전 방지 중
+                </span>
+              </div>
+            )}
           </section>
         ) : (
           <section style={{ textAlign: 'center', padding: '32px 0 24px' }}>

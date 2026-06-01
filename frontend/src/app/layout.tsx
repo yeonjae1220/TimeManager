@@ -1,6 +1,7 @@
-import type { Metadata } from 'next'
+import type { Metadata, Viewport } from 'next'
 import { headers } from 'next/headers'
 import { THEME_STORAGE_KEY } from '@/utils/theme'
+import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
 import './globals.css'
 
 export const dynamic = 'force-dynamic'
@@ -39,6 +40,12 @@ export const metadata: Metadata = {
     description: '시간 추적 앱 — 태그별 스톱워치로 매 순간을 기록하세요.',
   },
   robots: { index: true, follow: true },
+  manifest: '/manifest.webmanifest',
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: 'black-translucent',
+    title: 'timemgr',
+  },
   icons: {
     icon: [
       { url: '/favicon.svg', type: 'image/svg+xml' },
@@ -48,6 +55,14 @@ export const metadata: Metadata = {
   },
 }
 
+// eslint-disable-next-line react-refresh/only-export-components
+export const viewport: Viewport = {
+  themeColor: '#0c0c0c',
+  width: 'device-width',
+  initialScale: 1,
+  viewportFit: 'cover',
+}
+
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
   const nonce = (await headers()).get('x-nonce') ?? ''
   return (
@@ -55,7 +70,10 @@ export default async function RootLayout({ children }: { children: React.ReactNo
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
-      <body data-nonce={nonce}>{children}</body>
+      <body data-nonce={nonce}>
+        <ServiceWorkerRegister />
+        {children}
+      </body>
     </html>
   )
 }
