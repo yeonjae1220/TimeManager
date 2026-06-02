@@ -5,10 +5,12 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { consumeOauthState } from '@/utils/oauthState'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export default function OAuthCallbackView() {
   const router = useRouter()
   const { googleLogin } = useAuth()
+  const { t } = useI18n()
   const [error, setError] = useState('')
   const calledRef = useRef(false)
 
@@ -38,7 +40,7 @@ export default function OAuthCallbackView() {
     const redirectUri = `${window.location.origin}/oauth/callback`
     googleLogin(code, redirectUri).catch((e: unknown) => {
       const msg = (e as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || 'Google 로그인에 실패했습니다. 다시 시도해주세요.')
+      setError(msg || t('oauth.googleFail'))
     })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -49,7 +51,7 @@ export default function OAuthCallbackView() {
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, textAlign: 'center' }}>
           <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{error}</p>
           <Link href="/login" className="btn btn-primary">
-            Back to Login
+            {t('oauth.backToLogin')}
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2.5 6.5h8M7 3l3.5 3.5L7 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -64,7 +66,7 @@ export default function OAuthCallbackView() {
       <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16 }}>
         <div className="spinner" />
         <p className="mono" style={{ fontSize: 11, letterSpacing: '0.1em', color: 'var(--text-2)', textTransform: 'uppercase' }}>
-          Signing in...
+          {t('oauth.signingIn')}
         </p>
       </div>
     </div>

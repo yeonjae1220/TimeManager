@@ -6,6 +6,8 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
+import { useI18n } from '@/i18n/I18nProvider'
+import type { MessageKey } from '@/i18n/messages/index'
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -80,10 +82,10 @@ function isSameDay(a: Date, b: Date): boolean {
   return a.getFullYear() === b.getFullYear() && a.getMonth() === b.getMonth() && a.getDate() === b.getDate()
 }
 
-function weekLabel(mon: Date): string {
+function weekLabel(mon: Date, locale: string): string {
   const sun = addDays(mon, 6)
   const opts: Intl.DateTimeFormatOptions = { month: 'short', day: 'numeric' }
-  return `${mon.toLocaleDateString('en-US', opts)} – ${sun.toLocaleDateString('en-US', opts)}`
+  return `${mon.toLocaleDateString(locale, opts)} – ${sun.toLocaleDateString(locale, opts)}`
 }
 
 // ────────────────────────────────────────────────────────────
@@ -91,6 +93,7 @@ function weekLabel(mon: Date): string {
 // ────────────────────────────────────────────────────────────
 
 function TagBar({ summary, total }: { summary: TagSummary; total: number }) {
+  const { t: tr } = useI18n()
   const pct = total > 0 ? (summary.totalSeconds / total) * 100 : 0
   return (
     <div style={{ marginBottom: 12 }}>
@@ -100,7 +103,7 @@ function TagBar({ summary, total }: { summary: TagSummary; total: number }) {
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{summary.parentTagName} /</span>
           )}
           <span style={{ fontSize: 13 }}>{summary.tagName}</span>
-          <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{summary.sessionCount}세션</span>
+          <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>{tr('logs.sessionCount', { n: summary.sessionCount })}</span>
         </div>
         <span className="mono" style={{ fontSize: 12 }}>{fmtHMS(summary.totalSeconds)}</span>
       </div>
@@ -134,6 +137,7 @@ function NavArrows({ label, onPrev, onNext }: { label: string; onPrev: () => voi
 // ────────────────────────────────────────────────────────────
 
 function DailyTab({ memberId }: { memberId: number }) {
+  const { t: tr, language } = useI18n()
   const [date, setDate] = useState(new Date())
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -150,7 +154,7 @@ function DailyTab({ memberId }: { memberId: number }) {
 
   useEffect(() => { fetch(date) }, [date, fetch])
 
-  const label = date.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
+  const label = date.toLocaleDateString(language, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 
   return (
     <div>
@@ -166,10 +170,10 @@ function DailyTab({ memberId }: { memberId: number }) {
             <div className="mono" style={{ fontSize: 'clamp(28px, 8vw, 44px)', color: 'var(--text)', letterSpacing: '-0.02em' }}>
               {fmtHMS(data.totalSeconds)}
             </div>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>total</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{tr('logs.total')}</span>
           </div>
           {data.tagSummaries.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>기록이 없습니다</p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecords')}</p>
           )}
           {data.tagSummaries.map((t) => (
             <TagBar key={t.tagId} summary={t} total={data.totalSeconds} />
@@ -177,7 +181,7 @@ function DailyTab({ memberId }: { memberId: number }) {
           {/* Session timeline */}
           {data.tagSummaries.some((t) => t.sessions.length > 0) && (
             <div style={{ marginTop: 24 }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>sessions</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{tr('logs.sessions')}</p>
               {data.tagSummaries.flatMap((t) =>
                 t.sessions.map((s, i) => (
                   <div key={`${t.tagId}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
@@ -187,9 +191,9 @@ function DailyTab({ memberId }: { memberId: number }) {
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                        {new Date(s.startTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(s.startTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
                         {' → '}
-                        {new Date(s.endTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}
+                        {new Date(s.endTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
                       </span>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text)' }}>{fmtDuration(s.durationSeconds)}</span>
                     </div>
@@ -200,7 +204,7 @@ function DailyTab({ memberId }: { memberId: number }) {
           )}
         </>
       )}
-      {!loading && !data && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>불러오지 못했습니다.</p>}
+      {!loading && !data && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{tr('logs.loadFail')}</p>}
     </div>
   )
 }
@@ -210,6 +214,7 @@ function DailyTab({ memberId }: { memberId: number }) {
 // ────────────────────────────────────────────────────────────
 
 function WeeklyTab({ memberId }: { memberId: number }) {
+  const { t: tr, language } = useI18n()
   const [monday, setMonday] = useState(() => startOfWeek(new Date()))
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -241,20 +246,20 @@ function WeeklyTab({ memberId }: { memberId: number }) {
   }, [monday])
 
   const maxDay = Math.max(...dailyTotals, 1)
-  const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
   const today = new Date()
 
   return (
     <div>
       <NavArrows
-        label={weekLabel(monday)}
+        label={weekLabel(monday, language)}
         onPrev={() => setMonday((d) => addDays(d, -7))}
         onNext={() => setMonday((d) => addDays(d, 7))}
       />
       {/* 7-day bar chart */}
       <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80, marginBottom: 24 }}>
-        {days.map((dayLabel, i) => {
+        {Array.from({ length: 7 }, (_, i) => i).map((i) => {
           const dayDate = addDays(monday, i)
+          const dayLabel = dayDate.toLocaleDateString(language, { weekday: 'short' })
           const secs = dailyTotals[i] ?? 0
           const isToday = isSameDay(dayDate, today)
           return (
@@ -273,11 +278,11 @@ function WeeklyTab({ memberId }: { memberId: number }) {
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>WEEK TOTAL</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.weekTotal')}</p>
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(data.totalSeconds)}</p>
             </div>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>DAILY AVG</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.dailyAvg')}</p>
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(Math.round(data.totalSeconds / 7))}</p>
             </div>
           </div>
@@ -295,6 +300,7 @@ function WeeklyTab({ memberId }: { memberId: number }) {
 // ────────────────────────────────────────────────────────────
 
 function MonthlyTab({ memberId }: { memberId: number }) {
+  const { t: tr, language } = useI18n()
   const [refDate, setRefDate] = useState(new Date())
   const [data, setData] = useState<SummaryData | null>(null)
   const [loading, setLoading] = useState(false)
@@ -350,7 +356,7 @@ function MonthlyTab({ memberId }: { memberId: number }) {
 
   const year = refDate.getFullYear()
   const month = refDate.getMonth()
-  const monthLabel = refDate.toLocaleDateString('ko-KR', { year: 'numeric', month: 'long' })
+  const monthLabel = refDate.toLocaleDateString(language, { year: 'numeric', month: 'long' })
 
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
@@ -376,7 +382,8 @@ function MonthlyTab({ memberId }: { memberId: number }) {
       {/* Heatmap calendar */}
       <div style={{ marginBottom: 24 }}>
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3, marginBottom: 4 }}>
-          {['M','T','W','T','F','S','S'].map((d, i) => (
+          {/* 2024-01-01은 월요일 — 월요일 시작 기준 narrow 요일 라벨을 언어별로 생성 */}
+          {Array.from({ length: 7 }, (_, i) => new Date(2024, 0, 1 + i).toLocaleDateString(language, { weekday: 'narrow' })).map((d, i) => (
             <div key={i} className="mono" style={{ fontSize: 9, color: 'var(--text-3)', textAlign: 'center' }}>{d}</div>
           ))}
         </div>
@@ -390,7 +397,7 @@ function MonthlyTab({ memberId }: { memberId: number }) {
             return (
               <div
                 key={i}
-                title={`${d.getDate()}일: ${fmtDuration(secs)}`}
+                title={tr('logs.dayTooltip', { day: d.getDate(), dur: fmtDuration(secs) })}
                 style={{
                   aspectRatio: '1',
                   borderRadius: 3,
@@ -416,11 +423,11 @@ function MonthlyTab({ memberId }: { memberId: number }) {
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>MONTH TOTAL</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.monthTotal')}</p>
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(data.totalSeconds)}</p>
             </div>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>DAILY AVG</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.dailyAvg')}</p>
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(Math.round(data.totalSeconds / lastDay.getDate()))}</p>
             </div>
           </div>
@@ -440,6 +447,7 @@ function MonthlyTab({ memberId }: { memberId: number }) {
 type TagPeriod = 'week' | 'month' | 'custom'
 
 function TagTab({ memberId }: { memberId: number }) {
+  const { t: tr } = useI18n()
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
   const findById = useTagStore((s) => s.findById)
@@ -509,7 +517,7 @@ function TagTab({ memberId }: { memberId: number }) {
         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', color: 'var(--text)', marginBottom: 20 }}
       >
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--text-3)', flexShrink: 0 }} />
-        <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{selectedTag?.name ?? '태그를 선택하세요'}</span>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{selectedTag?.name ?? tr('logs.selectTag')}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </button>
 
@@ -522,7 +530,7 @@ function TagTab({ memberId }: { memberId: number }) {
             className="mono"
             style={{ padding: '5px 12px', background: period === p ? 'var(--accent)' : 'var(--surface-2)', border: `1px solid ${period === p ? 'var(--accent)' : 'var(--border)'}`, borderRadius: 'var(--radius)', color: period === p ? 'var(--bg)' : 'var(--text-2)', fontSize: 10, cursor: 'pointer', letterSpacing: '0.06em', textTransform: 'uppercase' }}
           >
-            {p === 'week' ? '이번 주' : p === 'month' ? '이번 달' : '직접 입력'}
+            {p === 'week' ? tr('logs.periodWeek') : p === 'month' ? tr('logs.periodMonth') : tr('logs.periodCustom')}
           </button>
         ))}
       </div>
@@ -535,23 +543,23 @@ function TagTab({ memberId }: { memberId: number }) {
       )}
 
       {!selectedTagId && (
-        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>태그를 선택하면 통계가 표시됩니다</p>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>{tr('logs.selectTagStats')}</p>
       )}
 
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
       {!loading && selectedTagId && currentFiltered.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>해당 기간에 기록이 없습니다</p>
+        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>{tr('logs.noRecordsPeriod')}</p>
       )}
 
       {!loading && currentFiltered.length > 0 && (
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>TOTAL</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.tagTotal')}</p>
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(currentTotal)}</p>
             </div>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>
-              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>vs 이전</p>
+              <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', marginBottom: 6 }}>{tr('logs.vsPrev')}</p>
               <p className="mono" style={{ fontSize: 16, color: delta === null ? 'var(--text-3)' : delta >= 0 ? 'var(--running)' : 'var(--danger)' }}>
                 {delta === null ? '—' : `${delta >= 0 ? '+' : ''}${delta}%`}
               </p>
@@ -581,14 +589,15 @@ function TagTab({ memberId }: { memberId: number }) {
 
 type TabKey = 'daily' | 'weekly' | 'monthly' | 'tag'
 
-const TABS: { key: TabKey; label: string }[] = [
-  { key: 'daily', label: '일별' },
-  { key: 'weekly', label: '주별' },
-  { key: 'monthly', label: '월별' },
-  { key: 'tag', label: '태그별' },
+const TABS: { key: TabKey; labelKey: MessageKey }[] = [
+  { key: 'daily', labelKey: 'logs.tabDaily' },
+  { key: 'weekly', labelKey: 'logs.tabWeekly' },
+  { key: 'monthly', labelKey: 'logs.tabMonthly' },
+  { key: 'tag', labelKey: 'logs.tabTag' },
 ]
 
 export default function LogsView() {
+  const { t } = useI18n()
   const memberId = useAuthStore((s) => s.memberId)
   const [activeTab, setActiveTab] = useState<TabKey>('daily')
 
@@ -601,19 +610,19 @@ export default function LogsView() {
 
         <div style={{ padding: '24px 0' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 20 }}>
-            logs
+            {t('logs.eyebrow')}
           </p>
 
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 2, marginBottom: 28, background: 'var(--surface-2)', borderRadius: 'var(--radius)', padding: 3 }}>
-            {TABS.map((t) => (
+            {TABS.map((tab) => (
               <button
-                key={t.key}
-                onClick={() => setActiveTab(t.key)}
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
                 className="mono"
-                style={{ flex: 1, padding: '6px 0', background: activeTab === t.key ? 'var(--surface)' : 'transparent', border: 'none', borderRadius: 'calc(var(--radius) - 2px)', color: activeTab === t.key ? 'var(--text)' : 'var(--text-3)', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeTab === t.key ? 'var(--shadow-active)' : undefined }}
+                style={{ flex: 1, padding: '6px 0', background: activeTab === tab.key ? 'var(--surface)' : 'transparent', border: 'none', borderRadius: 'calc(var(--radius) - 2px)', color: activeTab === tab.key ? 'var(--text)' : 'var(--text-3)', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeTab === tab.key ? 'var(--shadow-active)' : undefined }}
               >
-                {t.label}
+                {t(tab.labelKey)}
               </button>
             ))}
           </div>

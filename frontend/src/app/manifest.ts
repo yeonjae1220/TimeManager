@@ -8,7 +8,7 @@ export default function manifest(): MetadataRoute.Manifest {
   return {
     name: 'TimeManager',
     short_name: 'timemgr',
-    description: '시간 추적 앱 — 태그별 스톱워치로 매 순간을 기록하세요.',
+    description: 'A time tracking app — capture every moment with a per-tag stopwatch.',
     start_url: '/',
     scope: '/',
     display: 'standalone',

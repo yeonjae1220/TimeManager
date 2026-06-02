@@ -5,6 +5,7 @@ import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
+import { useI18n } from '@/i18n/I18nProvider'
 
 function LandingSplash() {
   return (
@@ -25,6 +26,7 @@ function LandingSplash() {
 
 export default function LandingView() {
   const router = useRouter()
+  const { t } = useI18n()
   const { accessToken, memberId } = useAuthStore()
   // memberId가 persist에 남아 있으면 refresh token으로 세션 복원을 시도한다.
   // 복원하는 동안 랜딩 대신 스플래시를 보여 깜빡임을 막는다.
@@ -60,8 +62,8 @@ export default function LandingView() {
       <div className="topbar">
         <span className="topbar-brand">timemgr</span>
         <div className="topbar-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-          <Link href="/login" className="btn btn-ghost topbar-btn">Sign in</Link>
-          <Link href="/register" className="btn btn-primary topbar-btn">Get started</Link>
+          <Link href="/login" className="btn btn-ghost topbar-btn">{t('landing.signIn')}</Link>
+          <Link href="/register" className="btn btn-primary topbar-btn">{t('landing.getStarted')}</Link>
         </div>
       </div>
 
@@ -69,34 +71,33 @@ export default function LandingView() {
         <div style={{ margin: '80px 0 48px' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ display: 'inline-block', width: 24, height: 1, background: 'var(--accent)', opacity: 0.5 }} />
-            time tracking
+            {t('landing.eyebrow')}
           </p>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 'clamp(42px, 7vw, 68px)', lineHeight: 1.08, color: 'var(--text)', marginBottom: 24, letterSpacing: '-0.01em' }}>
-            Every second<br />accounted for.
+            {t('landing.heroTitle')}
           </h1>
           <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.8, fontWeight: 300, maxWidth: 340 }}>
-            A focused workspace for tracking what matters.<br />
-            Start, stop, and review your time with precision.
+            {t('landing.heroSubtitle')}
           </p>
         </div>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 64, flexWrap: 'wrap' }}>
           <Link href="/register" className="btn btn-primary" style={{ height: 40, padding: '0 24px', fontSize: 13 }}>
-            Get started — it's free
+            {t('landing.ctaFree')}
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M2.5 6.5h8M7 3l3.5 3.5L7 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
           </Link>
           <Link href="/login" className="mono" style={{ fontSize: 11, color: 'var(--text-2)', letterSpacing: '0.04em' }}>
-            Already have an account? Sign in
+            {t('landing.haveAccountInline')}
           </Link>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', borderTop: '1px solid var(--border-subtle)', marginBottom: 'auto' }}>
           {[
-            { title: 'Hierarchical tags', desc: 'Organize your work into nested tags. Track time at any level.' },
-            { title: 'Precise stopwatch', desc: 'Session, daily, and lifetime totals — always up to date.' },
-            { title: 'Full history', desc: 'Browse and edit every record. Nothing is lost.' },
+            { title: t('landing.feature1Title'), desc: t('landing.feature1Desc') },
+            { title: t('landing.feature2Title'), desc: t('landing.feature2Desc') },
+            { title: t('landing.feature3Title'), desc: t('landing.feature3Desc') },
           ].map(({ title, desc }) => (
             <div key={title} style={{ display: 'flex', alignItems: 'flex-start', gap: 20, padding: '24px 0', borderBottom: '1px solid var(--border-subtle)' }}>
               <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--accent)', flexShrink: 0, marginTop: 6 }} />

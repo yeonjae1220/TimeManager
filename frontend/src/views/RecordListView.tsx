@@ -7,6 +7,7 @@ import EditRecordModal from '@/components/EditRecordModal'
 import AddRecordModal from '@/components/AddRecordModal'
 import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
+import { useI18n } from '@/i18n/I18nProvider'
 
 interface Record {
   id: number
@@ -38,20 +39,21 @@ interface UndoToastProps {
 }
 
 function UndoToast({ onUndo, onDismiss }: UndoToastProps) {
+  const { t } = useI18n()
   useEffect(() => {
-    const t = setTimeout(onDismiss, 3000)
-    return () => clearTimeout(t)
+    const timer = setTimeout(onDismiss, 3000)
+    return () => clearTimeout(timer)
   }, [onDismiss])
 
   return (
     <div style={{ position: 'fixed', bottom: 80, left: '50%', transform: 'translateX(-50%)', background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '10px 16px', display: 'flex', alignItems: 'center', gap: 12, boxShadow: 'var(--shadow-floating)', zIndex: 300, whiteSpace: 'nowrap' }}>
-      <span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>삭제됨</span>
+      <span className="mono" style={{ fontSize: 12, color: 'var(--text-2)' }}>{t('records.deleted')}</span>
       <button
         onClick={onUndo}
         className="mono"
         style={{ fontSize: 11, color: 'var(--accent)', background: 'none', border: 'none', cursor: 'pointer', padding: 0 }}
       >
-        Undo
+        {t('common.undo')}
       </button>
     </div>
   )
@@ -64,6 +66,7 @@ function UndoToast({ onUndo, onDismiss }: UndoToastProps) {
 export default function RecordListView() {
   const params = useParams()
   const router = useRouter()
+  const { t, language } = useI18n()
   const tagId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
@@ -90,7 +93,7 @@ export default function RecordListView() {
       setTag(tagRes.data)
       setRecords(recRes.data)
     } catch {
-      setError('기록을 불러오지 못했습니다.')
+      setError(t('records.loadFail'))
     } finally {
       setLoading(false)
     }
@@ -152,17 +155,17 @@ export default function RecordListView() {
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
-            Back
+            {t('common.back')}
           </button>
         </div>
 
         <div style={{ padding: '24px 0' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 4 }}>
-            tag · {tagId}
+            {t('records.tagLabel')} · {tagId}
           </p>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
             <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: 28 }}>
-              {tag?.name ?? 'Sessions'}
+              {tag?.name ?? t('records.title')}
             </h1>
             <button
               onClick={() => setShowAdd(true)}
@@ -171,14 +174,14 @@ export default function RecordListView() {
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                 <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
               </svg>
-              Add
+              {t('common.add')}
             </button>
           </div>
 
           {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
           {error && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{error}</p>}
           {!loading && records.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>기록이 없습니다.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('records.empty')}</p>
           )}
 
           <div>
@@ -191,13 +194,13 @@ export default function RecordListView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.elapsedTime)}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {new Date(record.startTime).toLocaleDateString('ko-KR')}
+                      {new Date(record.startTime).toLocaleDateString(language)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-3)' }}>
-                    <span className="mono">{new Date(record.startTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mono">{new Date(record.startTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
                     <span>→</span>
-                    <span className="mono">{new Date(record.endTime).toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mono">{new Date(record.endTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
                   </div>
                 </div>
                 {/* Edit */}

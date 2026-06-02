@@ -1,7 +1,9 @@
 import type { Metadata, Viewport } from 'next'
-import { headers } from 'next/headers'
+import { headers, cookies } from 'next/headers'
 import { THEME_STORAGE_KEY } from '@/utils/theme'
+import { resolveUiLang, LANG_KEY } from '@/i18n/messages/index'
 import ServiceWorkerRegister from '@/components/ServiceWorkerRegister'
+import { Providers } from './providers'
 import './globals.css'
 
 export const dynamic = 'force-dynamic'
@@ -29,15 +31,15 @@ export const metadata: Metadata = {
     default: 'timemgr',
     template: '%s | timemgr',
   },
-  description: '시간 추적 앱 — 태그별 스톱워치로 매 순간을 기록하세요.',
-  keywords: ['time tracking', 'stopwatch', 'productivity', '시간 관리'],
+  description: 'A time tracking app — capture every moment with a per-tag stopwatch.',
+  keywords: ['time tracking', 'stopwatch', 'productivity', 'time management'],
   openGraph: {
     type: 'website',
-    locale: 'ko_KR',
+    locale: 'en_US',
     url: BASE_URL,
     siteName: 'timemgr',
     title: 'timemgr — Every second accounted for.',
-    description: '시간 추적 앱 — 태그별 스톱워치로 매 순간을 기록하세요.',
+    description: 'A time tracking app — capture every moment with a per-tag stopwatch.',
   },
   robots: { index: true, follow: true },
   manifest: '/manifest.webmanifest',
@@ -64,15 +66,21 @@ export const viewport: Viewport = {
 }
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  const nonce = (await headers()).get('x-nonce') ?? ''
+  const hdrs = await headers()
+  const nonce = hdrs.get('x-nonce') ?? ''
+  // 쿠키(명시적 선호) → Accept-Language(브라우저 기본) 순으로 초기 언어를 결정한다.
+  // Accept-Language를 보면 첫 방문(쿠키 없음)에도 SSR이 navigator.language와 일치해
+  // hydration 후 깜빡임이 사라진다. resolveUiLang이 앞 2자만 보므로 'ko-KR,...' 형태도 안전.
+  const cookieLang = (await cookies()).get(LANG_KEY)?.value
+  const lang = resolveUiLang(cookieLang ?? hdrs.get('accept-language'))
   return (
-    <html lang="ko" data-theme="dark" suppressHydrationWarning>
+    <html lang={lang} data-theme="dark" suppressHydrationWarning>
       <head>
         <script nonce={nonce} dangerouslySetInnerHTML={{ __html: themeScript }} />
       </head>
       <body data-nonce={nonce}>
         <ServiceWorkerRegister />
-        {children}
+        <Providers initialLanguage={lang}>{children}</Providers>
       </body>
     </html>
   )
