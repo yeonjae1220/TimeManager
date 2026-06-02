@@ -4,9 +4,11 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { saveOauthState } from '@/utils/oauthState'
+import { useI18n } from '@/i18n/I18nProvider'
 
 export default function LoginView() {
   const { login, googleLogin } = useAuth()
+  const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
@@ -20,7 +22,7 @@ export default function LoginView() {
       await login(email, password)
     } catch (err: unknown) {
       const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || '이메일 또는 비밀번호가 올바르지 않습니다.')
+      setError(msg || t('login.errorInvalid'))
     } finally {
       setLoading(false)
     }
@@ -50,13 +52,13 @@ export default function LoginView() {
 
       <div className="auth-body">
         <div>
-          <p className="auth-eyebrow">sign in</p>
-          <h1 className="auth-title">Welcome<br />back.</h1>
+          <p className="auth-eyebrow">{t('login.eyebrow')}</p>
+          <h1 className="auth-title">{t('login.title')}</h1>
         </div>
 
         <form className="auth-form" onSubmit={handleLogin}>
           <div className="field">
-            <label>Email</label>
+            <label>{t('auth.email')}</label>
             <input
               type="email"
               autoComplete="email"
@@ -66,7 +68,7 @@ export default function LoginView() {
             />
           </div>
           <div className="field">
-            <label>Password</label>
+            <label>{t('auth.password')}</label>
             <input
               type="password"
               autoComplete="current-password"
@@ -79,7 +81,7 @@ export default function LoginView() {
           <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? '...' : (
               <>
-                Sign in
+                {t('login.submit')}
                 <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
                   <path d="M2.5 6.5h8M7 3l3.5 3.5L7 10" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/>
                 </svg>
@@ -88,7 +90,7 @@ export default function LoginView() {
           </button>
         </form>
 
-        <div className="auth-divider"><span>or</span></div>
+        <div className="auth-divider"><span>{t('login.or')}</span></div>
 
         <button className="btn-google" type="button" onClick={handleGoogleLogin}>
           <svg width="16" height="16" viewBox="0 0 48 48">
@@ -97,12 +99,12 @@ export default function LoginView() {
             <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
             <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.36-8.16 2.36-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
           </svg>
-          Continue with Google
+          {t('login.google')}
         </button>
 
         <p className="auth-switch">
-          Don&apos;t have an account?{' '}
-          <Link href="/register" className="auth-link">Register</Link>
+          {t('login.noAccount')}{' '}
+          <Link href="/register" className="auth-link">{t('login.registerLink')}</Link>
         </p>
       </div>
     </div>

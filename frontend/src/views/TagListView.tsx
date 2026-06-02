@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import { useTagStore, selectTagList, type Tag } from '@/store/tagStore'
+import { useI18n } from '@/i18n/I18nProvider'
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -64,6 +65,7 @@ interface EditModalProps {
 }
 
 function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: EditModalProps) {
+  const { t } = useI18n()
   const parentId = getParentId(tagTree, tag.id)
   const siblings = getSiblingNames(tagTree, parentId, tag.id)
 
@@ -97,20 +99,20 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
       if (selectedParent && selectedParent !== parentId) await onMove(tag.id, selectedParent)
       onClose()
     } catch {
-      setError('저장에 실패했습니다.')
+      setError(t('common.saveFail'))
     } finally {
       setSaving(false)
     }
   }
 
   async function handleDiscard() {
-    if (!confirm(`"${tag.name}" 태그를 삭제할까요? 하위 태그와 기록은 유지됩니다.`)) return
+    if (!confirm(t('tags.discardConfirm', { name: tag.name }))) return
     setSaving(true)
     try {
       await onDiscard(tag.id)
       onClose()
     } catch {
-      setError('삭제에 실패했습니다.')
+      setError(t('tags.discardFail'))
       setSaving(false)
     }
   }
@@ -122,26 +124,26 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
     >
       <div style={{ width: '100%', maxWidth: 360, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 24, display: 'flex', flexDirection: 'column', gap: 20, boxShadow: 'var(--shadow-modal)' }}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>edit tag</span>
+          <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t('tags.editTag')}</span>
           <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', display: 'flex' }}>
             <svg width="14" height="14" viewBox="0 0 14 14" fill="none"><path d="M2 2l10 10M12 2L2 12" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/></svg>
           </button>
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>NAME</label>
+          <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>{t('field.name')}</label>
           <input
             value={name}
             onChange={(e) => setName(e.target.value)}
             style={{ background: 'var(--input-bg)', border: `1px solid ${isDuplicateName ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '8px 12px', color: 'var(--text)', fontSize: 13, fontFamily: 'inherit', outline: 'none' }}
           />
           {isDuplicateName && (
-            <p className="mono" style={{ fontSize: 10, color: 'var(--warning, #f59e0b)' }}>같은 계층에 동일한 이름이 있습니다 (저장은 허용됩니다)</p>
+            <p className="mono" style={{ fontSize: 10, color: 'var(--warning, #f59e0b)' }}>{t('tags.dupName')}</p>
           )}
         </div>
 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-          <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>PARENT TAG</label>
+          <label className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.1em' }}>{t('tags.parentTag')}</label>
           <select
             value={selectedParent}
             onChange={(e) => setSelectedParent(Number(e.target.value))}
@@ -163,16 +165,16 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
             disabled={saving}
             style={{ padding: '8px 12px', background: 'none', border: '1px solid var(--danger)', borderRadius: 'var(--radius)', color: 'var(--danger)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: saving ? 0.4 : 1 }}
           >
-            Delete
+            {t('common.delete')}
           </button>
           <div style={{ display: 'flex', gap: 8 }}>
-            <button onClick={onClose} style={{ padding: '8px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}>Cancel</button>
+            <button onClick={onClose} style={{ padding: '8px 16px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}>{t('common.cancel')}</button>
             <button
               onClick={handleSave}
               disabled={saving || !name.trim()}
               style={{ padding: '8px 16px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: saving || !name.trim() ? 0.4 : 1 }}
             >
-              {saving ? '...' : 'Save'}
+              {saving ? '...' : t('common.save')}
             </button>
           </div>
         </div>
@@ -193,6 +195,7 @@ interface AddTagFormProps {
 }
 
 function AddTagForm({ parentId: _parentId, siblingNames, onAdd, onCancel }: AddTagFormProps) {
+  const { t } = useI18n()
   const [name, setName] = useState('')
   const [saving, setSaving] = useState(false)
   const isDuplicate = name.trim() !== '' && siblingNames.includes(name.trim().toLowerCase())
@@ -218,12 +221,12 @@ function AddTagForm({ parentId: _parentId, siblingNames, onAdd, onCancel }: AddT
         ref={inputRef}
         value={name}
         onChange={(e) => setName(e.target.value)}
-        placeholder="태그 이름"
+        placeholder={t('tags.namePlaceholder')}
         style={{ flex: 1, background: 'var(--input-bg)', border: `1px solid ${isDuplicate ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }}
       />
-      {isDuplicate && <span className="mono" style={{ fontSize: 9, color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>중복 이름</span>}
+      {isDuplicate && <span className="mono" style={{ fontSize: 9, color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>{t('tags.dupShort')}</span>}
       <button type="submit" disabled={saving || !name.trim()} style={{ padding: '6px 12px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: saving || !name.trim() ? 0.4 : 1 }}>
-        {saving ? '...' : 'Add'}
+        {saving ? '...' : t('common.add')}
       </button>
       <button type="button" onClick={onCancel} style={{ padding: '6px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}>
         ✕
@@ -265,6 +268,7 @@ function TagRow({
   onEditOpen, onAddChildOpen,
 }: TagRowProps) {
   const router = useRouter()
+  const { t } = useI18n()
   const isRunning = tag.state
   const isDragging = dragState.draggingId === tag.id
   const isOver = dragState.overId === tag.id
@@ -330,7 +334,7 @@ function TagRow({
         {/* Add child */}
         <button
           onClick={() => onAddChildOpen(tag.id)}
-          title="자식 태그 추가"
+          title={t('tags.addChildTitle')}
           style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 4px', flexShrink: 0, opacity: 0.6 }}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -341,7 +345,7 @@ function TagRow({
         {/* Edit */}
         <button
           onClick={() => onEditOpen(tag)}
-          title="편집"
+          title={t('tags.editTitle')}
           style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 4px', flexShrink: 0, opacity: 0.6 }}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
@@ -381,6 +385,7 @@ function TagRow({
 
 export default function TagListView() {
   const params = useParams()
+  const { t } = useI18n()
   const memberId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const tagList = useTagStore(selectTagList)
@@ -469,7 +474,7 @@ export default function TagListView() {
         <div style={{ padding: '24px 0' }}>
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
             <p className="mono" style={{ fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase' }}>
-              tags
+              {t('tags.eyebrow')}
             </p>
             {tagTree.length > 0 && (
               <button
@@ -482,19 +487,19 @@ export default function TagListView() {
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
                 </svg>
-                New tag
+                {t('tags.newTag')}
               </button>
             )}
           </div>
 
           {fetchError && (
             <p className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 16 }}>
-              태그를 불러오지 못했습니다.
+              {t('tags.loadError')}
             </p>
           )}
 
           {tagList.length === 0 && !isRefreshing ? (
-            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>태그가 없습니다.</p>
+            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('tags.empty')}</p>
           ) : (
             <div>
               {tagList.map((tag) => (

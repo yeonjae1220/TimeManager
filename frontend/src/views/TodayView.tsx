@@ -7,15 +7,17 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
+import { useI18n } from '@/i18n/I18nProvider'
 
-function todayLabel(): string {
-  return new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' })
+function todayLabel(locale: string): string {
+  return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
 }
 
 export default function TodayView() {
   const params = useParams()
   const router = useRouter()
   const searchParams = useSearchParams()
+  const { t, language } = useI18n()
   const memberId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
@@ -110,26 +112,26 @@ export default function TodayView() {
       <div className="page today-page" style={{ position: 'relative' }}>
         {!isOnline && (
           <div className="offline-banner">
-            <span className="mono">오프라인 — 복귀 후 자동 동기화됩니다</span>
+            <span className="mono">{t('today.offline')}</span>
           </div>
         )}
 
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>
-          <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>{todayLabel()}</span>
+          <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>{todayLabel(language)}</span>
         </div>
 
         {/* Tag selector */}
         <section style={{ padding: '24px 0 16px' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12 }}>
-            recording
+            {t('today.recording')}
           </p>
           <button
             onClick={() => setShowTagPicker(true)}
             style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', color: 'var(--text)' }}
           >
             <span style={{ width: 7, height: 7, borderRadius: '50%', background: sw.isRunning ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
-            <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{tag?.name ?? '태그를 선택하세요'}</span>
+            <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{tag?.name ?? t('today.selectTag')}</span>
             <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
               <path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
             </svg>
@@ -142,7 +144,7 @@ export default function TodayView() {
             <div style={{ fontFamily: 'var(--font-mono)', fontSize: 'clamp(36px, 12vw, 64px)', fontWeight: 500, color: 'var(--text)', letterSpacing: '-0.02em', transition: 'color 0.2s' }}>
               {formattedElapsedTime}
             </div>
-            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>elapsed</span>
+            <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t('today.elapsed')}</span>
             <div
               aria-hidden="true"
               style={{
@@ -167,7 +169,7 @@ export default function TodayView() {
             {sw.isRunning && isWakeLockActive && (
               <div
                 role="status"
-                aria-label="화면 절전 방지 활성"
+                aria-label={t('today.wakeLockAria')}
                 style={{
                   display: 'inline-flex', alignItems: 'center', gap: 6,
                   marginTop: 14, padding: '4px 10px',
@@ -182,7 +184,7 @@ export default function TodayView() {
                   </svg>
                 </span>
                 <span className="mono" style={{ fontSize: 9, color: 'var(--text-2)', letterSpacing: '0.12em', textTransform: 'uppercase' }}>
-                  화면 절전 방지 중
+                  {t('today.wakeLock')}
                 </span>
               </div>
             )}
@@ -190,7 +192,7 @@ export default function TodayView() {
         ) : (
           <section style={{ textAlign: 'center', padding: '32px 0 24px' }}>
             <div className="mono" style={{ fontSize: 'clamp(28px, 8vw, 48px)', color: 'var(--text-3)', letterSpacing: '-0.01em' }}>— — : — —</div>
-            <p className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 12 }}>위에서 태그를 선택하면 타이머가 시작됩니다</p>
+            <p className="mono" style={{ fontSize: 11, color: 'var(--text-3)', marginTop: 12 }}>{t('today.noTagPrompt')}</p>
           </section>
         )}
 
@@ -214,7 +216,7 @@ export default function TodayView() {
             <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
               <path d="M3 1.5l7.5 4.5L3 10.5V1.5z" fill="currentColor"/>
             </svg>
-            Start
+            {t('today.start')}
           </button>
           <button
             onClick={stopStopwatch}
@@ -234,7 +236,7 @@ export default function TodayView() {
             <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
               <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
             </svg>
-            Stop
+            {t('today.stop')}
           </button>
           <button
             onClick={resetStopwatch}
@@ -260,7 +262,7 @@ export default function TodayView() {
         {/* Recent tags */}
         {recentTags.length > 0 && (
           <section style={{ marginBottom: 24 }}>
-            <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>recent</p>
+            <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('today.recent')}</p>
             <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
               {recentTags.map((t) => (
                 <button
@@ -292,9 +294,9 @@ export default function TodayView() {
           <>
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
               {[
-                { label: 'today', val: formattedDailyTotalTime },
-                { label: 'tag total', val: formattedTagTotalTime },
-                { label: 'all time', val: formattedTotalTime },
+                { label: t('today.statToday'), val: formattedDailyTotalTime },
+                { label: t('today.statTagTotal'), val: formattedTagTotalTime },
+                { label: t('today.statAllTime'), val: formattedTotalTime },
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: 'var(--surface)', padding: '14px 12px', textAlign: 'center' }}>
                   <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
@@ -305,9 +307,9 @@ export default function TodayView() {
 
             <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
               {[
-                { label: 'started', val: formattedStartTime },
-                { label: 'stopped', val: formattedEndTime },
-                ...(sw.dailyGoalTime > 0 ? [{ label: 'remaining', val: formattedRemainingTime }] : []),
+                { label: t('today.statStarted'), val: formattedStartTime },
+                { label: t('today.statStopped'), val: formattedEndTime },
+                ...(sw.dailyGoalTime > 0 ? [{ label: t('today.statRemaining'), val: formattedRemainingTime }] : []),
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: 'var(--surface)', padding: '12px', textAlign: 'center' }}>
                   <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
@@ -324,7 +326,7 @@ export default function TodayView() {
                 <rect x="2" y="2" width="9" height="9" rx="1" stroke="currentColor" strokeWidth="1.1"/>
                 <path d="M4.5 5.5h4M4.5 7.5h2.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round"/>
               </svg>
-              Sessions
+              {t('today.sessions')}
               <svg width="11" height="11" viewBox="0 0 11 11" fill="none">
                 <path d="M2 5.5h7M6 2.5L9 5.5 6 8.5" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>

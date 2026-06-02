@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react'
 import { type Tag } from '@/store/tagStore'
+import { useI18n } from '@/i18n/I18nProvider'
 
 interface TagPickerModalProps {
   tagTree: Tag[]
@@ -26,6 +27,7 @@ function findNode(nodes: Tag[], id: number): Tag | null {
 }
 
 export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClose }: TagPickerModalProps) {
+  const { t: tr } = useI18n()
   const [pathIds, setPathIds] = useState<number[]>([])
 
   useEffect(() => {
@@ -87,7 +89,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
             style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase', cursor: pathIds.length > 0 ? 'pointer' : 'default', flexShrink: 0 }}
             onClick={() => setPathIds([])}
           >
-            tags
+            {tr('tagPicker.root')}
           </span>
           {breadcrumb.map((b) => (
             <span key={b.id} style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0, minWidth: 0 }}>
@@ -113,7 +115,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
       <div style={{ flex: 1, overflowY: 'auto', padding: '8px 0' }}>
         {currentChildren.length === 0 && (
           <p className="mono" style={{ fontSize: 11, color: 'var(--text-3)', textAlign: 'center', padding: '40px 20px' }}>
-            태그가 없습니다
+            {tr('tagPicker.empty')}
           </p>
         )}
         {currentChildren.map((t) => {
@@ -167,7 +169,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
               {hasChildren && (
                 <button
                   onClick={() => selectTag(t.id)}
-                  aria-label={`${t.name} 태그 선택`}
+                  aria-label={tr('tagPicker.selectAria', { name: t.name })}
                   style={{
                     display: 'flex',
                     alignItems: 'center',
