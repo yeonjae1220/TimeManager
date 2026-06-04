@@ -8,7 +8,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 
 interface Record {
   id: number
-  elapsedTime: number
+  totalTime: number
   startTime: string
   endTime: string
 }

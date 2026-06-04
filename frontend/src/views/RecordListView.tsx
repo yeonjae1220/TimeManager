@@ -11,7 +11,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 
 interface Record {
   id: number
-  elapsedTime: number
+  totalTime: number
   startTime: string
   endTime: string
 }
@@ -192,7 +192,7 @@ export default function RecordListView() {
               >
                 <div style={{ flex: 1 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-                    <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.elapsedTime)}</span>
+                    <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.totalTime)}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
                       {new Date(record.startTime).toLocaleDateString(language)}
                     </span>
