@@ -296,8 +296,9 @@ function TagRow({
           gap: 8,
           paddingLeft: depth * 16 + 4,
           paddingRight: 8,
-          paddingTop: 11,
-          paddingBottom: 11,
+          minHeight: 50,
+          paddingTop: 8,
+          paddingBottom: 8,
           borderBottom: '1px solid var(--border-subtle)',
           opacity: isDragging ? 0.4 : 1,
           background: isOver ? 'var(--surface-2)' : 'transparent',
@@ -331,11 +332,30 @@ function TagRow({
           <span className="mono" style={{ fontSize: 9, color: 'var(--running)', letterSpacing: '0.15em' }}>LIVE</span>
         )}
 
+        {!isLeaf && (
+          <span className="mono" style={{ fontSize: 9, color: 'var(--text-3)', whiteSpace: 'nowrap' }}>
+            {t('tags.childCount', { n: visibleChildren.length })}
+          </span>
+        )}
+
+        {isLeaf && (
+          <button
+            onClick={handleClick}
+            title={t('tags.startTimer')}
+            style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 34, padding: '0 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
+          >
+            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
+              <path d="M3 1.5l7.5 4.5L3 10.5V1.5z" fill="currentColor"/>
+            </svg>
+            {t('tags.startTimer')}
+          </button>
+        )}
+
         {/* Add child */}
         <button
           onClick={() => onAddChildOpen(tag.id)}
           title={t('tags.addChildTitle')}
-          style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 4px', flexShrink: 0, opacity: 0.6 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0, opacity: 0.75 }}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
@@ -346,7 +366,7 @@ function TagRow({
         <button
           onClick={() => onEditOpen(tag)}
           title={t('tags.editTitle')}
-          style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '2px 4px', flexShrink: 0, opacity: 0.6 }}
+          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0, opacity: 0.75 }}
         >
           <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
             <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
@@ -463,6 +483,11 @@ export default function TagListView() {
   const addingChildSiblings = addingChildOf !== null
     ? getSiblingNames(tagTree, addingChildOf)
     : []
+  const rootTag = tagTree.find((t) => t.type === 'ROOT')
+
+  function openRootAdd() {
+    if (rootTag) setAddingChildOf(rootTag.id)
+  }
 
   return (
     <AppShell>
@@ -478,11 +503,8 @@ export default function TagListView() {
             </p>
             {tagTree.length > 0 && (
               <button
-                onClick={() => {
-                  const root = tagTree.find((t) => t.type === 'ROOT')
-                  if (root) setAddingChildOf(root.id)
-                }}
-                style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}
+                onClick={openRootAdd}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 34, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}
               >
                 <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
                   <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
@@ -498,8 +520,32 @@ export default function TagListView() {
             </p>
           )}
 
+          {addingChildOf === rootTag?.id && (
+            <div style={{ marginBottom: 14, borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+              <AddTagForm
+                parentId={rootTag.id}
+                siblingNames={addingChildSiblings}
+                onAdd={handleAddChild}
+                onCancel={() => setAddingChildOf(null)}
+              />
+            </div>
+          )}
+
           {tagList.length === 0 && !isRefreshing ? (
-            <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('tags.empty')}</p>
+            <div style={{ display: 'grid', gap: 12, justifyItems: 'start', padding: '28px 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('tags.empty')}</p>
+              {rootTag && (
+                <button
+                  onClick={openRootAdd}
+                  style={{ display: 'flex', alignItems: 'center', gap: 6, minHeight: 42, background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', padding: '0 14px', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 12, cursor: 'pointer' }}
+                >
+                  <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                    <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round"/>
+                  </svg>
+                  {t('tags.createFirst')}
+                </button>
+              )}
+            </div>
           ) : (
             <div>
               {tagList.map((tag) => (

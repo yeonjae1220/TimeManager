@@ -74,10 +74,17 @@ const en = {
   'today.noTagPrompt': 'Select a tag above to start the timer',
   'today.start': 'Start',
   'today.stop': 'Stop',
+  'today.chooseTagCta': 'Choose a tag',
+  'today.startCta': 'Start focus',
+  'today.stopCta': 'Stop and save',
+  'today.reset': 'Reset timer',
   'today.recent': 'recent',
   'today.statToday': 'today',
   'today.statTagTotal': 'tag total',
   'today.statAllTime': 'all time',
+  'today.statTodayTotal': "Today's record time",
+  'today.statTodayTag': "Today's tag time",
+  'today.statCurrentTagTotal': 'Current tag total',
   'today.statStarted': 'started',
   'today.statStopped': 'stopped',
   'today.statRemaining': 'remaining',
@@ -98,11 +105,20 @@ const en = {
   'tags.dupShort': 'Duplicate',
   'tags.addChildTitle': 'Add child tag',
   'tags.editTitle': 'Edit',
+  'tags.childCount': '{n} tags',
+  'tags.startTimer': 'Start',
+  'tags.createFirst': 'Create first tag',
 
   // tag picker
   'tagPicker.root': 'tags',
   'tagPicker.empty': 'No tags',
   'tagPicker.selectAria': 'Select {name} tag',
+  'tagPicker.search': 'search',
+  'tagPicker.searchPlaceholder': 'Search tags',
+  'tagPicker.running': 'running now',
+  'tagPicker.recent': 'recent',
+  'tagPicker.noResults': 'No matching tags',
+  'tagPicker.selectThis': 'Select',
 
   // logs
   'logs.eyebrow': 'logs',
@@ -127,6 +143,9 @@ const en = {
   'logs.periodCustom': 'Custom',
   'logs.vsPrev': 'vs prev',
   'logs.dayTooltip': 'Day {day}: {dur}',
+  'logs.dailyInsight': 'You recorded {total} today. The longest tag was {tag}.',
+  'logs.periodInsight': 'This period totals {total}. The longest tag was {tag}.',
+  'logs.startToday': 'Start recording',
 
   // records
   'records.tagLabel': 'tag',
@@ -134,6 +153,7 @@ const en = {
   'records.loadFail': 'Failed to load records.',
   'records.empty': 'No records.',
   'records.deleted': 'Deleted',
+  'records.deleteConfirm': 'Delete this session?',
 
   // fields (shared form labels)
   'field.name': 'NAME',
@@ -147,6 +167,16 @@ const en = {
   'addRecord.selectTagError': 'Please select a tag.',
   'editRecord.title': 'edit session',
   'editRecord.selectTag': 'Select tag',
+  'editRecord.summary': 'session',
+  'editRecord.duration': 'DURATION',
+  'editRecord.date': 'DATE',
+  'editRecord.startTime': 'START TIME',
+  'editRecord.endTime': 'END TIME',
+  'editRecord.minusFive': '-5 min',
+  'editRecord.plusFive': '+5 min',
+  'editRecord.invalidRange': 'End time must be after start time.',
+  'editRecord.overlapHint': 'This time overlaps another session. You can overwrite the overlapping session to save.',
+  'editRecord.saveWithOverwrite': 'Overwrite and save',
 
   // profile
   'profile.loadFail': 'Failed to load profile.',

@@ -7,10 +7,15 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
+import apiClient from '@/utils/apiClient'
 import { useI18n } from '@/i18n/I18nProvider'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
+}
+
+function toLocalDate(d: Date): string {
+  return d.toLocaleDateString('sv-SE')
 }
 
 export default function TodayView() {
@@ -37,17 +42,24 @@ export default function TodayView() {
     formatTime,
     formattedElapsedTime,
     formattedDailyTotalTime,
-    formattedTagTotalTime,
     formattedTotalTime,
-    formattedRemainingTime,
-    formattedStartTime,
-    formattedEndTime,
   } = useTagTimer()
 
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
+  const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
   const didAutoLoad = useRef(false)
+
+  const fetchTodayTotal = useCallback(async () => {
+    const ds = toLocalDate(new Date())
+    try {
+      const res = await apiClient.get<{ totalSeconds: number }>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
+      setTodayTotalSeconds(res.data.totalSeconds || 0)
+    } catch {
+      // Keep the current on-screen value; the selected tag timer still gives useful feedback.
+    }
+  }, [])
 
   useEffect(() => {
     if (!memberId) return
@@ -67,10 +79,12 @@ export default function TodayView() {
     }
 
     loadTags(memberId)
+    fetchTodayTotal()
 
     const onOnline = () => {
       setIsOnline(true)
       handleOnline()
+      fetchTodayTotal()
     }
     const onOffline = () => setIsOnline(false)
 
@@ -82,7 +96,7 @@ export default function TodayView() {
       window.removeEventListener('online', onOnline)
       window.removeEventListener('offline', onOffline)
     }
-  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag])
+  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return
@@ -98,6 +112,20 @@ export default function TodayView() {
     router.push(`/records/${tag.id}`)
   }
 
+  const handlePrimaryAction = useCallback(async () => {
+    if (isSwitching) return
+    if (!tag) {
+      setShowTagPicker(true)
+      return
+    }
+    if (sw.isRunning) {
+      await stopStopwatch()
+      fetchTodayTotal()
+      return
+    }
+    await startStopwatch()
+  }, [fetchTodayTotal, isSwitching, startStopwatch, stopStopwatch, sw.isRunning, tag])
+
   const recentTags = recentTagIds
     .map((id) => findById(id))
     .filter((t): t is NonNullable<typeof t> => t !== null && t.type !== 'DISCARDED' && t.id !== tag?.id)
@@ -106,6 +134,13 @@ export default function TodayView() {
   const timerProgress = sw.dailyGoalTime > 0
     ? Math.min(100, Math.max(0, (sw.dailyTotalTimeCal / sw.dailyGoalTime) * 100))
     : 100
+  const runningDelta = sw.isRunning ? Math.max(0, sw.elapsedTimeCal - sw.elapsedTime) : 0
+  const todayRecordTotal = Math.max(todayTotalSeconds + runningDelta, sw.dailyTotalTimeCal)
+  const primaryLabel = !tag
+    ? t('today.chooseTagCta')
+    : sw.isRunning
+      ? t('today.stopCta')
+      : t('today.startCta')
 
   return (
     <AppShell isRunning={sw.isRunning}>
@@ -197,66 +232,55 @@ export default function TodayView() {
         )}
 
         {/* Controls */}
-        <section style={{ display: 'flex', gap: 8, justifyContent: 'center', padding: '0 0 24px' }}>
+        <section style={{ display: 'grid', gridTemplateColumns: tag && !sw.isRunning ? '1fr 52px' : '1fr', gap: 10, padding: '0 0 24px' }}>
           <button
-            onClick={startStopwatch}
-            disabled={!tag || sw.isRunning || isSwitching}
+            onClick={handlePrimaryAction}
+            disabled={isSwitching}
             style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              height: 36, padding: '0 20px',
-              background: tag && !sw.isRunning ? 'var(--running)' : 'var(--surface-2)',
-              color: tag && !sw.isRunning ? 'var(--bg)' : 'var(--text-3)',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+              height: 52, padding: '0 20px',
+              background: !tag ? 'var(--accent)' : sw.isRunning ? 'var(--danger)' : 'var(--running)',
+              color: 'var(--bg)',
               border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
-              cursor: !tag || sw.isRunning ? 'not-allowed' : 'pointer',
-              opacity: !tag || sw.isRunning ? 0.4 : 1,
+              fontFamily: 'var(--font-mono)', fontSize: 13, fontWeight: 500, letterSpacing: '0.04em',
+              cursor: isSwitching ? 'not-allowed' : 'pointer',
+              opacity: isSwitching ? 0.5 : 1,
               transition: 'all 0.15s',
             }}
           >
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M3 1.5l7.5 4.5L3 10.5V1.5z" fill="currentColor"/>
-            </svg>
-            {t('today.start')}
+            {sw.isRunning ? (
+              <svg width="12" height="12" viewBox="0 0 10 10" fill="none">
+                <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
+              </svg>
+            ) : (
+              <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                <path d="M3 1.5l7.5 4.5L3 10.5V1.5z" fill="currentColor"/>
+              </svg>
+            )}
+            {primaryLabel}
           </button>
-          <button
-            onClick={stopStopwatch}
-            disabled={!sw.isRunning}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              height: 36, padding: '0 20px',
-              background: sw.isRunning ? 'var(--danger)' : 'var(--surface-2)',
-              color: sw.isRunning ? 'var(--bg)' : 'var(--text-3)',
-              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
-              cursor: !sw.isRunning ? 'not-allowed' : 'pointer',
-              opacity: !sw.isRunning ? 0.4 : 1,
-              transition: 'all 0.15s',
-            }}
-          >
-            <svg width="10" height="10" viewBox="0 0 10 10" fill="none">
-              <rect x="1.5" y="1.5" width="7" height="7" rx="1" fill="currentColor"/>
-            </svg>
-            {t('today.stop')}
-          </button>
-          <button
-            onClick={resetStopwatch}
-            disabled={!tag || sw.isRunning}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 6,
-              height: 36, padding: '0 16px',
-              background: 'var(--surface-2)',
-              color: 'var(--text-3)',
-              border: '1px solid var(--border)', borderRadius: 'var(--radius)',
-              fontFamily: 'var(--font-mono)', fontSize: 11, letterSpacing: '0.06em',
-              cursor: !tag || sw.isRunning ? 'not-allowed' : 'pointer',
-              opacity: !tag || sw.isRunning ? 0.4 : 1,
-            }}
-          >
-            <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-              <path d="M1.5 6A4.5 4.5 0 1 0 6 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
-              <path d="M1.5 1.5v4.5h4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          {tag && !sw.isRunning && (
+            <button
+              onClick={resetStopwatch}
+              disabled={!tag || sw.isRunning}
+              title={t('today.reset')}
+              aria-label={t('today.reset')}
+              style={{
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                height: 52, width: 52,
+                background: 'var(--surface-2)',
+                color: 'var(--text-2)',
+                border: '1px solid var(--border)', borderRadius: 'var(--radius)',
+                cursor: !tag || sw.isRunning ? 'not-allowed' : 'pointer',
+                opacity: !tag || sw.isRunning ? 0.4 : 1,
+              }}
+            >
+              <svg width="15" height="15" viewBox="0 0 12 12" fill="none">
+                <path d="M1.5 6A4.5 4.5 0 1 0 6 1.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round"/>
+                <path d="M1.5 1.5v4.5h4.5" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          )}
         </section>
 
         {/* Recent tags */}
@@ -294,26 +318,13 @@ export default function TodayView() {
           <>
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
               {[
-                { label: t('today.statToday'), val: formattedDailyTotalTime },
-                { label: t('today.statTagTotal'), val: formattedTagTotalTime },
-                { label: t('today.statAllTime'), val: formattedTotalTime },
+                { label: t('today.statTodayTotal'), val: formatTime(todayRecordTotal) },
+                { label: t('today.statTodayTag'), val: formattedDailyTotalTime },
+                { label: t('today.statCurrentTagTotal'), val: formattedTotalTime },
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: 'var(--surface)', padding: '14px 12px', textAlign: 'center' }}>
-                  <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
+                  <p style={{ fontSize: 11, color: 'var(--text-2)', marginBottom: 6, lineHeight: 1.3 }}>{label}</p>
                   <p className="mono" style={{ fontSize: 13, color: 'var(--text)' }}>{val}</p>
-                </div>
-              ))}
-            </section>
-
-            <section style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
-              {[
-                { label: t('today.statStarted'), val: formattedStartTime },
-                { label: t('today.statStopped'), val: formattedEndTime },
-                ...(sw.dailyGoalTime > 0 ? [{ label: t('today.statRemaining'), val: formattedRemainingTime }] : []),
-              ].map(({ label, val }) => (
-                <div key={label} style={{ background: 'var(--surface)', padding: '12px', textAlign: 'center' }}>
-                  <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 6 }}>{label}</p>
-                  <p className="mono" style={{ fontSize: 12, color: 'var(--text)' }}>{val}</p>
                 </div>
               ))}
             </section>

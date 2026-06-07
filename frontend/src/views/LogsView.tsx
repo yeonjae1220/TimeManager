@@ -1,6 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useState } from 'react'
+import Link from 'next/link'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
 import { useAuthStore } from '@/store/authStore'
@@ -49,6 +50,13 @@ function fmtHMS(s: number): string {
   const m = String(Math.floor((s % 3600) / 60)).padStart(2, '0')
   const sc = String(Math.floor(s % 60)).padStart(2, '0')
   return `${h}:${m}:${sc}`
+}
+
+function getTopTag(data: SummaryData): TagSummary | null {
+  return data.tagSummaries.reduce<TagSummary | null>((best, item) => {
+    if (!best || item.totalSeconds > best.totalSeconds) return item
+    return best
+  }, null)
 }
 
 function toLocalDate(d: Date): string {
@@ -171,9 +179,19 @@ function DailyTab({ memberId }: { memberId: number }) {
               {fmtHMS(data.totalSeconds)}
             </div>
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{tr('logs.total')}</span>
+            {data.totalSeconds > 0 && getTopTag(data) && (
+              <p style={{ maxWidth: 320, margin: '12px auto 0', color: 'var(--text-2)', fontSize: 13, lineHeight: 1.5 }}>
+                {tr('logs.dailyInsight', { total: fmtDuration(data.totalSeconds), tag: getTopTag(data)?.tagName ?? '' })}
+              </p>
+            )}
           </div>
           {data.tagSummaries.length === 0 && (
-            <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecords')}</p>
+            <div style={{ display: 'grid', justifyItems: 'center', gap: 12, padding: '20px 0' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecords')}</p>
+              <Link href={`/members/${memberId}/today`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
+                {tr('logs.startToday')}
+              </Link>
+            </div>
           )}
           {data.tagSummaries.map((t) => (
             <TagBar key={t.tagId} summary={t} total={data.totalSeconds} />
@@ -286,6 +304,19 @@ function WeeklyTab({ memberId }: { memberId: number }) {
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(Math.round(data.totalSeconds / 7))}</p>
             </div>
           </div>
+          {data.totalSeconds > 0 && getTopTag(data) && (
+            <p style={{ margin: '-8px 0 20px', color: 'var(--text-2)', fontSize: 13, lineHeight: 1.5, textAlign: 'center' }}>
+              {tr('logs.periodInsight', { total: fmtDuration(data.totalSeconds), tag: getTopTag(data)?.tagName ?? '' })}
+            </p>
+          )}
+          {data.tagSummaries.length === 0 && (
+            <div style={{ display: 'grid', justifyItems: 'center', gap: 12, padding: '8px 0 20px' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecords')}</p>
+              <Link href={`/members/${memberId}/today`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
+                {tr('logs.startToday')}
+              </Link>
+            </div>
+          )}
           {data.tagSummaries.map((t) => (
             <TagBar key={t.tagId} summary={t} total={data.totalSeconds} />
           ))}
@@ -431,6 +462,19 @@ function MonthlyTab({ memberId }: { memberId: number }) {
               <p className="mono" style={{ fontSize: 16 }}>{fmtHMS(Math.round(data.totalSeconds / lastDay.getDate()))}</p>
             </div>
           </div>
+          {data.totalSeconds > 0 && getTopTag(data) && (
+            <p style={{ margin: '-8px 0 20px', color: 'var(--text-2)', fontSize: 13, lineHeight: 1.5, textAlign: 'center' }}>
+              {tr('logs.periodInsight', { total: fmtDuration(data.totalSeconds), tag: getTopTag(data)?.tagName ?? '' })}
+            </p>
+          )}
+          {data.tagSummaries.length === 0 && (
+            <div style={{ display: 'grid', justifyItems: 'center', gap: 12, padding: '8px 0 20px' }}>
+              <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecords')}</p>
+              <Link href={`/members/${memberId}/today`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
+                {tr('logs.startToday')}
+              </Link>
+            </div>
+          )}
           {data.tagSummaries.map((t) => (
             <TagBar key={t.tagId} summary={t} total={data.totalSeconds} />
           ))}
@@ -548,7 +592,12 @@ function TagTab({ memberId }: { memberId: number }) {
 
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
       {!loading && selectedTagId && currentFiltered.length === 0 && (
-        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>{tr('logs.noRecordsPeriod')}</p>
+        <div style={{ display: 'grid', justifyItems: 'center', gap: 12, marginTop: 40 }}>
+          <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecordsPeriod')}</p>
+          <Link href={`/members/${memberId}/today${selectedTagId ? `?tagId=${selectedTagId}` : ''}`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
+            {tr('logs.startToday')}
+          </Link>
+        </div>
       )}
 
       {!loading && currentFiltered.length > 0 && (

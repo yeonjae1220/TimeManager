@@ -108,6 +108,8 @@ export default function RecordListView() {
   }, [tag, loadTags])
 
   async function handleDelete(record: Record, index: number) {
+    if (!confirm(t('records.deleteConfirm'))) return
+
     setRecords((prev) => prev.filter((r) => r.id !== record.id))
     undoDataRef.current = { record, index }
     setUndoVisible(true)
