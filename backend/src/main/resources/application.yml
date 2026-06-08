@@ -54,6 +54,15 @@ google:
     token-uri: https://oauth2.googleapis.com/token
     userinfo-uri: https://www.googleapis.com/oauth2/v3/userinfo
 
+app:
+  rate-limit:
+    login-limit: ${RATE_LIMIT_LOGIN:10}
+    refresh-limit: ${RATE_LIMIT_REFRESH:30}
+    window-seconds: ${RATE_LIMIT_WINDOW_SECONDS:600}
+  # 신뢰 프록시(nginx-ingress 등)의 IP에서 온 요청만 X-Forwarded-For 헤더를 신뢰.
+  # 그렇지 않으면 클라이언트가 헤더를 위조해 IP 기반 rate limit을 우회할 수 있음.
+  trusted-proxy-ips: ${TRUSTED_PROXY_IPS:127.0.0.1,::1}
+
 admin:
   email: ${ADMIN_EMAIL:admin@timemanager.local}
   password:
