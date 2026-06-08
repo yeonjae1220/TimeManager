@@ -85,6 +85,11 @@ spec:
               value: "redis"
             - name: REDIS_PORT
               value: "6379"
+            # nginx-ingress 파드의 IP에서 온 요청만 X-Forwarded-For를 신뢰 (스푸핑 방지).
+            # k3s/flannel 기본 파드 CIDR — 운영 환경에서 `kubectl get pods -n kube-system -o wide`로
+            # 실제 ingress-nginx 파드 대역을 확인해 필요 시 갱신할 것 (CIDR 표기 지원).
+            - name: TRUSTED_PROXY_IPS
+              value: "127.0.0.1,::1,10.42.0.0/16"
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
