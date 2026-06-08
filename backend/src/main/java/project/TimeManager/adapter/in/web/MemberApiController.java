@@ -1,5 +1,6 @@
 package project.TimeManager.adapter.in.web;
 
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -16,6 +17,8 @@ import project.TimeManager.domain.port.in.member.DeleteMemberUseCase;
 import project.TimeManager.domain.port.in.member.GetMemberProfileUseCase;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.in.member.UpdateMemberProfileUseCase;
+import project.TimeManager.shared.security.ClientIpResolver;
+import project.TimeManager.shared.security.RateLimiterService;
 
 import java.util.Map;
 
@@ -28,9 +31,14 @@ public class MemberApiController {
     private final GetMemberProfileUseCase getMemberProfileUseCase;
     private final UpdateMemberProfileUseCase updateMemberProfileUseCase;
     private final DeleteMemberUseCase deleteMemberUseCase;
+    private final RateLimiterService rateLimiterService;
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping
-    public ResponseEntity<Map<String, Long>> register(@Valid @RequestBody RegisterMemberRequest request) {
+    public ResponseEntity<Map<String, Long>> register(
+            @Valid @RequestBody RegisterMemberRequest request,
+            HttpServletRequest httpRequest) {
+        rateLimiterService.checkRegisterRate(clientIpResolver.resolve(httpRequest), request.email());
         MemberId memberId = registerMemberUseCase.register(
                 new RegisterMemberCommand(request.name(), request.email(), request.password()));
         return ResponseEntity.status(201).body(Map.of("memberId", memberId.value()));

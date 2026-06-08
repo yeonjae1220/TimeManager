@@ -3,13 +3,13 @@ package project.TimeManager.adapter.in.web;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Value;
+import lombok.RequiredArgsConstructor;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.web.util.matcher.IpAddressMatcher;
 import org.springframework.web.bind.annotation.*;
+import project.TimeManager.shared.security.ClientIpResolver;
 import project.TimeManager.shared.security.RateLimiterService;
 import project.TimeManager.adapter.in.web.dto.request.GoogleLoginRequest;
 import project.TimeManager.adapter.in.web.dto.request.LoginRequest;
@@ -27,9 +27,9 @@ import project.TimeManager.domain.port.in.auth.LogoutUseCase;
 import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
 
 import java.util.Arrays;
-import java.util.List;
 
 @RestController
+@RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
 public class AuthApiController {
 
@@ -42,44 +42,14 @@ public class AuthApiController {
     private final GoogleLoginUseCase googleLoginUseCase;
     private final RateLimiterService rateLimiterService;
     private final Environment environment;
-    private final List<IpAddressMatcher> trustedProxyMatchers;
-
-    public AuthApiController(
-            LoginUseCase loginUseCase,
-            RefreshTokenUseCase refreshTokenUseCase,
-            LogoutUseCase logoutUseCase,
-            GoogleLoginUseCase googleLoginUseCase,
-            RateLimiterService rateLimiterService,
-            Environment environment,
-            @Value("${app.trusted-proxy-ips:127.0.0.1,::1}") String trustedProxyIpsConfig
-    ) {
-        this.loginUseCase = loginUseCase;
-        this.refreshTokenUseCase = refreshTokenUseCase;
-        this.logoutUseCase = logoutUseCase;
-        this.googleLoginUseCase = googleLoginUseCase;
-        this.rateLimiterService = rateLimiterService;
-        this.environment = environment;
-        this.trustedProxyMatchers = Arrays.stream(trustedProxyIpsConfig.split(","))
-                .map(String::trim)
-                .filter(ip -> !ip.isEmpty())
-                .map(AuthApiController::parseMatcher)
-                .toList();
-    }
-
-    private static IpAddressMatcher parseMatcher(String ip) {
-        try {
-            return new IpAddressMatcher(ip);
-        } catch (IllegalArgumentException e) {
-            throw new IllegalStateException("app.trusted-proxy-ips에 잘못된 IP/CIDR 항목이 있습니다: " + ip, e);
-        }
-    }
+    private final ClientIpResolver clientIpResolver;
 
     @PostMapping("/login")
     public ResponseEntity<LoginResponse> login(
             @Valid @RequestBody LoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        rateLimiterService.checkLoginRate(getClientIp(httpRequest));
+        rateLimiterService.checkLoginRate(clientIpResolver.resolve(httpRequest), request.email());
         TokenPairResult result = loginUseCase.login(new LoginCommand(request.email(), request.password()));
         addRefreshCookie(response, result.refreshToken());
         return ResponseEntity.ok(new LoginResponse(result.accessToken(), result.memberId()));
@@ -93,7 +63,7 @@ public class AuthApiController {
         if (refreshToken == null || refreshToken.isBlank()) {
             return ResponseEntity.status(401).build();
         }
-        rateLimiterService.checkRefreshRate(getClientIp(httpRequest));
+        rateLimiterService.checkRefreshRate(clientIpResolver.resolve(httpRequest));
         TokenPairResult result = refreshTokenUseCase.refresh(new RefreshTokenCommand(refreshToken));
         addRefreshCookie(response, result.refreshToken());
         return ResponseEntity.ok(new LoginResponse(result.accessToken(), result.memberId()));
@@ -115,46 +85,11 @@ public class AuthApiController {
             @Valid @RequestBody GoogleLoginRequest request,
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
-        rateLimiterService.checkLoginRate(getClientIp(httpRequest));
+        rateLimiterService.checkLoginRate(clientIpResolver.resolve(httpRequest));
         GoogleLoginResult result = googleLoginUseCase.loginWithGoogle(
                 new GoogleLoginCommand(request.code(), request.redirectUri()));
         addRefreshCookie(response, result.refreshToken());
         return ResponseEntity.ok(new GoogleAuthResponse(result.accessToken(), result.memberId(), result.newMember()));
-    }
-
-    /**
-     * 신뢰 프록시(nginx-ingress 등) IP/CIDR 대역에서 온 요청만 X-Forwarded-For 헤더를 신뢰.
-     * 그렇지 않으면 클라이언트가 임의의 X-Forwarded-For 값을 보내 IP 기반 rate limit을 우회할 수 있음.
-     */
-    private String getClientIp(HttpServletRequest request) {
-        String remoteAddr = request.getRemoteAddr();
-        if (isTrustedProxy(remoteAddr)) {
-            String forwarded = request.getHeader("X-Forwarded-For");
-            if (forwarded != null && !forwarded.isBlank()) {
-                return resolveFromChain(forwarded);
-            }
-        }
-        return remoteAddr;
-    }
-
-    /**
-     * X-Forwarded-For는 각 홉이 자신을 덧붙이는 방식으로 누적될 수 있어(use-forwarded-headers: true 등),
-     * 가장 왼쪽 값은 클라이언트가 임의로 주입할 수 있다.
-     * 오른쪽부터 훑어 신뢰 프록시가 아닌 첫 항목을 실제 클라이언트 IP로 본다.
-     */
-    private String resolveFromChain(String forwarded) {
-        String[] ips = forwarded.split(",");
-        for (int i = ips.length - 1; i >= 0; i--) {
-            String candidate = ips[i].trim();
-            if (!candidate.isEmpty() && !isTrustedProxy(candidate)) {
-                return candidate;
-            }
-        }
-        return ips[0].trim();
-    }
-
-    private boolean isTrustedProxy(String remoteAddr) {
-        return trustedProxyMatchers.stream().anyMatch(matcher -> matcher.matches(remoteAddr));
     }
 
     private void addRefreshCookie(HttpServletResponse response, String refreshToken) {

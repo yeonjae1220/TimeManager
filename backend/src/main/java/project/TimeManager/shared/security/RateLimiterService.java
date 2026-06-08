@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import project.TimeManager.domain.exception.TooManyRequestsException;
 
 import java.util.List;
+import java.util.Locale;
 
 @Component
 public class RateLimiterService {
@@ -20,17 +21,20 @@ public class RateLimiterService {
     private final RedisTemplate<String, String> redisTemplate;
     private final int loginLimit;
     private final int refreshLimit;
+    private final int registerLimit;
     private final int windowSeconds;
 
     public RateLimiterService(
             RedisTemplate<String, String> redisTemplate,
             @Value("${app.rate-limit.login-limit:10}") int loginLimit,
             @Value("${app.rate-limit.refresh-limit:30}") int refreshLimit,
+            @Value("${app.rate-limit.register-limit:5}") int registerLimit,
             @Value("${app.rate-limit.window-seconds:600}") int windowSeconds
     ) {
         this.redisTemplate = redisTemplate;
         this.loginLimit = loginLimit;
         this.refreshLimit = refreshLimit;
+        this.registerLimit = registerLimit;
         this.windowSeconds = windowSeconds;
     }
 
@@ -38,8 +42,26 @@ public class RateLimiterService {
         check("rl:login:ip:" + clientIp, loginLimit);
     }
 
+    /**
+     * IP와 정규화된 이메일 두 차원에서 함께 제한해, 공격자가 IP를 바꿔가며
+     * 특정 계정에 무차별 대입하거나 한 IP로 여러 계정을 스터핑하는 것을 모두 방어한다.
+     */
+    public void checkLoginRate(String clientIp, String email) {
+        check("rl:login:ip:" + clientIp, loginLimit);
+        check("rl:login:email:" + normalizeEmail(email), loginLimit);
+    }
+
     public void checkRefreshRate(String clientIp) {
         check("rl:refresh:" + clientIp, refreshLimit);
+    }
+
+    public void checkRegisterRate(String clientIp, String email) {
+        check("rl:register:ip:" + clientIp, registerLimit);
+        check("rl:register:email:" + normalizeEmail(email), registerLimit);
+    }
+
+    private String normalizeEmail(String email) {
+        return email == null ? "" : email.trim().toLowerCase(Locale.ROOT);
     }
 
     private void check(String key, int limit) {
