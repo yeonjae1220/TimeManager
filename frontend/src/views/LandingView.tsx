@@ -41,10 +41,11 @@ export default function LandingView() {
     }
 
     if (!accessToken && memberId) {
-      refreshAuth().then((token) => {
-        if (token) {
+      refreshAuth().then((result) => {
+        if (result.status === 'authenticated') {
           router.replace(`/members/${memberId}/today`)
         } else {
+          // unauthenticated·offline 모두 랜딩 표시(저위험 화면)
           setRestoring(false)
         }
       })

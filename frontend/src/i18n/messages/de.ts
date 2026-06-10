@@ -30,6 +30,8 @@ const de: Messages = {
 
   'auth.email': 'E-Mail',
   'auth.password': 'Passwort',
+  'auth.reconnecting': 'Verbindung wird geprüft…',
+  'auth.retry': 'Erneut versuchen',
 
   'login.eyebrow': 'anmelden',
   'login.title': 'Willkommen zurück.',

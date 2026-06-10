@@ -30,6 +30,8 @@ const ja: Messages = {
 
   'auth.email': 'メール',
   'auth.password': 'パスワード',
+  'auth.reconnecting': '接続を確認しています…',
+  'auth.retry': '再試行',
 
   'login.eyebrow': 'ログイン',
   'login.title': 'おかえりなさい。',

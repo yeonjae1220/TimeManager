@@ -30,6 +30,8 @@ const pt: Messages = {
 
   'auth.email': 'E-mail',
   'auth.password': 'Senha',
+  'auth.reconnecting': 'Verificando sua conexão…',
+  'auth.retry': 'Tentar novamente',
 
   'login.eyebrow': 'entrar',
   'login.title': 'Bem-vindo de volta.',
