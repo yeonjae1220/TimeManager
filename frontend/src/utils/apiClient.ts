@@ -26,15 +26,19 @@ apiClient.interceptors.response.use(
 
     originalRequest._retry = true
 
-    const newToken = await refreshAuth()
+    const result = await refreshAuth()
 
-    if (!newToken) {
-      if (typeof window !== 'undefined') window.location.href = '/login'
-      return Promise.reject(error)
+    if (result.status === 'authenticated') {
+      originalRequest.headers['Authorization'] = `Bearer ${result.token}`
+      return apiClient(originalRequest)
     }
 
-    originalRequest.headers['Authorization'] = `Bearer ${newToken}`
-    return apiClient(originalRequest)
+    // 인증 확정 실패만 로그인으로 보낸다. offline(일시 장애)은
+    // 리다이렉트 없이 원 에러를 전파해 세션을 유지한다.
+    if (result.status === 'unauthenticated') {
+      if (typeof window !== 'undefined') window.location.href = '/login'
+    }
+    return Promise.reject(error)
   }
 )
 

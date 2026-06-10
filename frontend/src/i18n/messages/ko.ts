@@ -30,6 +30,8 @@ const ko: Messages = {
 
   'auth.email': '이메일',
   'auth.password': '비밀번호',
+  'auth.reconnecting': '연결을 확인하는 중…',
+  'auth.retry': '다시 시도',
 
   'login.eyebrow': '로그인',
   'login.title': '다시 오신 걸 환영합니다.',

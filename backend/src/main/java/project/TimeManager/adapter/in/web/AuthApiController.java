@@ -4,6 +4,7 @@ import jakarta.servlet.http.HttpServletRequest;
 import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -21,6 +22,7 @@ import project.TimeManager.application.dto.command.auth.LogoutCommand;
 import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
 import project.TimeManager.application.dto.result.GoogleLoginResult;
 import project.TimeManager.application.dto.result.TokenPairResult;
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
@@ -28,6 +30,7 @@ import project.TimeManager.domain.port.in.auth.RefreshTokenUseCase;
 
 import java.util.Arrays;
 
+@Slf4j
 @RestController
 @RequiredArgsConstructor
 @RequestMapping("/api/v1/auth")
@@ -61,12 +64,20 @@ public class AuthApiController {
             HttpServletRequest httpRequest,
             HttpServletResponse response) {
         if (refreshToken == null || refreshToken.isBlank()) {
+            // 원인 분석용: 쿠키 자체가 없는 경우(eviction·미저장) vs 죽은 토큰(아래 catch)
+            log.info("auth.refresh.fail reason=no_cookie");
             return ResponseEntity.status(401).build();
         }
         rateLimiterService.checkRefreshRate(clientIpResolver.resolve(httpRequest));
-        TokenPairResult result = refreshTokenUseCase.refresh(new RefreshTokenCommand(refreshToken));
-        addRefreshCookie(response, result.refreshToken());
-        return ResponseEntity.ok(new LoginResponse(result.accessToken(), result.memberId()));
+        try {
+            TokenPairResult result = refreshTokenUseCase.refresh(new RefreshTokenCommand(refreshToken));
+            addRefreshCookie(response, result.refreshToken());
+            return ResponseEntity.ok(new LoginResponse(result.accessToken(), result.memberId()));
+        } catch (DomainException e) {
+            // 쿠키는 있으나 토큰이 무효/만료/회전소멸 — 회전·쿠키 미저장 진단 지표
+            log.info("auth.refresh.fail reason=dead_token");
+            throw e;
+        }
     }
 
     @PostMapping("/logout")

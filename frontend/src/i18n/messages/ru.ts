@@ -30,6 +30,8 @@ const ru: Messages = {
 
   'auth.email': 'Эл. почта',
   'auth.password': 'Пароль',
+  'auth.reconnecting': 'Проверка подключения…',
+  'auth.retry': 'Повторить',
 
   'login.eyebrow': 'вход',
   'login.title': 'С возвращением.',

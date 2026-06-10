@@ -30,6 +30,8 @@ const zh: Messages = {
 
   'auth.email': '邮箱',
   'auth.password': '密码',
+  'auth.reconnecting': '正在检查网络连接…',
+  'auth.retry': '重试',
 
   'login.eyebrow': '登录',
   'login.title': '欢迎回来。',

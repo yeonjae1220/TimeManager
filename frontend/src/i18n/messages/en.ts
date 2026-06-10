@@ -35,6 +35,8 @@ const en = {
   // auth shared
   'auth.email': 'Email',
   'auth.password': 'Password',
+  'auth.reconnecting': 'Checking your connection…',
+  'auth.retry': 'Try again',
 
   // login
   'login.eyebrow': 'sign in',

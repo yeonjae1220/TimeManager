@@ -1,9 +1,12 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
+import { useI18n } from '@/i18n/I18nProvider'
+
+type AuthPhase = 'restoring' | 'ready' | 'offline'
 
 function AuthSkeleton() {
   return (
@@ -22,30 +25,93 @@ function AuthSkeleton() {
   )
 }
 
-export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { accessToken, memberId, clearAuth } = useAuthStore()
-  const router = useRouter()
-  const [hydrated, setHydrated] = useState(false)
+function ReconnectScreen({ onRetry, retrying }: { onRetry: () => void; retrying: boolean }) {
+  const { t } = useI18n()
+  return (
+    <div style={{ minHeight: '100dvh', background: 'var(--bg)', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: 24 }}>
+      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 20, maxWidth: 280, textAlign: 'center' }}>
+        <span aria-hidden="true" style={{ width: 8, height: 8, borderRadius: '50%', background: 'var(--accent)', animation: 'pulse 1.4s ease infinite' }} />
+        <p role="status" aria-live="polite" style={{ fontSize: 13, color: 'var(--text-2)', lineHeight: 1.7 }}>{t('auth.reconnecting')}</p>
+        <button
+          type="button"
+          className="btn btn-ghost"
+          onClick={onRetry}
+          disabled={retrying}
+          style={{ height: 36, padding: '0 20px', fontSize: 13 }}
+        >
+          {t('auth.retry')}
+        </button>
+      </div>
+      <style>{`@keyframes pulse{0%,100%{opacity:.3}50%{opacity:.7}}`}</style>
+    </div>
+  )
+}
 
-  useEffect(() => {
-    const init = async () => {
-      if (!accessToken) {
-        const token = await refreshAuth()
-        if (!token) clearAuth()
-      }
-      setHydrated(true)
+export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
+  const { memberId, clearAuth } = useAuthStore()
+  const router = useRouter()
+  const [phase, setPhase] = useState<AuthPhase>('restoring')
+  const [retrying, setRetrying] = useState(false)
+  const inFlight = useRef(false)
+
+  const restore = useCallback(async () => {
+    if (inFlight.current) return
+    // 이미 메모리에 토큰이 있으면(앱 내 네비게이션) refresh 불필요
+    if (useAuthStore.getState().accessToken) {
+      setPhase('ready')
+      return
     }
-    init()
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+    inFlight.current = true
+    setRetrying(true)
+    try {
+      const result = await refreshAuth()
+      if (result.status === 'authenticated') {
+        setPhase('ready')
+      } else if (result.status === 'unauthenticated') {
+        clearAuth()
+        router.replace('/login')
+      } else {
+        setPhase('offline')
+      }
+    } finally {
+      inFlight.current = false
+      setRetrying(false)
+    }
+  }, [clearAuth, router])
+
+  // 최초 복원
+  useEffect(() => {
+    if (useAuthStore.getState().accessToken) {
+      setPhase('ready')
+      return
+    }
+    if (!useAuthStore.getState().memberId) {
+      router.replace('/login')
+      return
+    }
+    void restore()
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
+  // 연결 복구 시(온라인 전환·앱 포그라운드 복귀) 자동 재시도
   useEffect(() => {
-    if (!hydrated) return
-    if (!accessToken || !memberId) router.replace('/login')
-  }, [hydrated, accessToken, memberId, router])
+    if (phase !== 'offline') return
+    const onReconnectSignal = () => {
+      if (navigator.onLine && document.visibilityState === 'visible') {
+        void restore()
+      }
+    }
+    window.addEventListener('online', onReconnectSignal)
+    document.addEventListener('visibilitychange', onReconnectSignal)
+    return () => {
+      window.removeEventListener('online', onReconnectSignal)
+      document.removeEventListener('visibilitychange', onReconnectSignal)
+    }
+  }, [phase, restore])
 
-  if (!hydrated) return <AuthSkeleton />
-  if (!accessToken || !memberId) return null
+  if (phase === 'restoring') return <AuthSkeleton />
+  if (phase === 'offline') return <ReconnectScreen onRetry={() => void restore()} retrying={retrying} />
+  if (!memberId) return null
 
   return <>{children}</>
 }
