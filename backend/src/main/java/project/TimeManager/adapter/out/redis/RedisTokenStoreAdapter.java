@@ -5,6 +5,7 @@ import org.springframework.stereotype.Component;
 import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
+import project.TimeManager.shared.security.TokenHasher;
 
 import java.util.Optional;
 
@@ -21,27 +22,29 @@ public class RedisTokenStoreAdapter implements TokenStorePort {
 
     @Override
     public Optional<AuthSession> findByRefreshToken(String refreshToken) {
-        return authSessionRedisRepository.findById(refreshToken)
-                .map(this::toDomain);
+        return authSessionRedisRepository.findById(TokenHasher.sha256(refreshToken))
+                .map(entity -> toDomain(entity, refreshToken));
     }
 
     @Override
     public void delete(String refreshToken) {
-        authSessionRedisRepository.deleteById(refreshToken);
+        authSessionRedisRepository.deleteById(TokenHasher.sha256(refreshToken));
     }
 
     private AuthSessionRedisEntity toEntity(AuthSession session) {
         AuthSessionRedisEntity entity = new AuthSessionRedisEntity();
-        entity.setRefreshToken(session.getRefreshToken());
+        entity.setTokenHash(TokenHasher.sha256(session.getRefreshToken()));
         entity.setMemberId(session.getMemberId().value());
         entity.setExpiresAt(session.getExpiresAt());
         return entity;
     }
 
-    private AuthSession toDomain(AuthSessionRedisEntity entity) {
+    private AuthSession toDomain(AuthSessionRedisEntity entity, String refreshToken) {
+        // The plaintext token is never persisted; pass back the value the caller
+        // supplied so the reconstituted session stays consistent for downstream use.
         return AuthSession.reconstitute(
                 MemberId.of(entity.getMemberId()),
-                entity.getRefreshToken(),
+                refreshToken,
                 entity.getExpiresAt()
         );
     }

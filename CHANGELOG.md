@@ -6,6 +6,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/).
 
 ## [Unreleased]
 
+### Security
+- Refresh token을 Redis에 평문 저장하던 취약점 수정 (GLOBAL-PIT-001) — `@Id`를 원문 토큰 대신 `sha256(refreshToken)` 해시로 저장해 Redis 유출 시 세션 탈취 차단 (`AuthSessionRedisEntity`, `RedisTokenStoreAdapter`, 신규 `TokenHasher` 유틸). 토큰은 고엔트로피라 단방향 SHA-256으로 충분(bcrypt 불필요). 배포 시 기존 평문 키 세션은 새 해시 조회로 도달 불가 → 사용자 재로그인 후 정상화, 잔여 키는 TTL(30일)로 자연 만료.
+
 ## [0.3.0] - 2026-04-13
 
 ### Security

@@ -14,8 +14,12 @@ import java.util.concurrent.TimeUnit;
 @Setter
 public class AuthSessionRedisEntity {
 
+    /**
+     * SHA-256 hash of the refresh token (hex). Never the plaintext token —
+     * storing the raw token would expose it as the Redis key. See GLOBAL-PIT-001.
+     */
     @Id
-    private String refreshToken;
+    private String tokenHash;
 
     private Long memberId;
 
