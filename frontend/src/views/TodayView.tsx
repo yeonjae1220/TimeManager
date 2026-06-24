@@ -18,6 +18,8 @@ function toLocalDate(d: Date): string {
   return d.toLocaleDateString('sv-SE')
 }
 
+const TODAY_RECENT_TAG_LIMIT = 6
+
 export default function TodayView() {
   const params = useParams()
   const router = useRouter()
@@ -129,7 +131,7 @@ export default function TodayView() {
   const recentTags = recentTagIds
     .map((id) => findById(id))
     .filter((t): t is NonNullable<typeof t> => t !== null && t.type !== 'DISCARDED' && t.id !== tag?.id)
-    .slice(0, 3)
+    .slice(0, TODAY_RECENT_TAG_LIMIT)
 
   const timerProgress = sw.dailyGoalTime > 0
     ? Math.min(100, Math.max(0, (sw.dailyTotalTimeCal / sw.dailyGoalTime) * 100))
@@ -287,14 +289,26 @@ export default function TodayView() {
         {recentTags.length > 0 && (
           <section style={{ marginBottom: 24 }}>
             <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('today.recent')}</p>
-            <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            <div
+              style={{
+                display: 'flex',
+                gap: 8,
+                overflowX: 'auto',
+                paddingBottom: 2,
+                scrollbarWidth: 'none',
+                WebkitMaskImage: 'linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent 100%)',
+                maskImage: 'linear-gradient(90deg, #000 0%, #000 calc(100% - 28px), transparent 100%)',
+              }}
+            >
               {recentTags.map((t) => (
                 <button
                   key={t.id}
                   onClick={() => selectTag(t.id)}
                   disabled={isSwitching}
                   style={{
-                    display: 'flex', alignItems: 'center', gap: 6,
+                    display: 'inline-flex', alignItems: 'center', gap: 6,
+                    flex: '0 0 auto',
+                    maxWidth: 148,
                     height: 30, padding: '0 12px',
                     background: 'var(--surface-2)',
                     border: '1px solid var(--border)',
@@ -306,7 +320,7 @@ export default function TodayView() {
                   }}
                 >
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: t.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
-                  {t.name}
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{t.name}</span>
                 </button>
               ))}
             </div>
