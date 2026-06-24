@@ -38,6 +38,8 @@ function flattenTags(nodes: Tag[], path: string[] = []): { tag: Tag; path: strin
   })
 }
 
+const PICKER_RECENT_TAG_LIMIT = 10
+
 export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClose }: TagPickerModalProps) {
   const { t: tr } = useI18n()
   const [pathIds, setPathIds] = useState<number[]>([])
@@ -83,7 +85,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
   const recentTags = recentTagIds
     .map((id) => findById(id))
     .filter((tag): tag is Tag => tag !== null && tag.type !== 'DISCARDED')
-    .slice(0, 4)
+    .slice(0, PICKER_RECENT_TAG_LIMIT)
   const runningTags = flattenedTags
     .map(({ tag }) => tag)
     .filter((tag) => tag.state && tag.type !== 'DISCARDED')
@@ -196,10 +198,10 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
                 <button
                   key={tag.id}
                   onClick={() => selectTag(tag.id)}
-                  style={{ minHeight: 34, display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontSize: 12, cursor: 'pointer' }}
+                  style={{ minHeight: 34, maxWidth: '100%', display: 'inline-flex', alignItems: 'center', gap: 7, padding: '6px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontSize: 12, cursor: 'pointer' }}
                 >
-                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.state ? 'var(--running)' : 'var(--text-3)' }} />
-                  {tag.name}
+                  <span style={{ width: 6, height: 6, borderRadius: '50%', background: tag.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
+                  <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{tag.name}</span>
                 </button>
               ))}
             </div>

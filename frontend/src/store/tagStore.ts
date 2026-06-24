@@ -41,6 +41,7 @@ function deepClone<T>(obj: T): T {
 }
 
 const RECENT_TAGS_KEY = 'recentTagIds'
+const MAX_RECENT_TAGS = 16
 
 function loadRecentTagIds(): number[] {
   if (typeof window === 'undefined') return []
@@ -100,7 +101,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
   addRecentTag(tagId) {
     const prev = get().recentTagIds.filter((id) => id !== tagId)
-    const next = [tagId, ...prev].slice(0, 3)
+    const next = [tagId, ...prev].slice(0, MAX_RECENT_TAGS)
     set({ recentTagIds: next })
     saveRecentTagIds(next)
   },
