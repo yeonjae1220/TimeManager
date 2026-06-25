@@ -3,7 +3,16 @@
 import { create } from 'zustand'
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import apiClient from '@/utils/apiClient'
-import { peekTimerState, clearTimerState, markRetryAttempted, clearRetryAttempted } from '@/utils/timerPersistence'
+import {
+  clearRetryAttempted,
+  clearTimerState,
+  markRetryAttempted,
+  peekPendingTimerOperation,
+  peekResetTimerMarker,
+  peekTimerState,
+  removePendingTimerOperation,
+  shouldApplyResetTimerMarker,
+} from '@/utils/timerPersistence'
 
 export interface Tag {
   id: number
@@ -17,6 +26,7 @@ export interface Tag {
   totalTime?: number
   latestStartTimeMs?: number | null
   latestStopTimeMs: number | null
+  memberId?: number
   children: Tag[]
 }
 
@@ -38,6 +48,38 @@ function findTagById(tagTree: Tag[], id: number): Tag | null {
 
 function deepClone<T>(obj: T): T {
   return JSON.parse(JSON.stringify(obj))
+}
+
+function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
+  const localTimer = peekTimerState()
+  const resetMarker = peekResetTimerMarker()
+  if (!localTimer && !resetMarker) return tagTree
+
+  const next = deepClone(tagTree)
+
+  if (localTimer) {
+    const target = findTagById(next, localTimer.tagId)
+    if (target) {
+      const serverChangedAt = Math.max(target.latestStartTimeMs || 0, target.latestStopTimeMs || 0)
+      if (localTimer.savedAt > serverChangedAt) {
+        target.state = localTimer.isRunning
+        target.elapsedTime = localTimer.elapsedTime
+      }
+    }
+  }
+
+  if (resetMarker) {
+    const target = findTagById(next, resetMarker.tagId)
+    if (
+      target &&
+      shouldApplyResetTimerMarker(resetMarker, target.latestStartTimeMs, target.latestStopTimeMs)
+    ) {
+      target.state = false
+      target.elapsedTime = 0
+    }
+  }
+
+  return next
 }
 
 const RECENT_TAGS_KEY = 'recentTagIds'
@@ -155,24 +197,15 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       console.warn('IndexedDB cache read failed:', e)
     }
 
-    const localTimer = peekTimerState()
-    if (localTimer) {
-      const tagTree = deepClone(get().tagTree)
-      const target = findTagById(tagTree, localTimer.tagId)
-      if (target) {
-        const serverStopTimeMs = target.latestStopTimeMs || 0
-        if (localTimer.savedAt > serverStopTimeMs) {
-          target.state = localTimer.isRunning
-        }
-      }
-      set({ tagTree })
+    const tagTree = applyLocalTimerOverrides(get().tagTree)
+    set({ tagTree })
 
-      if (navigator.onLine && !localTimer.retryAttempted) {
-        get().retryPendingTimerOp().then(() => {
-          const mid = get()._activeMemberId
-          if (mid) get().refreshTags(mid)
-        })
-      }
+    const pendingTimerOperation = peekPendingTimerOperation()
+    if (pendingTimerOperation && navigator.onLine && !pendingTimerOperation.retryAttempted) {
+      get().retryPendingTimerOp().then(() => {
+        const mid = get()._activeMemberId
+        if (mid) get().refreshTags(mid)
+      })
     }
   },
 
@@ -205,17 +238,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       let tagTree = response.data
       set({ lastFetchedAt: Date.now(), fetchError: false })
 
-      const localTimer = peekTimerState()
-      if (localTimer) {
-        tagTree = deepClone(tagTree)
-        const target = findTagById(tagTree, localTimer.tagId)
-        if (target) {
-          const serverStopTimeMs = target.latestStopTimeMs || 0
-          if (localTimer.savedAt > serverStopTimeMs) {
-            target.state = localTimer.isRunning
-          }
-        }
-      }
+      tagTree = applyLocalTimerOverrides(tagTree)
 
       set({ tagTree })
 
@@ -262,36 +285,48 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
   async retryPendingTimerOp() {
     const inner = (async () => {
-      const saved = peekTimerState()
-      if (!saved || saved.retryAttempted) return
+      while (true) {
+        const pending = peekPendingTimerOperation()
+        if (!pending || pending.retryAttempted) return
 
-      markRetryAttempted()
+        markRetryAttempted(pending.id)
 
-      try {
-        if (!saved.isRunning && saved.latestEndTime) {
-          await apiClient.post(
-            `/api/v1/tags/${saved.tagId}/timer/stop`,
-            {
-              elapsedTime: saved.elapsedTime,
-              timestamps: {
-                startTime: new Date(saved.latestStartTime!).toISOString(),
-                endTime: new Date(saved.latestEndTime).toISOString(),
+        try {
+          if (pending.type === 'stop') {
+            await apiClient.post(
+              `/api/v1/tags/${pending.tagId}/timer/stop`,
+              {
+                elapsedTime: pending.elapsedTime,
+                timestamps: {
+                  startTime: new Date(pending.latestStartTime).toISOString(),
+                  endTime: new Date(pending.latestEndTime).toISOString(),
+                },
               },
-            },
-            { headers: { 'Content-Type': 'application/json' } }
-          )
-          clearTimerState()
-        } else if (saved.isRunning && saved.latestStartTime) {
-          await apiClient.post(
-            `/api/v1/tags/${saved.tagId}/timer/start`,
-            { startTime: new Date(saved.latestStartTime).toISOString() },
-            { headers: { 'Content-Type': 'application/json' } }
-          )
-          clearTimerState()
+              { headers: { 'Content-Type': 'application/json' } }
+            )
+            const activeTimer = peekTimerState()
+            if (activeTimer?.tagId === pending.tagId && !activeTimer.isRunning) {
+              clearTimerState()
+            }
+          } else if (pending.type === 'start') {
+            await apiClient.post(
+              `/api/v1/tags/${pending.tagId}/timer/start`,
+              { startTime: new Date(pending.latestStartTime).toISOString() },
+              { headers: { 'Content-Type': 'application/json' } }
+            )
+          } else {
+            await apiClient.post(
+              `/api/v1/tags/${pending.tagId}/timer/reset`,
+              { elapsedTime: pending.elapsedTime },
+              { headers: { 'Content-Type': 'application/json' } }
+            )
+          }
+          removePendingTimerOperation(pending.id)
+        } catch (e: unknown) {
+          const isNetworkError = !(e as { response?: unknown }).response
+          if (isNetworkError) clearRetryAttempted(pending.id)
+          return
         }
-      } catch (e: unknown) {
-        const isNetworkError = !(e as { response?: unknown }).response
-        if (isNetworkError) clearRetryAttempted()
       }
     })()
 
