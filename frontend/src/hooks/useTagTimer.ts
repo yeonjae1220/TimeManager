@@ -2,7 +2,16 @@
 
 import { useState, useRef, useCallback, useEffect } from 'react'
 import apiClient from '@/utils/apiClient'
-import { saveTimerState, peekTimerState, clearTimerState } from '@/utils/timerPersistence'
+import {
+  clearTimerState,
+  enqueuePendingTimerOperation,
+  peekPendingTimerOperation,
+  peekResetTimerMarker,
+  peekTimerState,
+  saveResetTimerMarker,
+  saveTimerState,
+  shouldApplyResetTimerMarker,
+} from '@/utils/timerPersistence'
 import { useTagStore, type Tag } from '@/store/tagStore'
 
 export interface StopwatchState {
@@ -151,17 +160,23 @@ export function useTagTimer() {
         saved.tagId === tagId &&
         saved.savedAt > (data.latestStartTimeMs || 0) &&
         saved.savedAt > (data.latestStopTimeMs || 0)
+      const resetMarker = peekResetTimerMarker(tagId)
+      const useResetMarker = shouldApplyResetTimerMarker(
+        resetMarker,
+        data.latestStartTimeMs,
+        data.latestStopTimeMs
+      )
 
       const newSw: StopwatchState = {
-        isRunning: useLocalState ? saved!.isRunning : data.state,
-        latestStartTime: useLocalState ? (saved!.latestStartTime ?? 0) : (data.latestStartTimeMs ?? 0),
-        latestEndTime: useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
-        elapsedTime: useLocalState ? saved!.elapsedTime : data.elapsedTime,
+        isRunning: useResetMarker ? false : useLocalState ? saved!.isRunning : data.state,
+        latestStartTime: useResetMarker ? 0 : useLocalState ? (saved!.latestStartTime ?? 0) : (data.latestStartTimeMs ?? 0),
+        latestEndTime: useResetMarker ? 0 : useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
+        elapsedTime: useResetMarker ? 0 : useLocalState ? saved!.elapsedTime : data.elapsedTime,
         dailyTotalTime: data.dailyTotalTime || 0,
         dailyGoalTime: data.dailyGoalTime || 0,
         tagTotalTime: data.tagTotalTime || 0,
         totalTime: data.totalTime || 0,
-        elapsedTimeCal: useLocalState ? saved!.elapsedTime : data.elapsedTime,
+        elapsedTimeCal: useResetMarker ? 0 : useLocalState ? saved!.elapsedTime : data.elapsedTime,
         dailyTotalTimeCal: data.dailyTotalTime || 0,
         tagTotalTimeCal: data.tagTotalTime || 0,
         totalTimeCal: data.totalTime || 0,
@@ -197,6 +212,11 @@ export function useTagTimer() {
         startTime: new Date(startTime).toISOString(),
       })
     } catch (e) {
+      enqueuePendingTimerOperation({
+        type: 'start',
+        tagId: tag.id,
+        latestStartTime: startTime,
+      })
       console.warn('Start API failed (offline?):', e)
     }
   }, [tag, sw, requestWakeLock])
@@ -231,14 +251,49 @@ export function useTagTimer() {
       })
       clearTimerState()
     } catch (e) {
+      enqueuePendingTimerOperation({
+        type: 'stop',
+        tagId: tag.id,
+        elapsedTime: elapsed,
+        latestStartTime: sw.latestStartTime,
+        latestEndTime: endTime,
+      })
       console.warn('Stop API failed (offline?):', e)
     }
   }, [tag, sw, releaseWakeLock])
 
-  const resetStopwatch = useCallback(() => {
+  const resetStopwatch = useCallback(async () => {
     if (!tag || sw.isRunning) return
+    const hasPendingTimerOperation = peekPendingTimerOperation() !== null
     setSw((prev) => ({ ...prev, elapsedTime: 0, elapsedTimeCal: 0 }))
+    saveResetTimerMarker(tag.id)
     clearTimerState()
+
+    try {
+      await apiClient.post(`/api/v1/tags/${tag.id}/timer/reset`, {
+        elapsedTime: 0,
+      })
+      const tagStore = useTagStore.getState()
+      if (hasPendingTimerOperation) {
+        enqueuePendingTimerOperation({
+          type: 'reset',
+          tagId: tag.id,
+          elapsedTime: 0,
+        })
+        tagStore.retryPendingTimerOp().then(() => {
+          if (tag.memberId) tagStore.refreshTags(tag.memberId)
+        })
+      } else if (tag.memberId) {
+        tagStore.refreshTags(tag.memberId)
+      }
+    } catch (e) {
+      enqueuePendingTimerOperation({
+        type: 'reset',
+        tagId: tag.id,
+        elapsedTime: 0,
+      })
+      console.warn('Reset API failed (offline?):', e)
+    }
   }, [tag, sw.isRunning])
 
   const formattedElapsedTime = formatTime(sw.elapsedTimeCal)
