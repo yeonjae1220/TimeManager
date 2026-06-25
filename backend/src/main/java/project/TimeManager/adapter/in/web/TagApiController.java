@@ -105,26 +105,29 @@ public class TagApiController {
 
     @PostMapping("/{tagId}/timer/start")
     public ResponseEntity<Long> startTimer(@PathVariable Long tagId,
+                                           @AuthenticationPrincipal Long memberId,
                                            @Valid @RequestBody StartTimerRequest request) {
-        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime())));
+        return ResponseEntity.ok(startTimerUseCase.startTimer(new StartTimerCommand(tagId, request.startTime(), memberId)));
     }
 
     @PostMapping("/{tagId}/timer/stop")
     public ResponseEntity<Long> stopTimer(@PathVariable Long tagId,
+                                          @AuthenticationPrincipal Long memberId,
                                           @Valid @RequestBody StopTimerRequest request) {
         ZonedDateTime startTime = request.timestamps().startTime();
         ZonedDateTime endTime = request.timestamps().endTime();
         log.info("Stop timer: tagId={}, startTime={}, endTime={}", tagId, startTime, endTime);
         return ResponseEntity.ok(stopTimerUseCase.stopTimer(
-                new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime)
+                new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime, memberId)
         ));
     }
 
     @PostMapping("/{tagId}/timer/reset")
     public ResponseEntity<Long> resetTimer(@PathVariable Long tagId,
+                                           @AuthenticationPrincipal Long memberId,
                                            @Valid @RequestBody ResetTimerRequest request) {
         return ResponseEntity.ok(resetTimerUseCase.resetTimer(
-                new ResetTimerCommand(tagId, request.elapsedTime())
+                new ResetTimerCommand(tagId, request.elapsedTime(), memberId)
         ));
     }
 }

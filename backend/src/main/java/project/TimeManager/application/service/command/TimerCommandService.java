@@ -34,6 +34,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
     public Long startTimer(StartTimerCommand command) {
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+        assertOwner(tag, command.memberId());
 
         // Stop any other running tag for this member
         loadTagPort.findRunningTagByMemberId(tag.getMemberId().value()).ifPresent(runningTag -> {
@@ -56,6 +57,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
     public Long stopTimer(StopTimerCommand command) {
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+        assertOwner(tag, command.memberId());
         tag.stop(command.endTime(), command.elapsedTime());
         saveTagPort.saveTag(tag);
         return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime(), false));
@@ -65,8 +67,15 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
     public Long resetTimer(ResetTimerCommand command) {
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+        assertOwner(tag, command.memberId());
         tag.reset(command.elapsedTime());
         saveTagPort.saveTag(tag);
         return tag.getId().value();
+    }
+
+    private void assertOwner(Tag tag, Long memberId) {
+        if (!tag.getMemberId().value().equals(memberId)) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
     }
 }
