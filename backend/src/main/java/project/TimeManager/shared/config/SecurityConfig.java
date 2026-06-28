@@ -25,7 +25,9 @@ import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.provisioning.InMemoryUserDetailsManager;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+import org.springframework.security.web.util.matcher.AntPathRequestMatcher;
 import org.springframework.web.cors.CorsConfiguration;
+import project.TimeManager.shared.security.internal.ServiceTokenAuthFilter;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
 import project.TimeManager.adapter.in.web.security.JwtAuthenticationFilter;
@@ -49,6 +51,10 @@ public class SecurityConfig {
      */
     @Value("${cors.allowed-origins:}")
     private String allowedOriginsRaw;
+
+    /** 콘솔 집계용 서비스 토큰 — 미설정 시 /api/internal/** 전부 차단(fail-closed) */
+    @Value("${console.internal-token:}")
+    private String consoleInternalToken;
 
     @Value("${admin.email}")
     private String adminEmail;
@@ -115,15 +121,36 @@ public class SecurityConfig {
     }
 
     /**
+     * 콘솔 집계 전용 Security chain (서비스 토큰, 읽기 전용).
+     * /api/internal/** 만 담당. ServiceTokenAuthFilter가 X-Internal-Token을 상수시간 비교로 검증.
+     * AntPathRequestMatcher 명시 — MVC 존재 시 securityMatcher(String)이 핸들러 기반으로 해석돼
+     * 핸들러 없는 경로를 놓치는 것을 방지 (GLOBAL-PIT-040).
+     */
+    @Bean
+    @Order(0)
+    public SecurityFilterChain internalConsoleFilterChain(HttpSecurity http) throws Exception {
+        return http
+                .securityMatcher(AntPathRequestMatcher.antMatcher("/api/internal/**"))
+                .csrf(AbstractHttpConfigurer::disable)
+                .cors(AbstractHttpConfigurer::disable)
+                .sessionManagement(s -> s.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .authorizeHttpRequests(auth -> auth.anyRequest().permitAll())
+                .addFilterBefore(new ServiceTokenAuthFilter(consoleInternalToken),
+                        UsernamePasswordAuthenticationFilter.class)
+                .build();
+    }
+
+    /**
      * Admin 전용 Security chain (세션 기반).
      * /admin/** 경로만 담당. formLogin + httpOnly 세션 쿠키로 인증.
-     * JWT 필터를 걸지 않아 accessToken XSS 탈취 위협과 완전히 분리.
+     * AntPathRequestMatcher 명시 — POST /admin/login은 핸들러 없이 formLogin 필터가 처리하므로
+     * String 매처(MvcRequestMatcher)면 매칭 실패해 메인 체인 401이 난다 (GLOBAL-PIT-040).
      */
     @Bean
     @Order(1)
     public SecurityFilterChain adminFilterChain(HttpSecurity http) throws Exception {
         return http
-                .securityMatcher("/admin/**")
+                .securityMatcher(AntPathRequestMatcher.antMatcher("/admin/**"))
                 .authenticationManager(adminAuthenticationManager())
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/admin/login").permitAll()
