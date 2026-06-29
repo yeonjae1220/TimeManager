@@ -57,6 +57,24 @@ describe('timerPersistence', () => {
     expect(peekPendingTimerOperation()?.retryAttempted).toBe(true)
   })
 
+  it('removes legacy retryAttempted from active timer storage when read', () => {
+    localStorage.setItem('timemgr-timer', JSON.stringify({
+      ...makeTimerState(),
+      savedAt: Date.now(),
+      retryAttempted: true,
+    }))
+
+    expect(peekTimerState()).not.toHaveProperty('retryAttempted')
+    expect(localStorage.getItem('timemgr-timer')).not.toContain('retryAttempted')
+  })
+
+  it('drops malformed active timer storage when read', () => {
+    localStorage.setItem('timemgr-timer', JSON.stringify({ retryAttempted: true }))
+
+    expect(peekTimerState()).toBeNull()
+    expect(localStorage.getItem('timemgr-timer')).toBeNull()
+  })
+
   it('preserves pending operation order', () => {
     enqueuePendingTimerOperation({
       type: 'stop',

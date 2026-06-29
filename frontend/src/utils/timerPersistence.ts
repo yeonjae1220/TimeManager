@@ -71,12 +71,43 @@ export interface ResetTimerMarker {
   expiresAt: number
 }
 
+function isTimerState(value: unknown): value is TimerState {
+  if (!value || typeof value !== 'object') return false
+  const state = value as Partial<TimerState>
+  return (
+    typeof state.tagId === 'number' &&
+    typeof state.isRunning === 'boolean' &&
+    typeof state.elapsedTime === 'number' &&
+    typeof state.dailyTotalTime === 'number' &&
+    typeof state.dailyGoalTime === 'number' &&
+    typeof state.savedAt === 'number'
+  )
+}
+
+function normalizeTimerState(state: TimerState & { retryAttempted?: boolean }): TimerState {
+  const { retryAttempted: _legacyRetryAttempted, ...normalized } = state
+  return normalized
+}
+
 export function peekTimerState(): TimerState | null {
   if (typeof window === 'undefined') return null
   try {
     const raw = localStorage.getItem(TIMER_KEY)
-    return raw ? JSON.parse(raw) : null
+    if (!raw) return null
+
+    const parsed = JSON.parse(raw)
+    if (!isTimerState(parsed)) {
+      localStorage.removeItem(TIMER_KEY)
+      return null
+    }
+
+    const normalized = normalizeTimerState(parsed)
+    if ('retryAttempted' in parsed) {
+      localStorage.setItem(TIMER_KEY, JSON.stringify(normalized))
+    }
+    return normalized
   } catch {
+    localStorage.removeItem(TIMER_KEY)
     return null
   }
 }
