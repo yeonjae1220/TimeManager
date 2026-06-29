@@ -234,7 +234,8 @@ public class SecurityConfig {
                             response.getWriter().write("{\"error\":\"인증이 필요합니다\"}");
                         })
                 )
-                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class);
+                .addFilterBefore(jwtAuthenticationFilter, UsernamePasswordAuthenticationFilter.class)
+                .addFilterAfter(new AccessLogFilter(), JwtAuthenticationFilter.class);
 
         return http.build();
     }
