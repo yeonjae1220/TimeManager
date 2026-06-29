@@ -38,7 +38,7 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
             if (StringUtils.hasText(token) && jwtTokenProvider.validateAccessToken(token)) {
                 MemberId memberId = jwtTokenProvider.extractMemberId(token);
                 MemberRole role = jwtTokenProvider.extractRole(token);
-                MDC.put("memberId", memberId.value().toString());
+                MDC.put("userId", memberId.value().toString());
                 String authority = role == MemberRole.ADMIN ? "ADMIN" : "ROLE_USER";
                 UsernamePasswordAuthenticationToken auth = new UsernamePasswordAuthenticationToken(
                         memberId.value(), null, List.of(new org.springframework.security.core.authority.SimpleGrantedAuthority(authority)));
