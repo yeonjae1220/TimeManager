@@ -153,7 +153,7 @@ public class SecurityConfig {
                 .securityMatcher(AntPathRequestMatcher.antMatcher("/admin/**"))
                 .authenticationManager(adminAuthenticationManager())
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/admin/login").permitAll()
+                        .requestMatchers(AntPathRequestMatcher.antMatcher("/admin/login")).permitAll()
                         .anyRequest().hasAuthority("ADMIN")
                 )
                 .formLogin(form -> form
