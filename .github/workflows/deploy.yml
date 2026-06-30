@@ -146,6 +146,8 @@ jobs:
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
+          CONSOLE_INTERNAL_TOKEN: ${{ secrets.CONSOLE_INTERNAL_TOKEN }}
+          LAB_FEEDBACK_TOKEN: ${{ secrets.LAB_FEEDBACK_TOKEN }}
         run: |
           sudo kubectl create secret generic timemanager-secret \
             --from-literal=DB_NAME="timemanager" \
@@ -157,6 +159,8 @@ jobs:
             --from-literal=PUSH_VAPID_SUBJECT="${PUSH_VAPID_SUBJECT}" \
             --from-literal=ADMIN_EMAIL="${ADMIN_EMAIL}" \
             --from-literal=ADMIN_PASSWORD_BCRYPT="${ADMIN_PASSWORD_BCRYPT}" \
+            --from-literal=CONSOLE_INTERNAL_TOKEN="${CONSOLE_INTERNAL_TOKEN}" \
+            --from-literal=LAB_FEEDBACK_TOKEN="${LAB_FEEDBACK_TOKEN}" \
             -n timemanager --dry-run=client -o yaml | sudo kubectl apply -f -
 
           sudo kubectl create secret generic timemanager-google-secret \

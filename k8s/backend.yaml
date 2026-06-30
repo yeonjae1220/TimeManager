@@ -81,6 +81,16 @@ spec:
                 secretKeyRef:
                   name: timemanager-secret
                   key: ADMIN_PASSWORD_BCRYPT
+            - name: CONSOLE_INTERNAL_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-secret
+                  key: CONSOLE_INTERNAL_TOKEN
+            - name: LAB_FEEDBACK_TOKEN
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-secret
+                  key: LAB_FEEDBACK_TOKEN
             - name: REDIS_HOST
               value: "redis"
             - name: REDIS_PORT
