@@ -41,3 +41,9 @@ admin:
   email: admin@test.example.com
   password:
     bcrypt: "$2a$10$ZREjacHoViDjzFMpqcrAD.rd8ey4WveMgI026S9V0hsPa2dDUSE4O"
+
+lab:
+  feedback:
+    endpoint: http://lab-dashboard.lab.svc.cluster.local/api/internal/feedback
+    token: test-feedback-token-dummy
+    app-name: timemanager
