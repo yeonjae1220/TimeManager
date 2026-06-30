@@ -224,6 +224,7 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers("/actuator/**").hasAuthority("ADMIN")
                         .requestMatchers("/tt/**").authenticated()
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/feedback").permitAll()
                         .requestMatchers("/api/v1/admin/**").hasAuthority("ADMIN")
                         .anyRequest().authenticated()
                 )

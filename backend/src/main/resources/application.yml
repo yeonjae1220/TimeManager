@@ -70,3 +70,9 @@ admin:
   email: ${ADMIN_EMAIL:admin@timemanager.local}
   password:
     bcrypt: ${ADMIN_PASSWORD_BCRYPT:$2a$10$placeholder-must-be-overridden-in-prod}
+
+lab:
+  feedback:
+    endpoint: ${LAB_FEEDBACK_ENDPOINT:http://lab-dashboard.lab.svc.cluster.local/api/internal/feedback}
+    token: ${LAB_FEEDBACK_TOKEN:}
+    app-name: timemanager
