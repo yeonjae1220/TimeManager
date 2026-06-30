@@ -56,17 +56,14 @@ class AuthCommandServiceTest {
         @Test
         @DisplayName("이메일과 비밀번호가 올바르면 토큰 쌍을 반환한다")
         void shouldReturnTokenPair_whenCredentialsValid() {
-            // Arrange
             MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD, MemberRole.MEMBER);
             given(loadMemberCredentialsPort.findByEmail(EMAIL)).willReturn(Optional.of(credentials));
             given(passwordHasherPort.matches(PASSWORD, HASHED_PASSWORD)).willReturn(true);
             given(tokenGeneratorPort.generateAccessToken(eq(MEMBER_ID), any(MemberRole.class))).willReturn(ACCESS_TOKEN);
             given(tokenGeneratorPort.generateRefreshToken()).willReturn(REFRESH_TOKEN);
 
-            // Act
             TokenPairResult result = authCommandService.login(new LoginCommand(EMAIL, PASSWORD));
 
-            // Assert
             assertThat(result.accessToken()).isEqualTo(ACCESS_TOKEN);
             assertThat(result.refreshToken()).isEqualTo(REFRESH_TOKEN);
             assertThat(result.memberId()).isEqualTo(MEMBER_ID.value());
@@ -101,12 +98,32 @@ class AuthCommandServiceTest {
     class WhenRefreshing {
 
         @Test
-        @DisplayName("유효한 리프레시 토큰이면 새 토큰 쌍을 반환한다")
-        void shouldReturnNewTokenPair_whenTokenValid() {
-            // Arrange
-            Instant future = Instant.now().plus(7, ChronoUnit.DAYS);
-            AuthSession session = AuthSession.create(MEMBER_ID, REFRESH_TOKEN, future);
-            given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(session));
+        @DisplayName("24시간 이내 회전한 세션이면 토큰을 재사용하고 새 accessToken만 발급한다")
+        void shouldReuseRefreshToken_whenRotatedRecently() {
+            // Arrange — lastRotatedAt = now (create 직후) → 회전 인터벌 내
+            Instant future = Instant.now().plus(30, ChronoUnit.DAYS);
+            AuthSession recentSession = AuthSession.create(MEMBER_ID, REFRESH_TOKEN, future);
+            given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(recentSession));
+            given(tokenGeneratorPort.generateAccessToken(eq(MEMBER_ID), any(MemberRole.class))).willReturn(ACCESS_TOKEN);
+
+            // Act
+            TokenPairResult result = authCommandService.refresh(new RefreshTokenCommand(REFRESH_TOKEN));
+
+            // Assert
+            assertThat(result.accessToken()).isEqualTo(ACCESS_TOKEN);
+            assertThat(result.refreshToken()).isEqualTo(REFRESH_TOKEN);  // 원래 토큰 재사용
+            then(tokenStorePort).should(never()).delete(anyString());     // 삭제 없음
+            then(tokenStorePort).should(never()).save(any());             // 저장 없음
+        }
+
+        @Test
+        @DisplayName("24시간 이상 지난 세션이면 토큰을 회전하고 새 토큰 쌍을 반환한다")
+        void shouldRotateToken_whenRotationIntervalElapsed() {
+            // Arrange — lastRotatedAt = 25시간 전 → 회전 인터벌 초과
+            Instant oldRotation = Instant.now().minus(25, ChronoUnit.HOURS);
+            AuthSession oldSession = AuthSession.reconstitute(MEMBER_ID, REFRESH_TOKEN,
+                    Instant.now().plus(30, ChronoUnit.DAYS), oldRotation);
+            given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(oldSession));
 
             String newRefreshToken = "new-refresh-token";
             String newAccessToken = "new-access-token";
@@ -118,9 +135,9 @@ class AuthCommandServiceTest {
 
             // Assert
             assertThat(result.accessToken()).isEqualTo(newAccessToken);
-            assertThat(result.refreshToken()).isEqualTo(newRefreshToken);
-            then(tokenStorePort).should().delete(REFRESH_TOKEN);
-            then(tokenStorePort).should().save(session);
+            assertThat(result.refreshToken()).isEqualTo(newRefreshToken);  // 새 토큰
+            then(tokenStorePort).should().delete(REFRESH_TOKEN);           // 기존 토큰 삭제
+            then(tokenStorePort).should().save(oldSession);                // 회전된 세션 저장
         }
 
         @Test

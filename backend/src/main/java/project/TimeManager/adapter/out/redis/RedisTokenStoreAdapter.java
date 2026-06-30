@@ -36,6 +36,7 @@ public class RedisTokenStoreAdapter implements TokenStorePort {
         entity.setTokenHash(TokenHasher.sha256(session.getRefreshToken()));
         entity.setMemberId(session.getMemberId().value());
         entity.setExpiresAt(session.getExpiresAt());
+        entity.setLastRotatedAt(session.getLastRotatedAt());
         return entity;
     }
 
@@ -45,7 +46,8 @@ public class RedisTokenStoreAdapter implements TokenStorePort {
         return AuthSession.reconstitute(
                 MemberId.of(entity.getMemberId()),
                 refreshToken,
-                entity.getExpiresAt()
+                entity.getExpiresAt(),
+                entity.getLastRotatedAt()  // null(구 엔티티)이면 reconstitute가 EPOCH로 처리 → 즉시 회전
         );
     }
 }

@@ -25,6 +25,8 @@ public class AuthSessionRedisEntity {
 
     private Instant expiresAt;
 
+    private Instant lastRotatedAt;
+
     @TimeToLive(unit = TimeUnit.SECONDS)
     private long ttl = 30 * 24 * 60 * 60L; // 30 days
 }

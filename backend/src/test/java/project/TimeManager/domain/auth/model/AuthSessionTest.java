@@ -5,6 +5,7 @@ import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
 import project.TimeManager.domain.member.model.MemberId;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -40,6 +41,39 @@ class AuthSessionTest {
     }
 
     @Nested
+    @DisplayName("isRotatedRecently")
+    class WhenCheckingRotationRecency {
+
+        @Test
+        @DisplayName("create 직후에는 24시간 이내이므로 true를 반환한다")
+        void shouldReturnTrue_whenJustCreated() {
+            AuthSession session = AuthSession.create(MEMBER_ID, REFRESH_TOKEN,
+                    Instant.now().plus(30, ChronoUnit.DAYS));
+
+            assertThat(session.isRotatedRecently(Duration.ofHours(24))).isTrue();
+        }
+
+        @Test
+        @DisplayName("lastRotatedAt이 interval보다 과거이면 false를 반환한다")
+        void shouldReturnFalse_whenRotatedBeforeInterval() {
+            Instant oldRotation = Instant.now().minus(25, ChronoUnit.HOURS);
+            AuthSession session = AuthSession.reconstitute(MEMBER_ID, REFRESH_TOKEN,
+                    Instant.now().plus(30, ChronoUnit.DAYS), oldRotation);
+
+            assertThat(session.isRotatedRecently(Duration.ofHours(24))).isFalse();
+        }
+
+        @Test
+        @DisplayName("reconstitute 시 lastRotatedAt이 null이면 Instant.EPOCH로 처리해 false를 반환한다")
+        void shouldReturnFalse_whenLastRotatedAtIsNull() {
+            AuthSession session = AuthSession.reconstitute(MEMBER_ID, REFRESH_TOKEN,
+                    Instant.now().plus(30, ChronoUnit.DAYS), null);
+
+            assertThat(session.isRotatedRecently(Duration.ofHours(24))).isFalse();
+        }
+    }
+
+    @Nested
     @DisplayName("rotate")
     class WhenRotating {
 
@@ -66,6 +100,19 @@ class AuthSessionTest {
 
             assertThat(session.getMemberId()).isEqualTo(MEMBER_ID);
         }
+
+        @Test
+        @DisplayName("rotate 후 lastRotatedAt이 현재 시각으로 갱신되어 isRotatedRecently가 true를 반환한다")
+        void shouldUpdateLastRotatedAt_afterRotate() {
+            Instant oldRotation = Instant.now().minus(25, ChronoUnit.HOURS);
+            AuthSession session = AuthSession.reconstitute(MEMBER_ID, REFRESH_TOKEN,
+                    Instant.now().plus(30, ChronoUnit.DAYS), oldRotation);
+            assertThat(session.isRotatedRecently(Duration.ofHours(24))).isFalse();
+
+            session.rotate("new-token", Instant.now().plus(30, ChronoUnit.DAYS));
+
+            assertThat(session.isRotatedRecently(Duration.ofHours(24))).isTrue();
+        }
     }
 
     @Nested
@@ -73,8 +120,9 @@ class AuthSessionTest {
     class WhenCreating {
 
         @Test
-        @DisplayName("create로 생성하면 모든 필드가 설정된다")
+        @DisplayName("create로 생성하면 모든 필드가 설정되고 lastRotatedAt은 현재 시각으로 초기화된다")
         void shouldSetAllFields() {
+            Instant before = Instant.now();
             Instant expiry = Instant.now().plus(7, ChronoUnit.DAYS);
 
             AuthSession session = AuthSession.create(MEMBER_ID, REFRESH_TOKEN, expiry);
@@ -82,6 +130,7 @@ class AuthSessionTest {
             assertThat(session.getMemberId()).isEqualTo(MEMBER_ID);
             assertThat(session.getRefreshToken()).isEqualTo(REFRESH_TOKEN);
             assertThat(session.getExpiresAt()).isEqualTo(expiry);
+            assertThat(session.getLastRotatedAt()).isAfterOrEqualTo(before);
         }
     }
 }

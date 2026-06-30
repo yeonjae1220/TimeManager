@@ -20,6 +20,7 @@ import project.TimeManager.domain.port.out.auth.TokenStorePort;
 import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
@@ -29,6 +30,7 @@ import java.time.temporal.ChronoUnit;
 public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, LogoutUseCase {
 
     private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
+    private static final Duration ROTATION_INTERVAL = Duration.ofHours(24);
     private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
@@ -63,14 +65,20 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
             throw new DomainException("만료된 리프레시 토큰입니다");
         }
 
+        MemberRole role = loadMemberPort.loadMember(session.getMemberId().value())
+                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
+        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId(), role);
+
+        // 24시간 이내 회전: 토큰 재사용, access token만 재발급 → iOS 쿠키 flush 실패 방어
+        if (session.isRotatedRecently(ROTATION_INTERVAL)) {
+            return new TokenPairResult(newAccessToken, command.refreshToken(), session.getMemberId().value());
+        }
+
+        // 24시간 이상 경과: 토큰 회전
         String newRefreshToken = tokenGeneratorPort.generateRefreshToken();
         tokenStorePort.delete(command.refreshToken());
         session.rotate(newRefreshToken, newExpiresAt());
         tokenStorePort.save(session);
-
-        MemberRole role = loadMemberPort.loadMember(session.getMemberId().value())
-                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
-        String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId(), role);
         return new TokenPairResult(newAccessToken, newRefreshToken, session.getMemberId().value());
     }
 
