@@ -79,14 +79,14 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     }
   }, [clearAuth, router])
 
-  // 최초 복원
+  // 최초 복원 — localStorage의 memberId 유무로 restore 자체를 막지 않는다.
+  // 진짜 자격증명은 httpOnly refresh 쿠키이고, restore()가 이를 시도해 실패하면
+  // (unauthenticated) 그때 /login으로 보낸다. memberId는 iOS 콜드 스타트에서
+  // 쿠키보다 먼저 사라질 수 있어(GLOBAL-PIT-052 계열), 이를 게이트로 쓰면
+  // 쿠키가 살아있어도 refresh를 시도조차 안 하고 강제 로그아웃되는 버그가 생긴다.
   useEffect(() => {
     if (useAuthStore.getState().accessToken) {
       setPhase('ready')
-      return
-    }
-    if (!useAuthStore.getState().memberId) {
-      router.replace('/login')
       return
     }
     void restore()

@@ -28,10 +28,11 @@ export default function LandingView() {
   const router = useRouter()
   const { t } = useI18n()
   const { accessToken, memberId } = useAuthStore()
-  // memberId가 persist에 남아 있으면 refresh token으로 세션 복원을 시도한다.
+  // 진짜 자격증명은 httpOnly refresh 쿠키 — localStorage의 memberId는 참고용 캐시일 뿐이다.
+  // memberId가 없어도(콜드 스타트 시 iOS WebKit이 localStorage flush를 놓쳐 사라질 수 있음)
+  // 쿠키가 살아있으면 refresh가 이를 복원해주므로, memberId 유무로 refresh 시도 자체를 막지 않는다.
   // 복원하는 동안 랜딩 대신 스플래시를 보여 깜빡임을 막는다.
   // SSR/CSR 모두 true로 시작해 hydration 불일치를 막는다.
-  // useEffect에서 memberId 없으면 즉시 false로 전환.
   const [restoring, setRestoring] = useState(true)
 
   useEffect(() => {
@@ -40,19 +41,15 @@ export default function LandingView() {
       return
     }
 
-    if (!accessToken && memberId) {
-      refreshAuth().then((result) => {
-        if (result.status === 'authenticated') {
-          router.replace(`/members/${memberId}/today`)
-        } else {
-          // unauthenticated·offline 모두 랜딩 표시(저위험 화면)
-          setRestoring(false)
-        }
-      })
-      return
-    }
-
-    setRestoring(false)
+    refreshAuth().then((result) => {
+      if (result.status === 'authenticated') {
+        const restoredMemberId = useAuthStore.getState().memberId
+        router.replace(`/members/${restoredMemberId}/today`)
+      } else {
+        // unauthenticated·offline 모두 랜딩 표시(저위험 화면)
+        setRestoring(false)
+      }
+    })
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
