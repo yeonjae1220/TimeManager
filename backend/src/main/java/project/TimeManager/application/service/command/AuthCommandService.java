@@ -1,6 +1,8 @@
 package project.TimeManager.application.service.command;
 
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.auth.LoginCommand;
@@ -24,14 +26,17 @@ import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 
+@Slf4j
 @Service
 @Transactional
 @RequiredArgsConstructor
 public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, LogoutUseCase {
 
     private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
-    private static final Duration ROTATION_INTERVAL = Duration.ofHours(24);
     private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
+
+    @Value("${auth.rotation-interval-hours:24}")
+    private long rotationIntervalHours;
 
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
     private final PasswordHasherPort passwordHasherPort;
@@ -69,12 +74,14 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
                 .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
         String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId(), role);
 
-        // 24시간 이내 회전: 토큰 재사용, access token만 재발급 → iOS 쿠키 flush 실패 방어
-        if (session.isRotatedRecently(ROTATION_INTERVAL)) {
+        Duration rotationInterval = Duration.ofHours(rotationIntervalHours);
+        if (session.isRotatedRecently(rotationInterval)) {
+            log.debug("refresh: skip rotation for member={} (last rotated within {}h)",
+                    session.getMemberId().value(), rotationIntervalHours);
             return new TokenPairResult(newAccessToken, command.refreshToken(), session.getMemberId().value());
         }
 
-        // 24시간 이상 경과: 토큰 회전
+        log.debug("refresh: rotating token for member={}", session.getMemberId().value());
         String newRefreshToken = tokenGeneratorPort.generateRefreshToken();
         tokenStorePort.delete(command.refreshToken());
         session.rotate(newRefreshToken, newExpiresAt());

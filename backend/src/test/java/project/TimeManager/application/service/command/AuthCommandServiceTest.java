@@ -1,5 +1,6 @@
 package project.TimeManager.application.service.command;
 
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Nested;
 import org.junit.jupiter.api.Test;
@@ -7,6 +8,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.test.util.ReflectionTestUtils;
 import project.TimeManager.application.dto.command.auth.LoginCommand;
 import project.TimeManager.application.dto.command.auth.LogoutCommand;
 import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
@@ -41,6 +43,11 @@ class AuthCommandServiceTest {
     @Mock LoadMemberPort loadMemberPort;
 
     @InjectMocks AuthCommandService authCommandService;
+
+    @BeforeEach
+    void setUp() {
+        ReflectionTestUtils.setField(authCommandService, "rotationIntervalHours", 24L);
+    }
 
     private static final MemberId MEMBER_ID = MemberId.of(1L);
     private static final String EMAIL = "user@example.com";

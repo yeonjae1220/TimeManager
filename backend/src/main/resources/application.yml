@@ -49,6 +49,9 @@ jwt:
   access-token-ttl-minutes: 15
   refresh-token-ttl-minutes: 43200
 
+auth:
+  rotation-interval-hours: ${AUTH_ROTATION_INTERVAL_HOURS:24}
+
 google:
   oauth2:
     client-id: ${GOOGLE_CLIENT_ID:}
