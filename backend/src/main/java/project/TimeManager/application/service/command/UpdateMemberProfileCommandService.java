@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.member.UpdateMemberProfileCommand;
 import project.TimeManager.application.dto.result.MemberProfileResult;
+import project.TimeManager.application.service.MemberDayBoundarySettingsCache;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.OAuthProvider;
@@ -24,6 +25,7 @@ public class UpdateMemberProfileCommandService implements UpdateMemberProfileUse
     private final LoadMemberPort loadMemberPort;
     private final UpdateMemberPort updateMemberPort;
     private final PasswordHasherPort passwordHasherPort;
+    private final MemberDayBoundarySettingsCache dayBoundaryCache;
 
     @Override
     public MemberProfileResult updateProfile(UpdateMemberProfileCommand command) {
@@ -71,6 +73,12 @@ public class UpdateMemberProfileCommandService implements UpdateMemberProfileUse
         }
 
         updateMemberPort.updateMember(command.memberId(), newName, newHashedPassword, newTimezone, newDailyResetHour);
+
+        // "오늘" 경계 계산에 쓰이는 값이 바뀌었으면 RecordSummaryService의 캐시를 즉시 무효화한다.
+        // TTL은 이 evict를 놓치는 미래의 쓰기 경로를 위한 안전망일 뿐, 정상 경로는 이걸로 즉시 반영된다.
+        if (newTimezone != null || newDailyResetHour != null) {
+            dayBoundaryCache.evict(command.memberId());
+        }
 
         Member updated = loadMemberPort.loadMember(command.memberId())
                 .orElseThrow(() -> new DomainException("존재하지 않는 회원입니다"));

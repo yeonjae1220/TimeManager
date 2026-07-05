@@ -7,9 +7,11 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Captor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.junit.jupiter.api.BeforeEach;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.application.dto.result.RecordSummaryResult;
+import project.TimeManager.application.service.MemberDayBoundarySettingsCache;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.MemberId;
@@ -50,9 +52,16 @@ class RecordSummaryServiceTest {
     ArgumentCaptor<ZonedDateTime> endCaptor;
 
     RecordSummaryService recordSummaryService;
+    MemberDayBoundarySettingsCache dayBoundaryCache;
 
     private static final Long MEMBER_ID = 1L;
     private static final ZoneId SEOUL = ZoneId.of("Asia/Seoul");
+
+    @BeforeEach
+    void setUp() {
+        dayBoundaryCache = new MemberDayBoundarySettingsCache();
+        recordSummaryService = new RecordSummaryService(loadRecordsByMemberPort, loadMemberPort, dayBoundaryCache);
+    }
 
     private Member memberWithResetHour(int resetHour) {
         return Member.reconstitute(
@@ -71,7 +80,6 @@ class RecordSummaryServiceTest {
     @Test
     @DisplayName("dailyResetHour=5인 회원의 '오늘' 경계는 UTC 자정이 아니라 한국시간 05:00 기준이다")
     void getSummary_usesDailyResetHour_notUtcMidnight() {
-        recordSummaryService = new RecordSummaryService(loadRecordsByMemberPort, loadMemberPort);
         given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.of(memberWithResetHour(5)));
         given(loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(eq(MEMBER_ID), any(), any()))
                 .willReturn(List.of());
@@ -92,7 +100,6 @@ class RecordSummaryServiceTest {
     @Test
     @DisplayName("새벽 5시~9시(KST) 사이 시작한 기록도 오늘 합계에 포함된다 (resetHour=5)")
     void getSummary_includesEarlyMorningRecord_withinResetWindow() {
-        recordSummaryService = new RecordSummaryService(loadRecordsByMemberPort, loadMemberPort);
         given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.of(memberWithResetHour(5)));
 
         // KST 07:00 시작 — UTC 자정 기준이었다면 "전날"로 취급돼 누락됐을 시각.
@@ -113,7 +120,6 @@ class RecordSummaryServiceTest {
     @Test
     @DisplayName("같은 회원의 반복 조회(Logs 주/월 뷰의 병렬 summary 호출)는 Member를 한 번만 조회한다")
     void getSummary_repeatedCallsForSameMember_loadMemberOnlyOnce() {
-        recordSummaryService = new RecordSummaryService(loadRecordsByMemberPort, loadMemberPort);
         given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.of(memberWithResetHour(5)));
         given(loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(eq(MEMBER_ID), any(), any()))
                 .willReturn(List.of());
@@ -128,9 +134,32 @@ class RecordSummaryServiceTest {
     }
 
     @Test
+    @DisplayName("캐시 무효화 후에는 바뀐 dailyResetHour를 즉시 반영한다 (프로필 저장 시 evict 경로)")
+    void getSummary_afterCacheEvict_reflectsUpdatedResetHourImmediately() {
+        given(loadMemberPort.loadMember(MEMBER_ID))
+                .willReturn(Optional.of(memberWithResetHour(5)))
+                .willReturn(Optional.of(memberWithResetHour(7)));
+        given(loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(eq(MEMBER_ID), any(), any()))
+                .willReturn(List.of());
+
+        LocalDate today = LocalDate.of(2026, 7, 5);
+        recordSummaryService.getSummary(MEMBER_ID, today, today);
+
+        // UpdateMemberProfileCommandService가 프로필 저장 성공 시 호출하는 것과 동일한 경로.
+        dayBoundaryCache.evict(MEMBER_ID);
+
+        recordSummaryService.getSummary(MEMBER_ID, today, today);
+
+        verify(loadRecordsByMemberPort, org.mockito.Mockito.times(2))
+                .loadRecordsByMemberAndDateRange(eq(MEMBER_ID), startCaptor.capture(), any());
+        assertThat(startCaptor.getAllValues().get(0).getHour()).isEqualTo(5);
+        assertThat(startCaptor.getAllValues().get(1).getHour()).isEqualTo(7);
+        verify(loadMemberPort, times(2)).loadMember(MEMBER_ID);
+    }
+
+    @Test
     @DisplayName("존재하지 않는 회원이면 DomainException을 던진다")
     void getSummary_memberNotFound_throws() {
-        recordSummaryService = new RecordSummaryService(loadRecordsByMemberPort, loadMemberPort);
         given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.empty());
 
         LocalDate today = LocalDate.of(2026, 7, 5);
