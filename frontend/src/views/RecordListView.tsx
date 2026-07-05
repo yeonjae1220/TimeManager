@@ -152,7 +152,7 @@ export default function RecordListView() {
           <span className="topbar-brand">timemgr</span>
           <button
             onClick={() => router.back()}
-            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}
+            style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: 'none', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', padding: '12px 8px', margin: '-12px -8px', minHeight: 44 }}
           >
             <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
               <path d="M10.5 6.5h-8M6 3L2.5 6.5 6 10" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/>
