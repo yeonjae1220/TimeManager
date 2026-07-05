@@ -19,11 +19,16 @@ export function middleware(request: NextRequest) {
     "frame-src 'none'",
     "object-src 'none'",
     "base-uri 'self'",
+    // 남이 이 앱을 iframe에 넣는 것(클릭재킹)을 차단 — frame-src는 반대 방향(내가 남을 embed)만 막는다.
+    "frame-ancestors 'none'",
   ].join('; ')
 
   const requestHeaders = new Headers(request.headers)
   requestHeaders.set('x-nonce', nonce)
 
+  // X-Content-Type-Options / Referrer-Policy / Permissions-Policy / HSTS는
+  // next.config.ts의 securityHeaders에서 관리 — 여기서 다시 set()하면 그쪽 값을
+  // 덮어써 screen-wake-lock=(self) 등이 유실된다.
   const response = NextResponse.next({ request: { headers: requestHeaders } })
   response.headers.set('Content-Security-Policy', csp)
   return response

@@ -8,6 +8,7 @@ const securityHeaders = [
   { key: 'Referrer-Policy', value: 'strict-origin-when-cross-origin' },
   // screen-wake-lock=(self): 타이머 실행 중 화면 절전 방지(Wake Lock API) 허용
   { key: 'Permissions-Policy', value: 'camera=(), microphone=(), geolocation=(), screen-wake-lock=(self)' },
+  { key: 'Strict-Transport-Security', value: 'max-age=31536000; includeSubDomains; preload' },
 ]
 
 const nextConfig: NextConfig = {

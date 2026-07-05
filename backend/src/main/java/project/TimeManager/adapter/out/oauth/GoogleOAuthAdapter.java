@@ -5,6 +5,8 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
 import org.springframework.stereotype.Component;
+import org.springframework.util.LinkedMultiValueMap;
+import org.springframework.util.MultiValueMap;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.client.RestClientResponseException;
 import project.TimeManager.application.dto.result.GoogleUserProfile;
@@ -44,11 +46,14 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
     }
 
     private GoogleTokenResponse exchangeAuthCode(String authCode, String redirectUri) {
-        String body = "code=" + authCode
-                + "&client_id=" + clientId
-                + "&client_secret=" + clientSecret
-                + "&redirect_uri=" + redirectUri
-                + "&grant_type=authorization_code";
+        // MultiValueMap + FormHttpMessageConverter로 각 값을 x-www-form-urlencoded 규칙에 맞게 인코딩한다.
+        // 원시 문자열 연결은 code/redirectUri에 '&','=' 등이 섞이면 body가 깨지거나 파라미터가 주입될 수 있다.
+        MultiValueMap<String, String> body = new LinkedMultiValueMap<>();
+        body.add("code", authCode);
+        body.add("client_id", clientId);
+        body.add("client_secret", clientSecret);
+        body.add("redirect_uri", redirectUri);
+        body.add("grant_type", "authorization_code");
 
         return restClient.post()
                 .uri(tokenUri)
