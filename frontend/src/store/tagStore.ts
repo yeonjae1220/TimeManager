@@ -6,9 +6,10 @@ import apiClient from '@/utils/apiClient'
 import {
   clearRetryAttempted,
   clearTimerState,
+  forgetTagTimerLocally,
   markRetryAttempted,
   peekPendingTimerOperation,
-  peekResetTimerMarker,
+  peekResetTimerMarkers,
   peekTimerState,
   removePendingTimerOperation,
   shouldApplyResetTimerMarker,
@@ -52,8 +53,8 @@ function deepClone<T>(obj: T): T {
 
 function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
   const localTimer = peekTimerState()
-  const resetMarker = peekResetTimerMarker()
-  if (!localTimer && !resetMarker) return tagTree
+  const resetMarkers = peekResetTimerMarkers()
+  if (!localTimer && resetMarkers.length === 0) return tagTree
 
   const next = deepClone(tagTree)
 
@@ -68,11 +69,11 @@ function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
     }
   }
 
-  if (resetMarker) {
-    const target = findTagById(next, resetMarker.tagId)
+  for (const marker of resetMarkers) {
+    const target = findTagById(next, marker.tagId)
     if (
       target &&
-      shouldApplyResetTimerMarker(resetMarker, target.latestStartTimeMs, target.latestStopTimeMs)
+      shouldApplyResetTimerMarker(marker, target.latestStartTimeMs, target.latestStopTimeMs)
     ) {
       target.state = false
       target.elapsedTime = 0
@@ -174,6 +175,9 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
   async discardTag(tagId, discardedParentId) {
     await apiClient.patch(`/api/v1/tags/${tagId}`, { newParentTagId: discardedParentId })
+    // 삭제된 태그의 로컬 타이머 잔재(타이머 상태·대기 op·리셋 마커)를 정리한다.
+    // 남겨두면 유령 러닝이나 사라진 태그 대상 pending op의 404로 큐가 막힌다.
+    forgetTagTimerLocally(tagId)
     const mid = get()._activeMemberId
     if (mid) await get()._doRefreshTags(mid)
   },
@@ -289,6 +293,17 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
         const pending = peekPendingTimerOperation()
         if (!pending || pending.retryAttempted) return
 
+        // 고아 start 방어: 로컬 타이머가 더 이상 이 태그를 running으로 보지 않으면
+        // (stop/reset/clear 이후 큐에 남은) start는 폐기한다. startTimer는 세션 없이
+        // running 상태만 세팅하므로, 재전송하면 세션 없는 "유령 러닝"이 부활한다.
+        if (pending.type === 'start') {
+          const active = peekTimerState()
+          if (!active || active.tagId !== pending.tagId || !active.isRunning) {
+            removePendingTimerOperation(pending.id)
+            continue
+          }
+        }
+
         markRetryAttempted(pending.id)
 
         try {
@@ -323,8 +338,16 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
           }
           removePendingTimerOperation(pending.id)
         } catch (e: unknown) {
-          const isNetworkError = !(e as { response?: unknown }).response
-          if (isNetworkError) clearRetryAttempted(pending.id)
+          const status = (e as { response?: { status?: number } }).response?.status
+          const isClientError = typeof status === 'number' && status >= 400 && status < 500
+          if (isClientError) {
+            // 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그·재인증 필요 등).
+            // 큐 헤드에 남겨두면 뒤의 정상 op까지 영구히 막으므로, 폐기하고 다음 op로 진행한다.
+            removePendingTimerOperation(pending.id)
+            continue
+          }
+          // 네트워크/5xx(일시적)는 재시도 플래그를 풀어 다음 기회에 재시도한다.
+          clearRetryAttempted(pending.id)
           return
         }
       }
