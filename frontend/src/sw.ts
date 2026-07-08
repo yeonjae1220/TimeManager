@@ -34,28 +34,20 @@ const recordSyncPlugin = new BackgroundSyncPlugin('recordQueue', {
 })
 
 const runtimeCaching: RuntimeCaching[] = [
-  // ── 태그 상세(/api/v1/tags/{id}) ─────────────────────────────────
-  // 타이머 state가 포함되므로 캐시 유효기간 2분으로 단축
-  {
-    matcher: ({ url, sameOrigin }) => sameOrigin && /^\/api\/v1\/tags\/\d+$/.test(url.pathname),
-    handler: new NetworkFirst({
-      cacheName: 'tag-detail-cache',
-      networkTimeoutSeconds: 3,
-      plugins: [
-        new CacheableResponsePlugin({ statuses: [0, 200] }),
-        new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 2 * 60 }),
-      ],
-    }),
-  },
-  // ── 기타 API GET — NetworkFirst (auth·records·태그상세 제외) ──────
-  // auth 경로(/api/v1/auth/*)는 캐시 제외: stale 인증 상태 반환 및 로그아웃 미전달 방지
+  // ── 기타 API GET — NetworkFirst (auth·records·tags 제외) ──────────
+  // 태그 API(/api/v1/tags*)는 캐시 금지: 응답에 타이머 state(running)·latestStartTime이
+  // 실려 있어, NetworkFirst가 느린 네트워크(3초 타임아웃)에서 stale "running" 스냅샷을
+  // 서빙하면 정지된 태그가 계속 실행중으로 보이는 유령 러닝이 발생한다. 이 캐시는 앱
+  // 로컬 SW Cache Storage라 localStorage/IndexedDB 초기화로도 안 사라진다. 태그 오프라인은
+  // tagStore의 IndexedDB 캐시가 담당하므로 SW 레벨 태그 캐싱은 불필요하다.
+  // auth 경로(/api/v1/auth/*)도 제외: stale 인증 상태 반환 및 로그아웃 미전달 방지.
   {
     matcher: ({ url, sameOrigin }) =>
       sameOrigin &&
       url.pathname.startsWith('/api/v1/') &&
       !url.pathname.startsWith('/api/v1/auth/') &&
       !url.pathname.startsWith('/api/v1/records') &&
-      !/^\/api\/v1\/tags\/\d+$/.test(url.pathname),
+      !url.pathname.startsWith('/api/v1/tags'),
     handler: new NetworkFirst({
       cacheName: 'api-cache',
       networkTimeoutSeconds: 3,
@@ -99,6 +91,19 @@ const serwist = new Serwist({
 })
 
 serwist.addEventListeners()
+
+// ── 과거 SW가 캐싱한 타이머 state stale 응답 정리 ────────────────────
+// 라우트에서 태그 API 캐싱을 제거했더라도, 이미 설치된 클라이언트의 Cache Storage엔
+// 과거 SW가 저장한 stale "running" 스냅샷(tag-detail-cache·api-cache)이 남아있어
+// 유령 러닝을 계속 유발한다. 새 SW 활성화 시 해당 캐시를 삭제해 즉시 정리한다.
+// (skipWaiting+clientsClaim으로 다음 앱 로드에 새 SW가 활성화됨)
+self.addEventListener('activate', (event) => {
+  event.waitUntil(
+    (async () => {
+      await Promise.all([caches.delete('tag-detail-cache'), caches.delete('api-cache')])
+    })()
+  )
+})
 
 // ── Phase 3: Push 알림 수신 ──────────────────────────────────────────
 // TODO: 서버 측 Web Push 구독(subscribe)·발송 구현 후 실제 동작.
