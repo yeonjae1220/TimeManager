@@ -192,6 +192,49 @@ export function clearRetryAttempted(id?: string): void {
   localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(next))
 }
 
+// 리셋 마커는 태그별로 보관한다(단일 슬롯이면 여러 태그를 60초 내 연속 리셋할 때 덮여 유실됨).
+type ResetMarkerMap = Record<string, ResetTimerMarker>
+
+function readResetMarkers(): ResetMarkerMap {
+  if (typeof window === 'undefined') return {}
+  try {
+    const raw = localStorage.getItem(RESET_MARKER_KEY)
+    if (!raw) return {}
+    const parsed = JSON.parse(raw)
+    // 레거시(단일 마커 객체) 마이그레이션
+    if (parsed && parsed.kind === 'reset' && typeof parsed.tagId === 'number') {
+      return { [parsed.tagId]: parsed as ResetTimerMarker }
+    }
+    return parsed && typeof parsed === 'object' ? (parsed as ResetMarkerMap) : {}
+  } catch {
+    localStorage.removeItem(RESET_MARKER_KEY)
+    return {}
+  }
+}
+
+function writeResetMarkers(map: ResetMarkerMap): void {
+  if (Object.keys(map).length === 0) {
+    localStorage.removeItem(RESET_MARKER_KEY)
+    return
+  }
+  localStorage.setItem(RESET_MARKER_KEY, JSON.stringify(map))
+}
+
+// 만료된 마커를 제거하고 남은 맵을 반환.
+function pruneResetMarkers(): ResetMarkerMap {
+  const map = readResetMarkers()
+  const now = Date.now()
+  let changed = false
+  for (const [key, marker] of Object.entries(map)) {
+    if (!marker || marker.kind !== 'reset' || marker.expiresAt <= now) {
+      delete map[key]
+      changed = true
+    }
+  }
+  if (changed) writeResetMarkers(map)
+  return map
+}
+
 export function saveResetTimerMarker(tagId: number, ttlMs = RESET_MARKER_TTL_MS): ResetTimerMarker | null {
   if (typeof window === 'undefined') return null
   const savedAt = Date.now()
@@ -201,31 +244,52 @@ export function saveResetTimerMarker(tagId: number, ttlMs = RESET_MARKER_TTL_MS)
     savedAt,
     expiresAt: savedAt + ttlMs,
   }
-  localStorage.setItem(RESET_MARKER_KEY, JSON.stringify(marker))
+  const map = pruneResetMarkers()
+  map[tagId] = marker
+  writeResetMarkers(map)
   return marker
 }
 
 export function peekResetTimerMarker(tagId?: number): ResetTimerMarker | null {
   if (typeof window === 'undefined') return null
-  try {
-    const raw = localStorage.getItem(RESET_MARKER_KEY)
-    if (!raw) return null
-    const marker = JSON.parse(raw) as ResetTimerMarker
-    if (marker.kind !== 'reset' || marker.expiresAt <= Date.now()) {
-      localStorage.removeItem(RESET_MARKER_KEY)
-      return null
-    }
-    if (tagId !== undefined && marker.tagId !== tagId) return null
-    return marker
-  } catch {
+  const map = pruneResetMarkers()
+  if (tagId !== undefined) return map[tagId] ?? null
+  return Object.values(map)[0] ?? null
+}
+
+export function peekResetTimerMarkers(): ResetTimerMarker[] {
+  if (typeof window === 'undefined') return []
+  return Object.values(pruneResetMarkers())
+}
+
+export function clearResetTimerMarker(tagId?: number): void {
+  if (typeof window === 'undefined') return
+  if (tagId === undefined) {
     localStorage.removeItem(RESET_MARKER_KEY)
-    return null
+    return
+  }
+  const map = readResetMarkers()
+  if (map[tagId]) {
+    delete map[tagId]
+    writeResetMarkers(map)
   }
 }
 
-export function clearResetTimerMarker(): void {
+// 태그 삭제(discard) 등으로 태그가 사라질 때, 그 태그의 로컬 타이머 잔재를 정리한다.
+// 남겨두면 유령 러닝(타이머 상태) 또는 큐 정체(사라진 태그 대상 pending op의 404)를 유발.
+export function forgetTagTimerLocally(tagId: number): void {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(RESET_MARKER_KEY)
+  const active = peekTimerState()
+  if (active?.tagId === tagId) clearTimerState()
+
+  const remaining = peekPendingTimerOperations().filter((op) => op.tagId !== tagId)
+  if (remaining.length === 0) {
+    localStorage.removeItem(PENDING_TIMER_OPS_KEY)
+  } else {
+    localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(remaining))
+  }
+
+  clearResetTimerMarker(tagId)
 }
 
 export function shouldApplyResetTimerMarker(

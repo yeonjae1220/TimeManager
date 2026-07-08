@@ -224,7 +224,9 @@ export function useTagTimer() {
   const stopStopwatch = useCallback(async () => {
     if (!tag || !sw.isRunning) return
     const endTime = Date.now()
-    const elapsed = Math.floor((endTime - sw.latestStartTime) / 1000) + sw.elapsedTime
+    // 시계 역행 등으로 구간이 음수가 되면 그 구간은 0으로 클램프(누적 elapsed는 보존).
+    const segment = Math.max(0, Math.floor((endTime - sw.latestStartTime) / 1000))
+    const elapsed = segment + sw.elapsedTime
     const newSw = { ...sw, isRunning: false, latestEndTime: endTime, elapsedTime: elapsed, elapsedTimeCal: elapsed }
     setSw(newSw)
     useTagStore.getState().setTagState(tag.id, false)
@@ -269,23 +271,24 @@ export function useTagTimer() {
     saveResetTimerMarker(tag.id)
     clearTimerState()
 
+    const tagStore = useTagStore.getState()
+
+    // 대기 중인 op(오프라인 stop 등)가 있으면 reset을 직접 POST하지 않고 큐 끝에 넣는다.
+    // retryPendingTimerOp이 [기존 op…, reset] 순서로 흘려보내 reset이 마지막에 적용되며,
+    // 서버로 reset이 한 번만 전송된다(직접 POST + 재생으로 인한 이중 전송 방지).
+    if (hasPendingTimerOperation) {
+      enqueuePendingTimerOperation({ type: 'reset', tagId: tag.id, elapsedTime: 0 })
+      tagStore.retryPendingTimerOp().then(() => {
+        if (tag.memberId) tagStore.refreshTags(tag.memberId)
+      })
+      return
+    }
+
     try {
       await apiClient.post(`/api/v1/tags/${tag.id}/timer/reset`, {
         elapsedTime: 0,
       })
-      const tagStore = useTagStore.getState()
-      if (hasPendingTimerOperation) {
-        enqueuePendingTimerOperation({
-          type: 'reset',
-          tagId: tag.id,
-          elapsedTime: 0,
-        })
-        tagStore.retryPendingTimerOp().then(() => {
-          if (tag.memberId) tagStore.refreshTags(tag.memberId)
-        })
-      } else if (tag.memberId) {
-        tagStore.refreshTags(tag.memberId)
-      }
+      if (tag.memberId) tagStore.refreshTags(tag.memberId)
     } catch (e) {
       enqueuePendingTimerOperation({
         type: 'reset',

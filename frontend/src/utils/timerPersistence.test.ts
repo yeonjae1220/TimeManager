@@ -148,4 +148,13 @@ describe('timerPersistence', () => {
     expect(peekPendingTimerOperation()).toBeNull()
     expect(peekResetTimerMarker(1)).toBeNull()
   })
+
+  it('[⑨마커단일슬롯] 두 태그를 60초 내 연속 리셋해도 각 태그의 리셋 마커가 유지된다', () => {
+    saveResetTimerMarker(1)
+    saveResetTimerMarker(2)
+
+    // 현재는 단일 슬롯이라 태그1 마커가 태그2로 덮여 사라진다 → RED (설계 한계 문서화)
+    expect(peekResetTimerMarker(1)).not.toBeNull()
+    expect(peekResetTimerMarker(2)).not.toBeNull()
+  })
 })

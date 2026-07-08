@@ -6,6 +6,7 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import project.TimeManager.application.dto.command.CreateRecordCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
@@ -23,7 +24,9 @@ import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.util.Optional;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
 
@@ -63,6 +66,45 @@ class TimerCommandServiceTest {
                 MemberId.of(memberId),
                 null
         );
+    }
+
+    private Tag runningTagOwnedBy(Long tagId, Long memberId, ZonedDateTime latestStartTime) {
+        return Tag.reconstitute(
+                TagId.of(tagId),
+                "RunningTag",
+                TagType.CUSTOM,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                0L,
+                latestStartTime,
+                ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()),
+                TimerState.RUNNING,
+                MemberId.of(memberId),
+                null
+        );
+    }
+
+    @Test
+    @DisplayName("[④자동정지] startTimer는 같은 멤버의 다른 실행 중 태그를 자동 정지하고 그 세션을 기록한다")
+    void startTimer_autoStopsOtherRunningTagAndRecordsSession() {
+        Tag target = tagOwnedBy(10L, 1L);
+        Tag running = runningTagOwnedBy(20L, 1L, START.minusMinutes(5));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
+        given(loadTagPort.findRunningTagByMemberId(1L)).willReturn(Optional.of(running));
+
+        timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
+
+        // 실행 중이던 다른 태그는 정지되어 저장되고, 세션이 기록된다
+        assertThat(running.getTimerState()).isEqualTo(TimerState.STOPPED);
+        then(saveTagPort).should().saveTag(running);
+        then(createRecordUseCase).should().createRecord(any(CreateRecordCommand.class));
+
+        // 대상 태그는 시작되어 저장된다
+        assertThat(target.getTimerState()).isEqualTo(TimerState.RUNNING);
+        then(saveTagPort).should().saveTag(target);
     }
 
     @Test
