@@ -105,6 +105,11 @@ public class Tag {
 
     public void reset(Long elapsedTime) {
         this.elapsedTime = elapsedTime;
+        // 리셋은 "0으로 만들고 정지"를 의미한다. timerState/latestStartTime을 함께 비우지 않으면
+        // 서버가 RUNNING + 옛 시작시각을 계속 들고 있어, 신규 클라이언트(웹·캐시 삭제)가 유령 러닝을
+        // 재현한다(옛 시작시각 기준으로 무한히 증가). GLOBAL 유령 러닝 근본 원인.
+        this.timerState = TimerState.STOPPED;
+        this.latestStartTime = EPOCH;
     }
 
     public void moveTo(TagId newParentId) {

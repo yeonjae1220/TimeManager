@@ -22,6 +22,7 @@ import project.TimeManager.domain.tag.model.TimerState;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.util.List;
 import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -93,7 +94,7 @@ class TimerCommandServiceTest {
         Tag target = tagOwnedBy(10L, 1L);
         Tag running = runningTagOwnedBy(20L, 1L, START.minusMinutes(5));
         given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
-        given(loadTagPort.findRunningTagByMemberId(1L)).willReturn(Optional.of(running));
+        given(loadTagPort.findRunningTagsByMemberId(1L)).willReturn(List.of(running));
 
         timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
 
@@ -105,6 +106,55 @@ class TimerCommandServiceTest {
         // 대상 태그는 시작되어 저장된다
         assertThat(target.getTimerState()).isEqualTo(TimerState.RUNNING);
         then(saveTagPort).should().saveTag(target);
+    }
+
+    @Test
+    @DisplayName("[④자동정지-다중] startTimer는 실행 중인 태그가 여러 개면 모두 정지·기록한다(reset 결함으로 누적된 다중 러닝 복구)")
+    void startTimer_autoStopsAllRunningTags() {
+        Tag target = tagOwnedBy(10L, 1L);
+        Tag running1 = runningTagOwnedBy(20L, 1L, START.minusMinutes(5));
+        Tag running2 = runningTagOwnedBy(30L, 1L, START.minusHours(3));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
+        given(loadTagPort.findRunningTagsByMemberId(1L)).willReturn(List.of(running1, running2));
+
+        timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
+
+        assertThat(running1.getTimerState()).isEqualTo(TimerState.STOPPED);
+        assertThat(running2.getTimerState()).isEqualTo(TimerState.STOPPED);
+        then(saveTagPort).should().saveTag(running1);
+        then(saveTagPort).should().saveTag(running2);
+        // 정지된 태그 2개 각각에 대해 세션이 기록된다(대상 태그 시작은 기록 없음)
+        then(createRecordUseCase).should(org.mockito.Mockito.times(2)).createRecord(any(CreateRecordCommand.class));
+        assertThat(target.getTimerState()).isEqualTo(TimerState.RUNNING);
+    }
+
+    @Test
+    @DisplayName("[④자동정지] startTimer는 대상 태그 자신이 이미 실행 중이어도 자기 자신은 자동정지 대상에서 제외한다")
+    void startTimer_doesNotAutoStopItself() {
+        Tag target = runningTagOwnedBy(10L, 1L, START.minusMinutes(1));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
+        given(loadTagPort.findRunningTagsByMemberId(1L)).willReturn(List.of(target));
+
+        timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
+
+        // 자기 자신에 대한 기록 생성은 없어야 한다
+        then(createRecordUseCase).shouldHaveNoInteractions();
+        assertThat(target.getTimerState()).isEqualTo(TimerState.RUNNING);
+    }
+
+    @Test
+    @DisplayName("[리셋정지] resetTimer는 서버측 실행 중 상태를 실제로 정지시킨다(유령 러닝 근본 원인 수정) — 기록은 만들지 않는다")
+    void resetTimer_stopsServerSideRunningStateWithoutCreatingRecord() {
+        Tag running = runningTagOwnedBy(10L, 1L, START.minusHours(67));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        timerCommandService.resetTimer(new ResetTimerCommand(10L, 0L, 1L));
+
+        assertThat(running.getTimerState()).isEqualTo(TimerState.STOPPED);
+        assertThat(running.getElapsedTime()).isZero();
+        then(saveTagPort).should().saveTag(running);
+        // reset은 세션 종료가 아니라 초기화이므로 record를 남기지 않는다
+        then(createRecordUseCase).shouldHaveNoInteractions();
     }
 
     @Test

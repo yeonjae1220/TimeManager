@@ -17,9 +17,11 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     @Query("SELECT t FROM TagJpaEntity t WHERE t.member.id = :memberId")
     List<TagJpaEntity> findByMemberId(Long memberId);
 
+    // 멤버당 RUNNING은 최대 1개가 정상이지만, 과거 reset 결함으로 다중 RUNNING이 남을 수 있어
+    // 단건(Optional) 대신 목록으로 조회한다(NonUniqueResultException 방지).
     @Query("SELECT t FROM TagJpaEntity t WHERE t.member.id = :memberId AND t.timerState = :state")
-    Optional<TagJpaEntity> findRunningByMemberId(@Param("memberId") Long memberId,
-                                                  @Param("state") TimerState state);
+    List<TagJpaEntity> findRunningByMemberId(@Param("memberId") Long memberId,
+                                             @Param("state") TimerState state);
 
     @Query("SELECT t FROM TagJpaEntity t JOIN FETCH t.member WHERE t.timerState = :state")
     List<TagJpaEntity> findAllByTimerState(@Param("state") TimerState state);
