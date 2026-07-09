@@ -36,17 +36,18 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         assertOwner(tag, command.memberId());
 
-        // Stop any other running tag for this member
-        loadTagPort.findRunningTagByMemberId(tag.getMemberId().value()).ifPresent(runningTag -> {
+        // 이 멤버의 다른 실행 중 태그를 모두 자동 정지한다. 정상적으로는 최대 1개지만, 과거 reset
+        // 결함으로 다중 RUNNING이 누적됐을 수 있어 전부 정지·기록해 서버 상태를 정리한다.
+        ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
+        for (Tag runningTag : loadTagPort.findRunningTagsByMemberId(tag.getMemberId().value())) {
             if (!runningTag.getId().value().equals(command.tagId())) {
                 log.info("Auto-stopping running tag: {}", runningTag.getId().value());
-                ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
                 long elapsed = Math.max(0L, ChronoUnit.SECONDS.between(runningTag.getLatestStartTime(), endTime));
                 runningTag.stop(endTime, elapsed);
                 saveTagPort.saveTag(runningTag);
                 createRecordUseCase.createRecord(new CreateRecordCommand(runningTag.getId().value(), runningTag.getLatestStartTime(), endTime, false));
             }
-        });
+        }
 
         tag.start(command.startTime());
         saveTagPort.saveTag(tag);
