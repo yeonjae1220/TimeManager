@@ -80,6 +80,27 @@ class TagTimerTest {
     }
 
     @Nested
+    @DisplayName("haltRunWithoutRecording (다중 RUNNING 화해)")
+    class HaltRunWithoutRecording {
+
+        @Test
+        @DisplayName("정지시키고 기준 시작시각을 지우되, elapsedTime(누적)은 보존하고 기록은 만들지 않는다")
+        void halt_stopsAndClearsStart_keepsElapsed() {
+            // Arrange — 2시간 전 시작되어 아직 RUNNING인, 누적 3600초를 가진 태그
+            Tag tag = runningTag(START, 3600L);
+
+            // Act — 동시 start 레이스의 패자를 화해(정지)
+            tag.haltRunWithoutRecording();
+
+            // Assert — 권위 상태는 비우되(무상태 클라이언트 유령 러닝 방지) 누적은 날조 없이 보존
+            assertThat(tag.isRunning()).isFalse();
+            assertThat(tag.getTimerState()).isEqualTo(TimerState.STOPPED);
+            assertThat(tag.getLatestStartTime()).isEqualTo(EPOCH);
+            assertThat(tag.getElapsedTime()).isEqualTo(3600L);
+        }
+    }
+
+    @Nested
     @DisplayName("start / stop")
     class StartStop {
 
