@@ -332,8 +332,8 @@ export default function TodayView() {
           <>
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
               {[
-                { label: t('today.statTodayTotal'), val: formatTime(todayRecordTotal) },
                 { label: t('today.statTodayTag'), val: formattedDailyTotalTime },
+                { label: t('today.statTodayTotal'), val: formatTime(todayRecordTotal) },
                 { label: t('today.statCurrentTagTotal'), val: formattedTotalTime },
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: 'var(--surface)', padding: '14px 12px', textAlign: 'center' }}>
