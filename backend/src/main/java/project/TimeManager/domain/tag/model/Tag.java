@@ -112,6 +112,21 @@ public class Tag {
         this.latestStartTime = EPOCH;
     }
 
+    /**
+     * 멤버당 최대 1개여야 할 RUNNING 태그가 (동시 start 레이스·과거 결함으로) 여러 개 쌓였을 때,
+     * 승자가 아닌 태그의 실행 상태를 화해(정지)시킨다.
+     * <p>
+     * reset과 달리 elapsedTime(누적 시간)은 보존하고, 기록(Record)도 만들지 않는다 —
+     * 이 정지는 사용자의 명시적 정지가 아니라 유령/레이스 아티팩트 정리이므로 임의의 구간을
+     * 기록으로 날조하거나 누적 시간을 부풀리지 않는다. 다만 권위 상태(RUNNING 플래그 + 기준
+     * 시작시각)는 반드시 함께 비워야 무상태 클라이언트(웹·시크릿창)가 옛 시작시각 기준으로
+     * 유령 러닝을 재현하지 않는다(GLOBAL 유령 러닝 원인과 동일).
+     */
+    public void haltRunWithoutRecording() {
+        this.timerState = TimerState.STOPPED;
+        this.latestStartTime = EPOCH;
+    }
+
     public void moveTo(TagId newParentId) {
         this.parentId = newParentId;
     }

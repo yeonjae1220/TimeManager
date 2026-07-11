@@ -216,3 +216,103 @@ describe('추가 엣지케이스 검증 (잠재 버그 스윕)', () => {
     expect(peekPendingTimerOperations().filter((o) => o.tagId === 1)).toHaveLength(0)
   })
 })
+
+// ── 기기 간 캐시 정합성 (applyLocalTimerOverrides) ─────────────────────────
+//
+// 태그 목록 화면(tagStore.tagTree)은 useTagTimer(today 화면)와 별개로 자체적으로
+// "이 기기의 로컬 타이머 상태 vs 서버 응답"을 병합한다(applyLocalTimerOverrides).
+// 이 로직은 지금까지 테스트가 전혀 없었다 — 다른 기기가 먼저 조작한 뒤 이 기기가
+// (자신의 stale 로컬 상태를 들고) 새로고침하면 어느 쪽이 화면에 표시되는지 검증한다.
+describe('tagStore._doRefreshTags — 기기 간 캐시 정합성 (applyLocalTimerOverrides)', () => {
+  const getFn = () => apiClient.get as unknown as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    localStorage.clear()
+    getFn().mockReset()
+    useTagStore.setState({
+      isRefreshing: false,
+      _pendingRefreshMemberId: null,
+      _activeMemberId: 7,
+      tagTree: [],
+      lastFetchedAt: null,
+    })
+  })
+
+  afterEach(() => localStorage.clear())
+
+  function serverTree(leafOverrides: Record<string, unknown> = {}) {
+    return [
+      {
+        id: 1, name: 'root', type: 'ROOT', state: false, elapsedTime: 0,
+        latestStartTimeMs: null, latestStopTimeMs: Date.now() - 100_000,
+        children: [
+          {
+            id: 2, name: 'Leaf', type: 'LEAF', state: false, elapsedTime: 0,
+            latestStartTimeMs: null, latestStopTimeMs: Date.now() - 100_000,
+            children: [],
+            ...leafOverrides,
+          },
+        ],
+      },
+    ]
+  }
+
+  it('[다른기기 최신] 이 기기의 로컬 러닝 상태가 stale이면, 다른 기기가 정지시킨 최신 서버 상태를 따른다', async () => {
+    // 이 기기(B)는 예전에 태그2를 시작해둔 로컬 캐시를 여전히 들고 있다 (동기화 안 됨)
+    saveTimerState({
+      tagId: 2, isRunning: true, elapsedTime: 10,
+      latestStartTime: Date.now() - 300_000, latestEndTime: null, latestStopTimeMs: null,
+      dailyTotalTime: 0, dailyGoalTime: 0,
+    })
+    // 다른 기기(A)가 그 이후 실제로 정지시켜 서버가 더 최신
+    getFn().mockResolvedValue({ data: serverTree({ latestStopTimeMs: Date.now() }) })
+
+    await useTagStore.getState()._doRefreshTags(7)
+
+    const leaf = useTagStore.getState().findById(2)
+    expect(leaf?.state).toBe(false)
+  })
+
+  it('[이 기기 최신] 이 기기가 방금 시작해 로컬이 서버 응답보다 최신이면, 새로고침해도 로컬 running을 유지한다', async () => {
+    saveTimerState({
+      tagId: 2, isRunning: true, elapsedTime: 0,
+      latestStartTime: Date.now(), latestEndTime: null, latestStopTimeMs: null,
+      dailyTotalTime: 0, dailyGoalTime: 0,
+    })
+    // 서버 응답이 아직 이 조작을 반영하기 전(지연 응답)이라고 가정
+    getFn().mockResolvedValue({ data: serverTree({ latestStopTimeMs: Date.now() - 200_000 }) })
+
+    await useTagStore.getState()._doRefreshTags(7)
+
+    const leaf = useTagStore.getState().findById(2)
+    expect(leaf?.state).toBe(true)
+    expect(leaf?.elapsedTime).toBe(0)
+  })
+
+  it('[리셋마커 우선] 이 기기에서 리셋한 직후 새로고침해도, 서버가 아직 그 이전 값이면 정지+0으로 표시한다', async () => {
+    saveResetTimerMarker(2)
+    // 서버 응답은 리셋 이전의 오래된 running 상태(전파 지연)
+    getFn().mockResolvedValue({
+      data: serverTree({ state: true, elapsedTime: 999, latestStartTimeMs: Date.now() - 500_000 }),
+    })
+
+    await useTagStore.getState()._doRefreshTags(7)
+
+    const leaf = useTagStore.getState().findById(2)
+    expect(leaf?.state).toBe(false)
+    expect(leaf?.elapsedTime).toBe(0)
+  })
+
+  it('[교차기기·리셋 무시] 다른 기기가 이후 다시 시작시켰다면, 이 기기의 리셋 마커보다 서버를 따른다', async () => {
+    saveResetTimerMarker(2)
+    // 다른 기기(A)가 리셋 마커 이후 다시 시작시켜 서버가 더 최신
+    getFn().mockResolvedValue({
+      data: serverTree({ state: true, elapsedTime: 3, latestStartTimeMs: Date.now() + 5_000 }),
+    })
+
+    await useTagStore.getState()._doRefreshTags(7)
+
+    const leaf = useTagStore.getState().findById(2)
+    expect(leaf?.state).toBe(true)
+  })
+})

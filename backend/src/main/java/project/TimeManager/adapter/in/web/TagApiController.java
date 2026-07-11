@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.ResponseEntity;
+import org.springframework.orm.ObjectOptimisticLockingFailureException;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
@@ -28,6 +29,7 @@ import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.GetTagListQuery;
 import project.TimeManager.domain.port.in.tag.GetTagQuery;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
+import project.TimeManager.domain.port.in.tag.ReconcileRunningTimersUseCase;
 import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
 import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
@@ -52,20 +54,39 @@ public class TagApiController {
     private final MoveTagUseCase moveTagUseCase;
     private final RenameTagUseCase renameTagUseCase;
     private final ReorderTagsUseCase reorderTagsUseCase;
+    private final ReconcileRunningTimersUseCase reconcileRunningTimersUseCase;
 
     @GetMapping
     public List<TagTreeResponse> getUserTagsTree(@AuthenticationPrincipal Long memberId) {
+        // 다른 기기의 동시 조작으로 서버에 다중 RUNNING이 남았다면(레이스 아티팩트) 조회 전에
+        // 최신 1개로 수렴시켜, 두 기기가 서로 다른 '실행 중'을 보던 표시 불일치를 서버 권위 상태에서 치유한다.
+        reconcileRunningTimersQuietly(memberId);
         return TagTreeResponse.buildTree(getTagListQuery.getTagListByMemberId(memberId));
     }
 
     @GetMapping("/{tagId}")
     public TagResponse getTagDetail(@PathVariable Long tagId,
                                     @AuthenticationPrincipal Long memberId) {
+        reconcileRunningTimersQuietly(memberId);
         TagResult result = getTagQuery.getTag(tagId);
         if (!result.getMemberId().equals(memberId)) {
             throw new DomainException("접근 권한이 없습니다");
         }
         return TagResponse.from(result);
+    }
+
+    /**
+     * 읽기 경로의 다중 RUNNING 화해는 best-effort다. 두 기기가 거의 동시에 조회하면 두 reconcile이
+     * 같은 패자 행을 정지시키려다 낙관적 락(@Version)에서 한쪽이 진다 — 이는 "다른 요청이 이미 화해함"을
+     * 뜻하므로 실패가 아니라 수렴 성공이다. 조회 자체를 막지 않도록 삼키고 로그만 남긴다.
+     * (그 외 예외는 실제 결함일 수 있으므로 전파한다.)
+     */
+    private void reconcileRunningTimersQuietly(Long memberId) {
+        try {
+            reconcileRunningTimersUseCase.reconcile(memberId);
+        } catch (ObjectOptimisticLockingFailureException e) {
+            log.info("Running-timer reconcile lost an optimistic-lock race (already reconciled by a concurrent read) for member {}", memberId);
+        }
     }
 
     @PostMapping
