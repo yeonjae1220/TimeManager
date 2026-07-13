@@ -16,6 +16,8 @@ const ko: Messages = {
 
   'landing.signIn': '로그인',
   'landing.getStarted': '시작하기',
+  'landing.skipToContent': '본문으로 건너뛰기',
+  'landing.navAria': '메인 내비게이션',
   'landing.eyebrow': '시간 추적',
   'landing.heroTitle': '모든 순간을 기록하세요.',
   'landing.heroSubtitle': '중요한 일에 집중하기 위한 작업 공간. 시작하고, 멈추고, 정밀하게 돌아보세요.',
@@ -178,6 +180,7 @@ const ko: Messages = {
   'profile.themeAria': '테마',
   'profile.dark': '다크',
   'profile.light': '라이트',
+  'profile.system': '시스템',
   'profile.dailyResetHour': '일일 초기화 시각',
   'profile.resetHint': '오늘 통계가 {time} 에 초기화됩니다',
   'profile.currentPw': '현재 비밀번호',

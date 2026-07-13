@@ -2,17 +2,15 @@
 
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Moon, Sun } from 'lucide-react'
+import { Monitor, Moon, Sun } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
 import { useAuthStore } from '@/store/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { memberApi } from '@/api/member'
 import apiClient from '@/utils/apiClient'
-import { THEME_STORAGE_KEY } from '@/utils/theme'
+import { useTheme } from '@/theme/ThemeProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { SUPPORTED_UI_LANGUAGES, LANGUAGE_LABELS } from '@/i18n/messages/index'
-
-type ThemeMode = 'dark' | 'light'
 
 interface Profile {
   id: number
@@ -45,31 +43,7 @@ export default function ProfileView() {
   const [loading, setLoading] = useState(false)
   const [deleting, setDeleting] = useState(false)
   const [deleteError, setDeleteError] = useState('')
-  const [theme, setTheme] = useState<ThemeMode>('dark')
-
-  useEffect(() => {
-    const current = document.documentElement.dataset.theme === 'light' ? 'light' : 'dark'
-    setTheme(current)
-  }, [])
-
-  function handleThemeChange(nextTheme: ThemeMode) {
-    if (nextTheme === theme) return
-
-    const root = document.documentElement
-    root.classList.add('theme-transition')
-    root.dataset.theme = nextTheme
-    root.style.colorScheme = nextTheme
-    try {
-      localStorage.setItem(THEME_STORAGE_KEY, nextTheme)
-    } catch {
-      // Keep the in-session theme change even if browser storage is unavailable.
-    }
-    setTheme(nextTheme)
-
-    window.setTimeout(() => {
-      root.classList.remove('theme-transition')
-    }, 240)
-  }
+  const { preference: themePreference, setPreference: setThemePreference } = useTheme()
 
   useEffect(() => {
     if (!memberId) return
@@ -186,7 +160,7 @@ export default function ProfileView() {
                   aria-label={t('profile.themeAria')}
                   style={{
                     display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
+                    gridTemplateColumns: '1fr 1fr 1fr',
                     gap: 3,
                     padding: 3,
                     background: 'var(--surface-2)',
@@ -195,17 +169,18 @@ export default function ProfileView() {
                   }}
                 >
                   {([
+                    { value: 'system' as const, label: t('profile.system'), Icon: Monitor },
                     { value: 'dark' as const, label: t('profile.dark'), Icon: Moon },
                     { value: 'light' as const, label: t('profile.light'), Icon: Sun },
                   ]).map(({ value, label, Icon }) => {
-                    const selected = theme === value
+                    const selected = themePreference === value
                     return (
                       <button
                         key={value}
                         type="button"
                         role="radio"
                         aria-checked={selected}
-                        onClick={() => handleThemeChange(value)}
+                        onClick={() => setThemePreference(value)}
                         className="mono"
                         style={{
                           height: 34,

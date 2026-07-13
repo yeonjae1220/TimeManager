@@ -16,6 +16,8 @@ const zh: Messages = {
 
   'landing.signIn': '登录',
   'landing.getStarted': '开始',
+  'landing.skipToContent': '跳到主要内容',
+  'landing.navAria': '主导航',
   'landing.eyebrow': '时间追踪',
   'landing.heroTitle': '记录每一秒。',
   'landing.heroSubtitle': '专注于重要事务的工作空间。开始、停止并精确回顾你的时间。',
@@ -178,6 +180,7 @@ const zh: Messages = {
   'profile.themeAria': '主题',
   'profile.dark': '深色',
   'profile.light': '浅色',
+  'profile.system': '系统',
   'profile.dailyResetHour': '每日重置时间',
   'profile.resetHint': '今日统计将在 {time} 重置',
   'profile.currentPw': '当前密码',

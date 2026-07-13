@@ -20,6 +20,8 @@ const en = {
   // landing
   'landing.signIn': 'Sign in',
   'landing.getStarted': 'Get started',
+  'landing.skipToContent': 'Skip to content',
+  'landing.navAria': 'Main navigation',
   'landing.eyebrow': 'time tracking',
   'landing.heroTitle': 'Every second accounted for.',
   'landing.heroSubtitle': 'A focused workspace for tracking what matters. Start, stop, and review your time with precision.',
@@ -194,6 +196,7 @@ const en = {
   'profile.themeAria': 'Theme',
   'profile.dark': 'Dark',
   'profile.light': 'Light',
+  'profile.system': 'System',
   'profile.dailyResetHour': 'DAILY RESET HOUR',
   'profile.resetHint': "Today's stats reset at {time}",
   'profile.currentPw': 'CURRENT PASSWORD',

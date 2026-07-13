@@ -16,6 +16,8 @@ const ja: Messages = {
 
   'landing.signIn': 'ログイン',
   'landing.getStarted': '始める',
+  'landing.skipToContent': 'コンテンツにスキップ',
+  'landing.navAria': 'メインナビゲーション',
   'landing.eyebrow': 'タイムトラッキング',
   'landing.heroTitle': 'すべての時間を記録。',
   'landing.heroSubtitle': '大切なことに集中するためのワークスペース。開始・停止し、時間を正確に振り返りましょう。',
@@ -178,6 +180,7 @@ const ja: Messages = {
   'profile.themeAria': 'テーマ',
   'profile.dark': 'ダーク',
   'profile.light': 'ライト',
+  'profile.system': 'システム',
   'profile.dailyResetHour': '日次リセット時刻',
   'profile.resetHint': '今日の統計は {time} にリセットされます',
   'profile.currentPw': '現在のパスワード',

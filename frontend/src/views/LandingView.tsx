@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
 import { useI18n } from '@/i18n/I18nProvider'
+import { UiLanguageSwitcher } from '@/components/ui/UiLanguageSwitcher'
+import { ThemeToggle } from '@/components/ui/ThemeToggle'
 
 function LandingSplash() {
   return (
@@ -57,16 +59,27 @@ export default function LandingView() {
 
   return (
     <div className="page landing-page">
-      <div className="topbar">
+      <a
+        href="#main-content"
+        className="mono"
+        style={{ position: 'absolute', left: -9999, top: 8, zIndex: 100, background: 'var(--accent)', color: 'var(--bg)', padding: '8px 14px', borderRadius: 'var(--radius)', fontSize: 12 }}
+        onFocus={(e) => { e.currentTarget.style.left = '8px' }}
+        onBlur={(e) => { e.currentTarget.style.left = '-9999px' }}
+      >
+        {t('landing.skipToContent')}
+      </a>
+      <header className="topbar">
         <span className="topbar-brand">timemgr</span>
-        <div className="topbar-actions" style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+        <nav className="topbar-actions" aria-label={t('landing.navAria')} style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+          <ThemeToggle />
+          <UiLanguageSwitcher />
           <Link href="/login" className="btn btn-ghost topbar-btn">{t('landing.signIn')}</Link>
           <Link href="/register" className="btn btn-primary topbar-btn">{t('landing.getStarted')}</Link>
-        </div>
-      </div>
+        </nav>
+      </header>
 
-      <div className="landing-body" style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 52px)', paddingBottom: 60 }}>
-        <div style={{ margin: '80px 0 48px' }}>
+      <main id="main-content" className="landing-body" style={{ display: 'flex', flexDirection: 'column', minHeight: 'calc(100vh - 52px)', paddingBottom: 60 }}>
+        <section style={{ margin: '80px 0 48px' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--accent)', letterSpacing: '0.2em', textTransform: 'uppercase', marginBottom: 24, display: 'flex', alignItems: 'center', gap: 10 }}>
             <span style={{ display: 'inline-block', width: 24, height: 1, background: 'var(--accent)', opacity: 0.5 }} />
             {t('landing.eyebrow')}
@@ -77,7 +90,7 @@ export default function LandingView() {
           <p style={{ fontSize: 14, color: 'var(--text-2)', lineHeight: 1.8, fontWeight: 300, maxWidth: 340 }}>
             {t('landing.heroSubtitle')}
           </p>
-        </div>
+        </section>
 
         <div style={{ display: 'flex', alignItems: 'center', gap: 24, marginBottom: 64, flexWrap: 'wrap' }}>
           <Link href="/register" className="btn btn-primary" style={{ height: 40, padding: '0 24px', fontSize: 13 }}>
@@ -110,7 +123,7 @@ export default function LandingView() {
         <footer style={{ marginTop: 40 }}>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>timemgr · v0.1</span>
         </footer>
-      </div>
+      </main>
     </div>
   )
 }

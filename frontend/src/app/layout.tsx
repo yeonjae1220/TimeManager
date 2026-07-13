@@ -13,8 +13,10 @@ const BASE_URL = 'https://timemgr.mungji.com'
 const themeScript = `
 (function () {
   try {
-    var stored = window.localStorage.getItem('${THEME_STORAGE_KEY}');
-    var theme = stored === 'light' ? 'light' : 'dark';
+    var pref = window.localStorage.getItem('${THEME_STORAGE_KEY}');
+    if (pref !== 'light' && pref !== 'dark' && pref !== 'system') pref = 'dark';
+    var sysDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var theme = pref === 'dark' || (pref === 'system' && sysDark) ? 'dark' : 'light';
     document.documentElement.dataset.theme = theme;
     document.documentElement.style.colorScheme = theme;
   } catch (_) {

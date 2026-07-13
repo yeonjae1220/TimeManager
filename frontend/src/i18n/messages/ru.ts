@@ -16,6 +16,8 @@ const ru: Messages = {
 
   'landing.signIn': 'Войти',
   'landing.getStarted': 'Начать',
+  'landing.skipToContent': 'Перейти к содержимому',
+  'landing.navAria': 'Основная навигация',
   'landing.eyebrow': 'учёт времени',
   'landing.heroTitle': 'Каждая секунда на счету.',
   'landing.heroSubtitle': 'Сфокусированное пространство для учёта важного. Запускайте, останавливайте и анализируйте своё время точно.',
@@ -178,6 +180,7 @@ const ru: Messages = {
   'profile.themeAria': 'Тема',
   'profile.dark': 'Тёмная',
   'profile.light': 'Светлая',
+  'profile.system': 'Системная',
   'profile.dailyResetHour': 'ЧАС ЕЖЕДНЕВНОГО СБРОСА',
   'profile.resetHint': 'Статистика за сегодня сбрасывается в {time}',
   'profile.currentPw': 'ТЕКУЩИЙ ПАРОЛЬ',

@@ -16,6 +16,8 @@ const de: Messages = {
 
   'landing.signIn': 'Anmelden',
   'landing.getStarted': 'Loslegen',
+  'landing.skipToContent': 'Zum Inhalt springen',
+  'landing.navAria': 'Hauptnavigation',
   'landing.eyebrow': 'Zeiterfassung',
   'landing.heroTitle': 'Jede Sekunde zählt.',
   'landing.heroSubtitle': 'Ein fokussierter Arbeitsbereich, um das Wesentliche zu erfassen. Starten, stoppen und Ihre Zeit präzise auswerten.',
@@ -178,6 +180,7 @@ const de: Messages = {
   'profile.themeAria': 'Design',
   'profile.dark': 'Dunkel',
   'profile.light': 'Hell',
+  'profile.system': 'System',
   'profile.dailyResetHour': 'TÄGLICHE RESET-ZEIT',
   'profile.resetHint': 'Die heutigen Statistiken werden um {time} zurückgesetzt',
   'profile.currentPw': 'AKTUELLES PASSWORT',
