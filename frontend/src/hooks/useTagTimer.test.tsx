@@ -340,6 +340,67 @@ describe('useTagTimer — 추가 엣지케이스 검증 (잠재 버그 스윕)',
     expect(peekTimerState()).toMatchObject({ tagId: 2, isRunning: true })
   })
 
+  // ── ⑪ 정지 시 daily/tag/total 누적 반영 (재시작 시 이전 값 하락 방지) ─────────
+
+  it('[⑪stop누적] 정지 시 이번 세그먼트가 daily/tag/total 누적값(및 base)에 반영된다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-12T10:00:00.000Z'))
+    const { result } = await renderWithTag({ dailyTotalTime: 100, tagTotalTime: 500, totalTime: 1000 })
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+    vi.setSystemTime(new Date('2026-07-12T10:00:30.000Z')) // +30초
+    await act(async () => {
+      await result.current.stopStopwatch()
+    })
+    vi.useRealTimers()
+
+    // 표시값(Cal): base + segment
+    expect(result.current.sw.dailyTotalTimeCal).toBe(130)
+    expect(result.current.sw.tagTotalTimeCal).toBe(530)
+    expect(result.current.sw.totalTimeCal).toBe(1030)
+    // base도 갱신돼야 재시작 tick이 이전 값으로 떨어지지 않는다
+    expect(result.current.sw.dailyTotalTime).toBe(130)
+    expect(result.current.sw.tagTotalTime).toBe(530)
+    expect(result.current.sw.totalTime).toBe(1030)
+  })
+
+  it('[⑪재시작연속] 정지 후 같은 태그를 재시작해도 직전 세션 누적이 유지된다 (로드 시점 값으로 하락 금지)', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-12T10:00:00.000Z'))
+    const { result } = await renderWithTag({ dailyTotalTime: 100 })
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+    vi.setSystemTime(new Date('2026-07-12T10:00:30.000Z'))
+    await act(async () => {
+      await result.current.stopStopwatch()
+    }) // base → 130
+    await act(async () => {
+      await result.current.startStopwatch()
+    }) // 재시작 즉시 tick — 130 + 0 이어야 하고 100으로 떨어지면 안 된다
+    vi.useRealTimers()
+
+    expect(result.current.sw.dailyTotalTimeCal).toBeGreaterThanOrEqual(130)
+  })
+
+  it('[⑪stop반환] stopStopwatch는 이번 세션의 세그먼트(초)를 반환한다 (record time 낙관 반영용)', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-12T10:00:00.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+    vi.setSystemTime(new Date('2026-07-12T10:00:45.000Z')) // +45초
+    let seg: number | undefined
+    await act(async () => {
+      seg = await result.current.stopStopwatch()
+    })
+    vi.useRealTimers()
+
+    expect(seg).toBe(45)
+  })
+
   // ── ⑧ 시계 역행 시 elapsed 음수 방지 ─────────────────────────────────────
 
   it('[⑧시계역행] stop 시점이 start보다 과거여도 elapsed가 음수로 전송되지 않는다', async () => {

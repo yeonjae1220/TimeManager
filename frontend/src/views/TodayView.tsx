@@ -9,6 +9,7 @@ import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
 import { useI18n } from '@/i18n/I18nProvider'
+import { computeTodayRecordTotal } from './todayRecordTotal'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -121,7 +122,11 @@ export default function TodayView() {
       return
     }
     if (sw.isRunning) {
-      await stopStopwatch()
+      const segment = await stopStopwatch()
+      // 정지 순간 runningDelta가 0으로 떨어지므로, 서버 summary 재조회가 도착하기 전까지의 공백 동안
+      // 방금 끝낸 세그먼트를 낙관적으로 더해 "오늘 기록시간"이 이전 값으로 잠깐 튀는 것을 막는다.
+      // fetchTodayTotal()이 곧 서버 절대값으로 덮어써 화해하므로 이중 계산은 없다.
+      if (segment) setTodayTotalSeconds((s) => s + segment)
       fetchTodayTotal()
       return
     }
@@ -137,7 +142,7 @@ export default function TodayView() {
     ? Math.min(100, Math.max(0, (sw.dailyTotalTimeCal / sw.dailyGoalTime) * 100))
     : 100
   const runningDelta = sw.isRunning ? Math.max(0, sw.elapsedTimeCal - sw.elapsedTime) : 0
-  const todayRecordTotal = Math.max(todayTotalSeconds + runningDelta, sw.dailyTotalTimeCal)
+  const todayRecordTotal = computeTodayRecordTotal(todayTotalSeconds, runningDelta, sw.dailyTotalTimeCal)
   const primaryLabel = !tag
     ? t('today.chooseTagCta')
     : sw.isRunning
