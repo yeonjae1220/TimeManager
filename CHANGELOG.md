@@ -8,6 +8,25 @@
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-07-13
+
+타이머 정확도와 유령 러닝 근절에 집중한 릴리스 — 정지·리셋·재시작·오프라인 전 경로의 상태 일관성을 서버 권위 상태 기준으로 정리하고, 테마 3-way와 접근성을 더했다.
+
+### Added
+- 테마 3-way 전환(system/light/dark) + 랜딩 페이지 시맨틱 마크업·테마 스위처 (#20)
+- 크로스디바이스 동시 start 레이스로 남은 다중 RUNNING을 읽기(GET) 경로에서 최신 1개로 화해 — 락·스키마 변경 없이 자가 수렴
+
+### Changed
+- 타이머 화면 통계 순서 변경 — Today's tag time을 record time 앞으로
+
+### Fixed
+- 타이머 정지 시 daily/tag/total 누적을 로컬에 복원 — 정지→재시작·정지 직후 통계가 이전 값으로 잠깐 떨어지던 문제 제거 (#21)
+- 서버 `reset()`이 실행 상태(`timerState`·`latestStartTime`)를 멈추지 않아, 로컬 캐시를 지운 무상태 클라이언트(웹·시크릿창)가 유령 러닝을 무한 재현하던 근본 문제 수정
+- Service Worker가 태그 API(초당 바뀌는 러닝 상태)를 캐싱해 stale 러닝을 서빙하던 문제 — SW 캐싱에서 제외 (#17)
+- 오프라인 재전송 큐가 정지·삭제로 무효화된 start를 재생해 유령 러닝을 부활시키던 문제 (#16)
+- 오늘 기록 시간 집계가 회원의 `dailyResetHour`를 무시하던 문제 + 오늘 요약 캐시를 프로필 저장 시 즉시 무효화
+- topbar 상단 safe-area-inset 반영, 기록 화면 뒤로가기 버튼 터치 영역 확대
+
 ## [0.6.0] - 2026-07-01
 
 보안 하드닝과 운영 관측성(구조화 로깅·피드백·콘솔 집계)에 집중한 릴리스.
@@ -161,7 +180,8 @@
 - Map 타임스탬프를 타입 레코드로 교체, null 안전성 수정
 - BouncyCastle 프로바이더 중복 등록 방지
 
-[Unreleased]: https://github.com/yeonjae1220/TimeManager/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/yeonjae1220/TimeManager/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/yeonjae1220/TimeManager/compare/v0.6.0...v0.7.0
 [0.6.0]: https://github.com/yeonjae1220/TimeManager/compare/v0.5.0...v0.6.0
 [0.5.0]: https://github.com/yeonjae1220/TimeManager/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/yeonjae1220/TimeManager/compare/v0.3.0...v0.4.0
