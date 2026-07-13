@@ -227,7 +227,23 @@ export function useTagTimer() {
     // 시계 역행 등으로 구간이 음수가 되면 그 구간은 0으로 클램프(누적 elapsed는 보존).
     const segment = Math.max(0, Math.floor((endTime - sw.latestStartTime) / 1000))
     const elapsed = segment + sw.elapsedTime
-    const newSw = { ...sw, isRunning: false, latestEndTime: endTime, elapsedTime: elapsed, elapsedTimeCal: elapsed }
+    // 이 세그먼트를 daily/tag/total base에 접어넣는다. 서버는 stop 시 [start,end] 구간으로
+    // Record를 만들어 이 파생값들을 +segment 하므로(TimerCommandService.stopTimer) 정확히 일치한다.
+    // base를 갱신하지 않으면 재시작 tick이 `prev.dailyTotalTime + delta`를 로드 시점 base로 다시
+    // 계산해, 직전 세션분을 잃고 이전 값으로 떨어진다(리로드 전까지). elapsedTime과 동일한 누적 방식.
+    const newSw = {
+      ...sw,
+      isRunning: false,
+      latestEndTime: endTime,
+      elapsedTime: elapsed,
+      elapsedTimeCal: elapsed,
+      dailyTotalTime: sw.dailyTotalTime + segment,
+      dailyTotalTimeCal: sw.dailyTotalTime + segment,
+      tagTotalTime: sw.tagTotalTime + segment,
+      tagTotalTimeCal: sw.tagTotalTime + segment,
+      totalTime: sw.totalTime + segment,
+      totalTimeCal: sw.totalTime + segment,
+    }
     setSw(newSw)
     useTagStore.getState().setTagState(tag.id, false)
     releaseWakeLock()
@@ -262,6 +278,10 @@ export function useTagTimer() {
       })
       console.warn('Stop API failed (offline?):', e)
     }
+
+    // 방금 끝낸 세그먼트를 호출부(TodayView)가 "오늘 기록시간"에 낙관적으로 더할 수 있게 반환한다.
+    // 오프라인이어도 세션은 큐에 남아 재전송되므로 반환값은 동일하게 유효하다.
+    return segment
   }, [tag, sw, releaseWakeLock])
 
   const resetStopwatch = useCallback(async () => {
