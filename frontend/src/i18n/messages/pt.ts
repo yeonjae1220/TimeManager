@@ -16,6 +16,8 @@ const pt: Messages = {
 
   'landing.signIn': 'Entrar',
   'landing.getStarted': 'Começar',
+  'landing.skipToContent': 'Ir para o conteúdo',
+  'landing.navAria': 'Navegação principal',
   'landing.eyebrow': 'controle de tempo',
   'landing.heroTitle': 'Cada segundo registrado.',
   'landing.heroSubtitle': 'Um espaço focado para registrar o que importa. Inicie, pare e revise seu tempo com precisão.',
@@ -178,6 +180,7 @@ const pt: Messages = {
   'profile.themeAria': 'Tema',
   'profile.dark': 'Escuro',
   'profile.light': 'Claro',
+  'profile.system': 'Sistema',
   'profile.dailyResetHour': 'HORA DE REINÍCIO DIÁRIO',
   'profile.resetHint': 'As estatísticas de hoje são reiniciadas às {time}',
   'profile.currentPw': 'SENHA ATUAL',

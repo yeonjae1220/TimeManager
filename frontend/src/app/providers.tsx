@@ -2,6 +2,7 @@
 
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { UiLanguage } from '@/i18n/messages/index'
+import { ThemeProvider } from '@/theme/ThemeProvider'
 
 export function Providers({
   children,
@@ -10,5 +11,9 @@ export function Providers({
   children: React.ReactNode
   initialLanguage: UiLanguage
 }) {
-  return <I18nProvider initialLanguage={initialLanguage}>{children}</I18nProvider>
+  return (
+    <ThemeProvider>
+      <I18nProvider initialLanguage={initialLanguage}>{children}</I18nProvider>
+    </ThemeProvider>
+  )
 }
