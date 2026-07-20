@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.core.env.Environment;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
@@ -37,7 +38,11 @@ import java.util.Arrays;
 public class AuthApiController {
 
     private static final String REFRESH_COOKIE_NAME = "refresh_token";
-    private static final long REFRESH_COOKIE_MAX_AGE = 30L * 24 * 60 * 60;
+
+    // 쿠키 수명은 refresh 토큰 실제 만료(jwt.refresh-token-ttl-minutes)와 동일 소스에서 파생 —
+    // 별도 하드코딩 상수로 두면 두 값이 드리프트해 쿠키만 살아있는 유령 세션이 생긴다.
+    @Value("${jwt.refresh-token-ttl-minutes:43200}")
+    private long refreshTokenTtlMinutes;
 
     private final LoginUseCase loginUseCase;
     private final RefreshTokenUseCase refreshTokenUseCase;
@@ -108,7 +113,7 @@ public class AuthApiController {
                 .httpOnly(true)
                 .secure(isSecureCookieRequired())
                 .sameSite("Lax")
-                .maxAge(REFRESH_COOKIE_MAX_AGE)
+                .maxAge(refreshTokenTtlMinutes * 60)
                 .path("/api/v1/auth")
                 .build();
         response.addHeader(HttpHeaders.SET_COOKIE, cookie.toString());

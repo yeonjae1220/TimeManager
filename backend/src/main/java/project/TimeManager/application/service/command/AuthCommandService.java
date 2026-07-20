@@ -32,11 +32,14 @@ import java.time.temporal.ChronoUnit;
 @RequiredArgsConstructor
 public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, LogoutUseCase {
 
-    private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
     private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
     @Value("${auth.rotation-interval-hours:24}")
     private long rotationIntervalHours;
+
+    // 세션(=refresh 토큰) 만료와 쿠키 수명은 동일 소스에서 파생 (AuthApiController와 같은 키)
+    @Value("${jwt.refresh-token-ttl-minutes:43200}")
+    private long refreshTokenTtlMinutes;
 
     private final LoadMemberCredentialsPort loadMemberCredentialsPort;
     private final PasswordHasherPort passwordHasherPort;
@@ -105,6 +108,6 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
     }
 
     private Instant newExpiresAt() {
-        return Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
+        return Instant.now().plus(refreshTokenTtlMinutes, ChronoUnit.MINUTES);
     }
 }

@@ -47,6 +47,7 @@ class AuthCommandServiceTest {
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authCommandService, "rotationIntervalHours", 24L);
+        ReflectionTestUtils.setField(authCommandService, "refreshTokenTtlMinutes", 43200L);
     }
 
     private static final MemberId MEMBER_ID = MemberId.of(1L);

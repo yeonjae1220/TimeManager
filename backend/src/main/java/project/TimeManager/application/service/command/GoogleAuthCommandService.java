@@ -1,6 +1,7 @@
 package project.TimeManager.application.service.command;
 
 import lombok.RequiredArgsConstructor;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.auth.GoogleLoginCommand;
@@ -29,7 +30,9 @@ import java.util.Optional;
 @RequiredArgsConstructor
 public class GoogleAuthCommandService implements GoogleLoginUseCase {
 
-    private static final long REFRESH_TOKEN_TTL_DAYS = 30L;
+    // 세션(=refresh 토큰) 만료와 쿠키 수명은 동일 소스에서 파생 (AuthApiController와 같은 키)
+    @Value("${jwt.refresh-token-ttl-minutes:43200}")
+    private long refreshTokenTtlMinutes;
 
     private final GoogleOAuthPort googleOAuthPort;
     private final LoadMemberPort loadMemberPort;
@@ -68,7 +71,7 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
         MemberRole role = MemberRole.MEMBER;
         String accessToken = tokenGeneratorPort.generateAccessToken(memberId, role);
         String refreshToken = tokenGeneratorPort.generateRefreshToken();
-        Instant expiresAt = Instant.now().plus(REFRESH_TOKEN_TTL_DAYS, ChronoUnit.DAYS);
+        Instant expiresAt = Instant.now().plus(refreshTokenTtlMinutes, ChronoUnit.MINUTES);
         AuthSession session = AuthSession.create(memberId, refreshToken, expiresAt);
         tokenStorePort.save(session);
 
