@@ -3,6 +3,7 @@
 import { I18nProvider } from '@/i18n/I18nProvider'
 import type { UiLanguage } from '@/i18n/messages/index'
 import { ThemeProvider } from '@/theme/ThemeProvider'
+import { NativeShell } from '@/components/NativeShell'
 
 export function Providers({
   children,
@@ -13,7 +14,10 @@ export function Providers({
 }) {
   return (
     <ThemeProvider>
-      <I18nProvider initialLanguage={initialLanguage}>{children}</I18nProvider>
+      <I18nProvider initialLanguage={initialLanguage}>
+        {children}
+        <NativeShell />
+      </I18nProvider>
     </ThemeProvider>
   )
 }

@@ -34,3 +34,6 @@ pnpm-debug.log*
 public/sw.js
 public/sw.js.map
 public/swe-worker-*.js
+
+# Capacitor — 플랫폼별 산출물은 ios/.gitignore·android/.gitignore 가 담당한다.
+ios/App/.build/
