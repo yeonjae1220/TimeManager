@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Universal Links. Xcode의 Signing & Capabilities에서 Associated Domains를
+	     추가하면 이 파일이 프로젝트에 연결된다. 유료 Apple Developer 계정이 있어야
+	     프로비저닝에 이 권한이 포함되므로, 계정 준비 후 연결할 것. -->
+	<key>com.apple.developer.associated-domains</key>
+	<array>
+		<string>applinks:timemanager.mungji.com</string>
+	</array>
+</dict>
+</plist>

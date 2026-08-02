@@ -23,6 +23,15 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
+            <!-- App Links: OAuth 콜백만 앱으로 가로챈다. autoVerify 는 도메인의
+                 /.well-known/assetlinks.json 지문과 앱 서명이 일치할 때만 통과한다. -->
+            <intent-filter android:autoVerify="true">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="https" android:host="timemanager.mungji.com" android:pathPrefix="/oauth/callback" />
+            </intent-filter>
+
         </activity>
 
         <provider

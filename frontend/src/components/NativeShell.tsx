@@ -2,6 +2,7 @@
 
 import { useEffect } from 'react'
 import { isNativeApp } from '../utils/platform'
+import { OAUTH_CALLBACK_PATH } from '../utils/nativeOAuth'
 
 /**
  * 네이티브 셸(Capacitor)에서만 동작하는 플랫폼 연동.
@@ -30,12 +31,16 @@ export function NativeShell() {
   useEffect(() => {
     if (!isNativeApp()) return
 
-    let remove: (() => void) | undefined
+    const removers: Array<() => void> = []
     let cancelled = false
 
     void (async () => {
-      const { App } = await import('@capacitor/app')
-      const handle = await App.addListener('backButton', ({ canGoBack }) => {
+      const [{ App }, { Browser }] = await Promise.all([
+        import('@capacitor/app'),
+        import('@capacitor/browser'),
+      ])
+
+      const back = await App.addListener('backButton', ({ canGoBack }) => {
         if (closeTopmostModal()) return
         if (canGoBack) {
           window.history.back()
@@ -43,13 +48,38 @@ export function NativeShell() {
           void App.exitApp()
         }
       })
-      if (cancelled) void handle.remove()
-      else remove = () => void handle.remove()
+
+      // Universal/App Links 로 되돌아온 OAuth 콜백을 WebView 로 넘긴다.
+      // 이 처리가 없으면 콜백이 시스템 브라우저에 남아, 그쪽에서 로그인이 끝나고
+      // 앱은 로그아웃 상태로 남는다(WebView 와 브라우저는 쿠키 저장소가 분리돼 있다).
+      const urlOpen = await App.addListener('appUrlOpen', ({ url }) => {
+        let parsed: URL
+        try {
+          parsed = new URL(url)
+        } catch {
+          return
+        }
+        // 우리 콜백 경로만 처리 — 다른 딥링크는 기본 동작에 맡긴다.
+        if (parsed.origin !== window.location.origin) return
+        if (!parsed.pathname.startsWith(OAUTH_CALLBACK_PATH)) return
+
+        void Browser.close()
+        // 같은 오리진이므로 일반 내비게이션. 콜백 페이지가 code 를 읽어 교환하고,
+        // state(CSRF)는 WebView 스토리지에 남아 있어 그대로 검증된다.
+        window.location.assign(parsed.pathname + parsed.search)
+      })
+
+      if (cancelled) {
+        void back.remove()
+        void urlOpen.remove()
+      } else {
+        removers.push(() => void back.remove(), () => void urlOpen.remove())
+      }
     })()
 
     return () => {
       cancelled = true
-      remove?.()
+      removers.forEach((fn) => fn())
     }
   }, [])
 
