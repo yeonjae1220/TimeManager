@@ -52,7 +52,9 @@ export function NativeShell() {
       // Universal/App Links 로 되돌아온 OAuth 콜백을 WebView 로 넘긴다.
       // 이 처리가 없으면 콜백이 시스템 브라우저에 남아, 그쪽에서 로그인이 끝나고
       // 앱은 로그아웃 상태로 남는다(WebView 와 브라우저는 쿠키 저장소가 분리돼 있다).
-      const urlOpen = await App.addListener('appUrlOpen', ({ url }) => {
+      let handled = false
+      const handleUrl = (url: string) => {
+        if (handled) return
         let parsed: URL
         try {
           parsed = new URL(url)
@@ -63,11 +65,20 @@ export function NativeShell() {
         if (parsed.origin !== window.location.origin) return
         if (!parsed.pathname.startsWith(OAUTH_CALLBACK_PATH)) return
 
+        handled = true
         void Browser.close()
         // 같은 오리진이므로 일반 내비게이션. 콜백 페이지가 code 를 읽어 교환하고,
         // state(CSRF)는 WebView 스토리지에 남아 있어 그대로 검증된다.
         window.location.assign(parsed.pathname + parsed.search)
-      })
+      }
+
+      const urlOpen = await App.addListener('appUrlOpen', ({ url }) => handleUrl(url))
+
+      // 콜드 스타트 보정: 앱이 링크로 "실행"된 경우 appUrlOpen 은 이 리스너가 붙기 전에
+      // 이미 지나가 버린다(실측: 로그에 "No listeners found for event appUrlOpen").
+      // 그때의 URL 은 getLaunchUrl 로만 회수할 수 있다.
+      const launch = await App.getLaunchUrl()
+      if (launch?.url) handleUrl(launch.url)
 
       if (cancelled) {
         void back.remove()
