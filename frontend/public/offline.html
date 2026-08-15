@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>TIMEMGR</title>
+<style>
+  /* 앱 토큰과 같은 값. 이 문서는 Service Worker 폴백이라 앱 CSS를 못 불러오므로 인라인한다. */
+  :root {
+    --bg: #0c0c0c; --surface: #1a1a1a; --border: #2a2a2a;
+    --text: #f0f0f0; --text-2: #888; --accent: #a78bfa;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg: #fbfaf7; --surface: #fff; --border: #ddd6c8; --text: #22201c; --text-2: #675f55; }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0; min-height: 100dvh; background: var(--bg); color: var(--text);
+    font-family: 'DM Sans', system-ui, sans-serif;
+    display: flex; flex-direction: column;
+    padding: max(16px, env(safe-area-inset-top)) 20px max(16px, env(safe-area-inset-bottom));
+  }
+  header { font-family: 'IBM Plex Mono', monospace; letter-spacing: .12em; font-size: 13px; color: var(--text-2); }
+  main { flex: 1; display: flex; flex-direction: column; justify-content: center; max-width: 420px; }
+  h1 { font-size: clamp(28px, 8vw, 40px); line-height: 1.15; margin: 0 0 12px; }
+  p { color: var(--text-2); line-height: 1.6; margin: 0 0 28px; }
+  button {
+    font: inherit; font-weight: 600; padding: 14px 20px; border-radius: 12px;
+    border: none; background: var(--accent); color: #17141f; cursor: pointer; width: 100%;
+  }
+  button:disabled { opacity: .55; cursor: default; }
+  .hint { font-family: 'IBM Plex Mono', monospace; font-size: 12px; color: var(--text-2); margin-top: 16px; }
+</style>
+</head>
+<body>
+  <header>TIMEMGR</header>
+  <main>
+    <h1 id="title">오프라인입니다</h1>
+    <p id="desc">기기가 네트워크에 연결되어 있지 않습니다. 연결이 돌아오면 자동으로 다시 시도합니다.</p>
+    <button id="retry" type="button">다시 시도</button>
+    <div class="hint" id="hint"></div>
+  </main>
+<script>
+(function () {
+  // 정적 폴백이라 앱의 i18n을 쓸 수 없다. 한국어/영어만 인라인으로 분기한다.
+  var ko = (navigator.language || '').toLowerCase().indexOf('ko') === 0;
+  if (!ko) {
+    document.documentElement.lang = 'en';
+    document.getElementById('title').textContent = "You're offline";
+    document.getElementById('desc').textContent =
+      'This device has no network connection. It will retry automatically once you are back online.';
+    document.getElementById('retry').textContent = 'Try again';
+  }
+
+  var btn = document.getElementById('retry');
+  var hint = document.getElementById('hint');
+
+  function retry() {
+    btn.disabled = true;
+    hint.textContent = ko ? '다시 여는 중…' : 'Reloading…';
+    location.reload();
+  }
+
+  btn.addEventListener('click', retry);
+  // 연결이 돌아오면 사용자가 누르지 않아도 복귀한다.
+  window.addEventListener('online', retry);
+
+  if (navigator.onLine) {
+    hint.textContent = ko
+      ? '연결은 있지만 서버에 닿지 못했습니다.'
+      : 'Connected, but the server could not be reached.';
+  }
+})();
+</script>
+</body>
+</html>

@@ -33,7 +33,33 @@ const recordSyncPlugin = new BackgroundSyncPlugin('recordQueue', {
   maxRetentionTime: 24 * 60,
 })
 
+// 오프라인 콜드 스타트용 문서 캐시. 새 배포가 활성화되면 통째로 비운다(아래 activate 참조)
+// — 옛 HTML은 이미 사라진 해시 청크를 가리켜 앱이 깨지기 때문이다.
+const DOCUMENT_CACHE = 'document-cache'
+
 const runtimeCaching: RuntimeCaching[] = [
+  // ── 내비게이션 문서 — NetworkFirst ───────────────────────────────
+  // 이게 없으면 오프라인에서 앱을 켤 수 없다(프리캐시에는 HTML이 없고 모든 라우트가
+  // 동적 SSR이라, 문서 요청이 네트워크로 떨어져 그대로 실패한다).
+  // 문서 캐싱이 안전한 이유: app/ 12개 중 11개가 'use client' 라 HTML에 사용자
+  // 데이터가 없다. 타이머 state가 실린 태그 API를 캐싱하지 않는다는 원칙은 그대로다.
+  // oauth 콜백은 1회용 code가 URL에 있어 캐싱 대상에서 제외한다.
+  {
+    matcher: ({ request, url, sameOrigin }) =>
+      sameOrigin &&
+      request.mode === 'navigate' &&
+      !url.pathname.startsWith('/oauth/') &&
+      !url.pathname.startsWith('/api/') &&
+      !url.pathname.startsWith('/health/'),
+    handler: new NetworkFirst({
+      cacheName: DOCUMENT_CACHE,
+      networkTimeoutSeconds: 3,
+      plugins: [
+        new CacheableResponsePlugin({ statuses: [200] }),
+        new ExpirationPlugin({ maxEntries: 20, maxAgeSeconds: 7 * 24 * 60 * 60 }),
+      ],
+    }),
+  },
   // ── 기타 API GET — NetworkFirst (auth·records·tags 제외) ──────────
   // 태그 API(/api/v1/tags*)는 캐시 금지: 응답에 타이머 state(running)·latestStartTime이
   // 실려 있어, NetworkFirst가 느린 네트워크(3초 타임아웃)에서 stale "running" 스냅샷을
@@ -54,6 +80,23 @@ const runtimeCaching: RuntimeCaching[] = [
       plugins: [
         new CacheableResponsePlugin({ statuses: [0, 200] }),
         new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),
+      ],
+    }),
+  },
+  // ── record 조회 GET — NetworkFirst (오프라인 읽기용) ──────────────
+  // 기록은 이미 확정된 과거 데이터라 stale 해도 해롭지 않다. 타이머 state(running,
+  // latestStartTime)가 실린 태그 API 를 캐싱하지 않는 원칙과는 구분된다 — 그쪽은
+  // stale 스냅샷이 "유령 러닝"을 만들지만, 기록은 잠깐 옛 목록을 보여줄 뿐이다.
+  // 오프라인에서 새로 만든 기록은 Background Sync 로 올라간 뒤 갱신된다.
+  {
+    matcher: ({ url, request, sameOrigin }) =>
+      sameOrigin && url.pathname.startsWith('/api/v1/records') && request.method === 'GET',
+    handler: new NetworkFirst({
+      cacheName: 'records-cache',
+      networkTimeoutSeconds: 3,
+      plugins: [
+        new CacheableResponsePlugin({ statuses: [200] }),
+        new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }),
       ],
     }),
   },
@@ -88,6 +131,16 @@ const serwist = new Serwist({
   clientsClaim: true,
   navigationPreload: true,
   runtimeCaching,
+  // 캐시에도 없는 경로로 오프라인 진입했을 때의 최후 안전망.
+  // public/offline.html 은 정적 파일이라 프리캐시 매니페스트에 포함된다.
+  fallbacks: {
+    entries: [
+      {
+        url: '/offline.html',
+        matcher: ({ request }) => request.mode === 'navigate',
+      },
+    ],
+  },
 })
 
 serwist.addEventListeners()
@@ -100,7 +153,13 @@ serwist.addEventListeners()
 self.addEventListener('activate', (event) => {
   event.waitUntil(
     (async () => {
-      await Promise.all([caches.delete('tag-detail-cache'), caches.delete('api-cache')])
+      await Promise.all([
+        caches.delete('tag-detail-cache'),
+        caches.delete('api-cache'),
+        // 새 배포의 SW가 활성화되면 옛 문서는 무효다 — 이미 삭제된 해시 청크를
+        // 참조해 앱이 흰 화면으로 깨진다. 다음 온라인 방문 때 다시 채워진다.
+        caches.delete(DOCUMENT_CACHE),
+      ])
     })()
   )
 })

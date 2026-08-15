@@ -110,7 +110,18 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }, [phase, restore])
 
   if (phase === 'restoring') return <AuthSkeleton />
-  if (phase === 'offline') return <ReconnectScreen onRetry={() => void restore()} retrying={retrying} />
+
+  // 오프라인이라도 이 기기에 이전 세션 흔적(memberId)이 있으면 앱을 연다.
+  // 화면은 로컬 캐시(태그 idb·타이머 localStorage)로 서고, 타이머 조작은 대기 큐에
+  // 쌓였다가 복귀 시 재전송된다 — 그 기계는 이미 있고 테스트로 지켜진다.
+  // 흔적이 없으면 보여줄 데이터도 이어붙일 세션도 없으므로 재연결 화면을 유지한다.
+  //
+  // ⚠️ 이 분기는 refreshAuth 가 이미 'offline' 을 돌려준 뒤에만 닿는다. memberId 로
+  // 복원 시도 자체를 막지 않는다는 원칙(로컬 캐시는 쿠키보다 먼저 사라질 수 있다)은
+  // 위 restore() 에서 그대로 지켜진다.
+  if (phase === 'offline' && !memberId) {
+    return <ReconnectScreen onRetry={() => void restore()} retrying={retrying} />
+  }
   if (!memberId) return null
 
   return <>{children}</>
