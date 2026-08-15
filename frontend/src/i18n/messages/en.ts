@@ -3,6 +3,7 @@
 // 결정 배경: docs/adr/0001-i18n-custom-vs-library.md
 const en = {
   // common
+  'error.unexpected': 'Something went wrong.',
   'common.cancel': 'Cancel',
   'common.save': 'Save',
   'common.add': 'Add',
@@ -10,6 +11,7 @@ const en = {
   'common.back': 'Back',
   'common.undo': 'Undo',
   'common.saveFail': 'Failed to save.',
+  'common.retry': 'Retry',
 
   // nav
   'nav.today': 'Today',

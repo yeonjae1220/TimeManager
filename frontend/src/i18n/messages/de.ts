@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 
 const de: Messages = {
+  'error.unexpected': 'Etwas ist schiefgelaufen.',
   'common.cancel': 'Abbrechen',
   'common.save': 'Speichern',
   'common.add': 'Hinzufügen',
@@ -8,6 +9,7 @@ const de: Messages = {
   'common.back': 'Zurück',
   'common.undo': 'Rückgängig',
   'common.saveFail': 'Speichern fehlgeschlagen.',
+  'common.retry': 'Erneut versuchen',
 
   'nav.today': 'Heute',
   'nav.tags': 'Tags',

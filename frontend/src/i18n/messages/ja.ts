@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 
 const ja: Messages = {
+  'error.unexpected': '問題が発生しました。',
   'common.cancel': 'キャンセル',
   'common.save': '保存',
   'common.add': '追加',
@@ -8,6 +9,7 @@ const ja: Messages = {
   'common.back': '戻る',
   'common.undo': '元に戻す',
   'common.saveFail': '保存に失敗しました。',
+  'common.retry': '再試行',
 
   'nav.today': '今日',
   'nav.tags': 'タグ',

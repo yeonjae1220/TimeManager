@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 
 const ko: Messages = {
+  'error.unexpected': '문제가 발생했습니다.',
   'common.cancel': '취소',
   'common.save': '저장',
   'common.add': '추가',
@@ -8,6 +9,7 @@ const ko: Messages = {
   'common.back': '뒤로',
   'common.undo': '실행 취소',
   'common.saveFail': '저장에 실패했습니다.',
+  'common.retry': '다시 시도',
 
   'nav.today': '오늘',
   'nav.tags': '태그',

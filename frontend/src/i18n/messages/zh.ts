@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 
 const zh: Messages = {
+  'error.unexpected': '出现了问题。',
   'common.cancel': '取消',
   'common.save': '保存',
   'common.add': '添加',
@@ -8,6 +9,7 @@ const zh: Messages = {
   'common.back': '返回',
   'common.undo': '撤销',
   'common.saveFail': '保存失败。',
+  'common.retry': '重试',
 
   'nav.today': '今天',
   'nav.tags': '标签',

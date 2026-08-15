@@ -7,6 +7,7 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
+import { useAsyncData } from '@/hooks/useAsyncData'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { MessageKey } from '@/i18n/messages/index'
 
@@ -141,26 +142,53 @@ function NavArrows({ label, onPrev, onNext }: { label: string; onPrev: () => voi
 }
 
 // ────────────────────────────────────────────────────────────
+// Load failure
+// ────────────────────────────────────────────────────────────
+
+/**
+ * 로딩 실패를 눈에 보이게 알리고 사용자가 스스로 복구할 수단을 준다.
+ *
+ * 이전에는 4개 탭이 실패를 `catch { setData(null) }` 로 삼켜서, Weekly·Monthly 는
+ * 빈 화면이 되고 TagTab 은 합계 0 을 정상값처럼 보여줬다 — 즉 "실패" 와
+ * "기록 없음" 이 구분되지 않았다(GLOBAL-PIT-020 계열).
+ */
+function LoadError({ onRetry }: { onRetry: () => void }) {
+  const { t: tr } = useI18n()
+  return (
+    <div style={{ display: 'grid', justifyItems: 'center', gap: 10, padding: '32px 0' }}>
+      <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{tr('logs.loadFail')}</p>
+      <button
+        onClick={onRetry}
+        className="mono"
+        style={{
+          minHeight: 36, padding: '0 14px', fontSize: 11, cursor: 'pointer',
+          background: 'none', color: 'var(--text-2)',
+          border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)',
+        }}
+      >
+        {tr('common.retry')}
+      </button>
+    </div>
+  )
+}
+
+/** 기간 요약 조회. 4개 탭이 같은 엔드포인트를 쓰므로 URL 조립을 한 곳에 둔다. */
+function getSummary(start: Date, end: Date): Promise<SummaryData> {
+  return apiClient
+    .get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(start)}&endDate=${toLocalDate(end)}`)
+    .then((res) => res.data)
+}
+
+// ────────────────────────────────────────────────────────────
 // Daily tab
 // ────────────────────────────────────────────────────────────
 
 function DailyTab({ memberId }: { memberId: number }) {
   const { t: tr, language } = useI18n()
   const [date, setDate] = useState(new Date())
-  const [data, setData] = useState<SummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  const fetch = useCallback(async (d: Date) => {
-    setLoading(true)
-    const ds = toLocalDate(d)
-    try {
-      const res = await apiClient.get<SummaryData>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
-      setData(res.data)
-    } catch { setData(null) }
-    finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { fetch(date) }, [date, fetch])
+  const load = useCallback(() => getSummary(date, date), [date])
+  const { data, loading, failed, reload } = useAsyncData(load)
 
   const label = date.toLocaleDateString(language, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'short' })
 
@@ -222,7 +250,7 @@ function DailyTab({ memberId }: { memberId: number }) {
           )}
         </>
       )}
-      {!loading && !data && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{tr('logs.loadFail')}</p>}
+      {!loading && failed && <LoadError onRetry={reload} />}
     </div>
   )
 }
@@ -234,36 +262,25 @@ function DailyTab({ memberId }: { memberId: number }) {
 function WeeklyTab({ memberId }: { memberId: number }) {
   const { t: tr, language } = useI18n()
   const [monday, setMonday] = useState(() => startOfWeek(new Date()))
-  const [data, setData] = useState<SummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
 
-  const fetchWeek = useCallback(async (mon: Date) => {
-    setLoading(true)
-    const sun = addDays(mon, 6)
-    try {
-      const res = await apiClient.get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(mon)}&endDate=${toLocalDate(sun)}`)
-      setData(res.data)
-    } catch { setData(null) }
-    finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { fetchWeek(monday) }, [monday, fetchWeek])
+  const load = useCallback(() => getSummary(monday, addDays(monday, 6)), [monday])
+  const { data, loading, failed, reload } = useAsyncData(load)
 
   // Fetch per-day data for bar chart
-  const [dailyTotals, setDailyTotals] = useState<number[]>([])
-  useEffect(() => {
-    const days = Array.from({ length: 7 }, (_, i) => addDays(monday, i))
-    Promise.all(
-      days.map((d) =>
-        apiClient
-          .get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(d)}&endDate=${toLocalDate(d)}`)
-          .then((r) => r.data.totalSeconds)
-          .catch(() => 0)
-      )
-    ).then(setDailyTotals)
-  }, [monday])
+  // 예전엔 날짜별 요청이 실패하면 `.catch(() => 0)` 으로 0 을 채워 넣었다. 그러면
+  // "그날 기록이 없음" 과 "그날 조회 실패" 가 막대 높이 0 으로 똑같이 보인다.
+  // 메인 요약이 성공한 부분 실패 상황에서는 화면 어디에도 단서가 안 남는다.
+  // 하나라도 실패하면 차트를 그리지 않는다 — 거짓 0 보다 공백이 정직하다.
+  const loadDailyTotals = useCallback(
+    () => Promise.all(
+      Array.from({ length: 7 }, (_, i) => addDays(monday, i))
+        .map((d) => getSummary(d, d).then((s) => s.totalSeconds)),
+    ),
+    [monday],
+  )
+  const { data: dailyTotals } = useAsyncData(loadDailyTotals)
 
-  const maxDay = Math.max(...dailyTotals, 1)
+  const maxDay = Math.max(...(dailyTotals ?? []), 1)
   const today = new Date()
 
   return (
@@ -273,9 +290,13 @@ function WeeklyTab({ memberId }: { memberId: number }) {
         onPrev={() => setMonday((d) => addDays(d, -7))}
         onNext={() => setMonday((d) => addDays(d, 7))}
       />
-      {/* 7-day bar chart */}
-      <div style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80, marginBottom: 24 }}>
-        {Array.from({ length: 7 }, (_, i) => i).map((i) => {
+      {/* 7-day bar chart — 날짜별 조회가 하나라도 실패하면 자리만 비워둔다.
+          0 짜리 막대를 그리면 "기록 없음"과 구별되지 않는 거짓 정보가 된다. */}
+      <div
+        data-testid={dailyTotals ? 'weekly-bar-chart' : undefined}
+        style={{ display: 'flex', gap: 6, alignItems: 'flex-end', height: 80, marginBottom: 24 }}
+      >
+        {dailyTotals && Array.from({ length: 7 }, (_, i) => i).map((i) => {
           const dayDate = addDays(monday, i)
           const dayLabel = dayDate.toLocaleDateString(language, { weekday: 'short' })
           const secs = dailyTotals[i] ?? 0
@@ -322,6 +343,7 @@ function WeeklyTab({ memberId }: { memberId: number }) {
           ))}
         </>
       )}
+      {!loading && failed && <LoadError onRetry={reload} />}
     </div>
   )
 }
@@ -333,57 +355,44 @@ function WeeklyTab({ memberId }: { memberId: number }) {
 function MonthlyTab({ memberId }: { memberId: number }) {
   const { t: tr, language } = useI18n()
   const [refDate, setRefDate] = useState(new Date())
-  const [data, setData] = useState<SummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
-  const [dailyTotals, setDailyTotals] = useState<Map<string, number>>(new Map())
 
-  const fetchMonth = useCallback(async (d: Date) => {
-    setLoading(true)
-    const start = startOfMonth(d)
-    const end = endOfMonth(d)
-    try {
-      const res = await apiClient.get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(start)}&endDate=${toLocalDate(end)}`)
-      setData(res.data)
-    } catch { setData(null) }
-    finally { setLoading(false) }
-  }, [])
-
-  useEffect(() => { fetchMonth(refDate) }, [refDate, fetchMonth])
+  const load = useCallback(() => getSummary(startOfMonth(refDate), endOfMonth(refDate)), [refDate])
+  const { data, loading, failed, reload } = useAsyncData(load)
 
   // Per-day totals for heatmap (batch: one call per day is expensive, so we use per-week calls)
-  useEffect(() => {
-    const start = startOfMonth(refDate)
+  //
+  // 예전엔 주 단위 요청이 실패하면 `.catch(() => new Map())` 로 빈 맵을 넣었다.
+  // 그러면 그 주의 칸들이 "기록 없음"과 똑같이 비어 보인다 — 조회 실패인지
+  // 진짜 0인지 화면으로 구분할 수 없다. 하나라도 실패하면 히트맵을 안 그린다.
+  const loadHeatmap = useCallback(() => {
     const end = endOfMonth(refDate)
     const weeks: Date[] = []
-    let cur = startOfWeek(start)
+    let cur = startOfWeek(startOfMonth(refDate))
     while (cur <= end) {
       weeks.push(new Date(cur))
       cur = addDays(cur, 7)
     }
-    Promise.all(
-      weeks.map((mon) => {
-        const sun = addDays(mon, 6)
-        return apiClient
-          .get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(mon)}&endDate=${toLocalDate(sun)}`)
-          .then((r) => {
-            // We only have week total — approximate by distributing across sessions
-            const map = new Map<string, number>()
-            r.data.tagSummaries.forEach((t) => {
-              t.sessions.forEach((s) => {
-                const key = toLocalDate(new Date(s.startTime))
-                map.set(key, (map.get(key) ?? 0) + s.durationSeconds)
-              })
+    return Promise.all(
+      weeks.map((mon) =>
+        getSummary(mon, addDays(mon, 6)).then((summary) => {
+          // We only have week total — approximate by distributing across sessions
+          const map = new Map<string, number>()
+          summary.tagSummaries.forEach((t) => {
+            t.sessions.forEach((s) => {
+              const key = toLocalDate(new Date(s.startTime))
+              map.set(key, (map.get(key) ?? 0) + s.durationSeconds)
             })
-            return map
           })
-          .catch(() => new Map<string, number>())
-      })
+          return map
+        }),
+      ),
     ).then((maps) => {
       const merged = new Map<string, number>()
       maps.forEach((m) => m.forEach((v, k) => merged.set(k, (merged.get(k) ?? 0) + v)))
-      setDailyTotals(merged)
+      return merged
     })
   }, [refDate])
+  const { data: dailyTotals } = useAsyncData(loadHeatmap)
 
   const year = refDate.getFullYear()
   const month = refDate.getMonth()
@@ -393,7 +402,7 @@ function MonthlyTab({ memberId }: { memberId: number }) {
   const lastDay = new Date(year, month + 1, 0)
   const startPad = (firstDay.getDay() + 6) % 7
   const today = new Date()
-  const maxVal = Math.max(...Array.from(dailyTotals.values()), 1)
+  const maxVal = Math.max(...Array.from(dailyTotals?.values() ?? []), 1)
 
   const cells: (Date | null)[] = [
     ...Array(startPad).fill(null),
@@ -418,8 +427,13 @@ function MonthlyTab({ memberId }: { memberId: number }) {
             <div key={i} className="mono" style={{ fontSize: 9, color: 'var(--text-3)', textAlign: 'center' }}>{d}</div>
           ))}
         </div>
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}>
-          {cells.map((d, i) => {
+        {/* 주 단위 조회가 하나라도 실패하면 칸을 그리지 않는다 — 빈 칸은
+            "기록 없음"과 구별되지 않아 조회 실패를 0으로 위장한다. */}
+        <div
+          data-testid={dailyTotals ? 'monthly-heatmap' : undefined}
+          style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', gap: 3 }}
+        >
+          {dailyTotals && cells.map((d, i) => {
             if (!d) return <div key={i} />
             const key = toLocalDate(d)
             const secs = dailyTotals.get(key) ?? 0
@@ -480,6 +494,7 @@ function MonthlyTab({ memberId }: { memberId: number }) {
           ))}
         </>
       )}
+      {!loading && failed && <LoadError onRetry={reload} />}
     </div>
   )
 }
@@ -502,10 +517,6 @@ function TagTab({ memberId }: { memberId: number }) {
   const [customStart, setCustomStart] = useState(() => toLocalDate(addDays(new Date(), -6)))
   const [customEnd, setCustomEnd] = useState(() => toLocalDate(new Date()))
 
-  const [current, setCurrent] = useState<SummaryData | null>(null)
-  const [prev, setPrev] = useState<SummaryData | null>(null)
-  const [loading, setLoading] = useState(false)
-
   useEffect(() => { if (memberId) loadTags(memberId) }, [memberId, loadTags])
 
   function getRange(): [Date, Date] {
@@ -520,19 +531,20 @@ function TagTab({ memberId }: { memberId: number }) {
     return [addDays(start, -len), addDays(end, -len)]
   }
 
-  useEffect(() => {
-    if (!selectedTagId) return
+  // getRange/getPrevRange 는 매 렌더 재정의되는 지역 함수라 deps 에 넣을 수 없다.
+  // 실제 입력은 아래 네 값이 전부다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const loadRanges = useCallback(() => {
     const [start, end] = getRange()
     const [pStart, pEnd] = getPrevRange(start, end)
-    setLoading(true)
-    Promise.all([
-      apiClient.get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(start)}&endDate=${toLocalDate(end)}`),
-      apiClient.get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(pStart)}&endDate=${toLocalDate(pEnd)}`),
-    ])
-      .then(([cur, pr]) => { setCurrent(cur.data); setPrev(pr.data) })
-      .catch(() => { setCurrent(null); setPrev(null) })
-      .finally(() => setLoading(false))
+    return Promise.all([getSummary(start, end), getSummary(pStart, pEnd)])
+      .then(([cur, pr]) => ({ current: cur, prev: pr }))
   }, [selectedTagId, period, customStart, customEnd])
+
+  // 태그를 고르기 전에는 조회하지 않는다 → loader 를 null 로 넘긴다.
+  const { data: ranges, loading, failed, reload } = useAsyncData(selectedTagId ? loadRanges : null)
+  const current = ranges?.current ?? null
+  const prev = ranges?.prev ?? null
 
   const selectedTag = selectedTagId ? findById(selectedTagId) : null
 
@@ -591,7 +603,13 @@ function TagTab({ memberId }: { memberId: number }) {
       )}
 
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
-      {!loading && selectedTagId && currentFiltered.length === 0 && (
+      {!loading && failed && <LoadError onRetry={reload} />}
+      {/* !failed 가 필수다. 빼면 조회 실패가 "해당 기간에 기록이 없습니다" + 기록
+          시작 CTA 로 보인다 — 침묵이 아니라 틀린 사실을 단언하는 화면이라 사용자가
+          "이 기간엔 안 했구나"로 확신하고 넘어간다. 아래 통계 블록은 지금은
+          length > 0 게이트에 막히지만, 게이트가 바뀌어도 실패 시엔 안 나오도록
+          여기서도 !failed 를 건다. */}
+      {!loading && !failed && selectedTagId && currentFiltered.length === 0 && (
         <div style={{ display: 'grid', justifyItems: 'center', gap: 12, marginTop: 40 }}>
           <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecordsPeriod')}</p>
           <Link href={`/members/${memberId}/today${selectedTagId ? `?tagId=${selectedTagId}` : ''}`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
@@ -600,7 +618,7 @@ function TagTab({ memberId }: { memberId: number }) {
         </div>
       )}
 
-      {!loading && currentFiltered.length > 0 && (
+      {!loading && !failed && currentFiltered.length > 0 && (
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>

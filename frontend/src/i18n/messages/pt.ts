@@ -1,6 +1,7 @@
 import type { Messages } from './en'
 
 const pt: Messages = {
+  'error.unexpected': 'Algo deu errado.',
   'common.cancel': 'Cancelar',
   'common.save': 'Salvar',
   'common.add': 'Adicionar',
@@ -8,6 +9,7 @@ const pt: Messages = {
   'common.back': 'Voltar',
   'common.undo': 'Desfazer',
   'common.saveFail': 'Falha ao salvar.',
+  'common.retry': 'Tentar novamente',
 
   'nav.today': 'Hoje',
   'nav.tags': 'Tags',
