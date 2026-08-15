@@ -93,6 +93,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
 
   return (
     <div
+      data-modal-overlay
       style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: '20px' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >

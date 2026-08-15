@@ -4,6 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { saveOauthState } from '@/utils/oauthState'
+import { openOAuthUrl } from '@/utils/nativeOAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function LoginView() {
@@ -41,7 +42,7 @@ export default function LoginView() {
       scope: 'openid email profile',
       state,
     })
-    window.location.href = `https://accounts.google.com/o/oauth2/v2/auth?${params}`
+    void openOAuthUrl(`https://accounts.google.com/o/oauth2/v2/auth?${params}`)
   }
 
   return (

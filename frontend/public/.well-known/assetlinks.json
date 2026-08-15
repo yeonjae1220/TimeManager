@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.mungji.timemanager",
+      "sha256_cert_fingerprints": [
+        "EB:86:51:6C:AC:F8:80:96:83:E7:3B:BF:7D:1C:DB:9B:C3:C0:92:26:E8:90:AA:59:84:2E:BD:EC:1E:C8:72:29"
+      ]
+    }
+  }
+]

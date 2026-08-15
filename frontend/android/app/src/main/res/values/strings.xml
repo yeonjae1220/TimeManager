@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">TimeManager</string>
+    <string name="title_activity_main">TimeManager</string>
+    <string name="package_name">com.mungji.timemanager</string>
+    <string name="custom_url_scheme">com.mungji.timemanager</string>
+</resources>
