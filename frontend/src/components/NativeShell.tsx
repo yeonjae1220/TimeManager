@@ -18,6 +18,9 @@ import { OAUTH_CALLBACK_PATH } from '../utils/nativeOAuth'
 /** 모달 오버레이 표식 — "오버레이 자신을 클릭하면 닫힌다"(e.target === e.currentTarget) 규약을 따른다. */
 const MODAL_OVERLAY_SELECTOR = '[data-modal-overlay]'
 
+/** 앱 실행 URL을 이 브라우징 컨텍스트에서 이미 처리했는지 표시하는 키. */
+const LAUNCH_URL_HANDLED_KEY = 'native-launch-url-handled'
+
 function closeTopmostModal(): boolean {
   if (typeof document === 'undefined') return false
   const overlays = document.querySelectorAll<HTMLElement>(MODAL_OVERLAY_SELECTOR)
@@ -77,8 +80,17 @@ export function NativeShell() {
       // 콜드 스타트 보정: 앱이 링크로 "실행"된 경우 appUrlOpen 은 이 리스너가 붙기 전에
       // 이미 지나가 버린다(실측: 로그에 "No listeners found for event appUrlOpen").
       // 그때의 URL 은 getLaunchUrl 로만 회수할 수 있다.
+      //
+      // ⚠️ getLaunchUrl 은 앱 수명 내내 같은 값을 돌려준다. 아무 가드 없이 처리하면
+      // 이동 → 재로드 → 다시 처리로 무한 리다이렉트가 된다(실측 확인). 그래서 이
+      // 브라우징 컨텍스트에서 한 번만 처리하도록 sessionStorage 로 표시한다.
+      // sessionStorage 는 같은 탭의 내비게이션에는 남고 앱을 새로 띄우면 비므로,
+      // "앱 실행 1회당 1번"이라는 의도와 정확히 맞는다.
       const launch = await App.getLaunchUrl()
-      if (launch?.url) handleUrl(launch.url)
+      if (launch?.url && sessionStorage.getItem(LAUNCH_URL_HANDLED_KEY) !== launch.url) {
+        sessionStorage.setItem(LAUNCH_URL_HANDLED_KEY, launch.url)
+        handleUrl(launch.url)
+      }
 
       if (cancelled) {
         void back.remove()
