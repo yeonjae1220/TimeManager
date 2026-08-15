@@ -10,6 +10,7 @@ import { useTagStore } from './tagStore'
 import {
   clearTimerState,
   enqueuePendingTimerOperation,
+  clearPendingTimerOperations,
   peekPendingTimerOperations,
   peekTimerState,
   saveResetTimerMarker,
@@ -171,7 +172,7 @@ describe('추가 엣지케이스 검증 (잠재 버그 스윕)', () => {
     expect(tag2Stops.length).toBeGreaterThanOrEqual(1) // 정상 op는 결국 처리되어야 함
   })
 
-  it('[⑦401] 401(재인증 필요) 실패 op가 큐를 영구히 막지 않는다', async () => {
+  it('[⑦401·EC7] 401(세션 만료)이면 op를 보존한다 — 재로그인 후 재전송해야 하므로', async () => {
     post.mockRejectedValue({ response: { status: 401 } })
     enqueuePendingTimerOperation({
       type: 'stop', tagId: 1, elapsedTime: 5,
@@ -181,8 +182,55 @@ describe('추가 엣지케이스 검증 (잠재 버그 스윕)', () => {
     await useTagStore.getState().retryPendingTimerOp()
     await useTagStore.getState().retryPendingTimerOp()
 
-    // 확정 실패는 무한 정체가 아니라 폐기/격리되어야 함
+    // 401은 "이 op가 틀렸다"가 아니라 "지금은 자격이 없다" — 재로그인하면 성공할 수 있다.
+    // 오프라인 중 쌓인 사용자 작업이 세션 만료만으로 사라지면 안 된다.
+    expect(peekPendingTimerOperations()).toHaveLength(1)
+  })
+
+  it('[EC7] 401로 중단된 뒤 재로그인(재전송 성공)하면 보존된 op가 전송된다', async () => {
+    post.mockRejectedValue({ response: { status: 401 } })
+    enqueuePendingTimerOperation({
+      type: 'stop', tagId: 1, elapsedTime: 5,
+      latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+    })
+    await useTagStore.getState().retryPendingTimerOp()
+    expect(peekPendingTimerOperations()).toHaveLength(1)
+
+    // 재로그인 성공 상황
+    post.mockReset()
+    post.mockResolvedValue({ data: {} })
+    await useTagStore.getState().retryPendingTimerOp()
+
+    expect(post).toHaveBeenCalledTimes(1)
     expect(peekPendingTimerOperations()).toHaveLength(0)
+  })
+
+  it('[EC7] 401은 큐를 영구 정체시키지 않는다 — 재생을 중단할 뿐 재시도 여지를 남긴다', async () => {
+    post.mockRejectedValue({ response: { status: 401 } })
+    enqueuePendingTimerOperation({
+      type: 'stop', tagId: 1, elapsedTime: 5,
+      latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+    })
+
+    await useTagStore.getState().retryPendingTimerOp()
+    // retryAttempted 가 풀려 있어야 다음 기회(온라인 복귀·재로그인)에 다시 시도된다
+    expect(peekPendingTimerOperations()[0].retryAttempted).toBe(false)
+  })
+
+  it('[EC7] 401이 아닌 4xx(400·403·404)는 기존대로 폐기한다', async () => {
+    for (const status of [400, 403, 404]) {
+      clearPendingTimerOperations()
+      post.mockReset()
+      post.mockRejectedValue({ response: { status } })
+      enqueuePendingTimerOperation({
+        type: 'stop', tagId: 1, elapsedTime: 5,
+        latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+      })
+
+      await useTagStore.getState().retryPendingTimerOp()
+
+      expect(peekPendingTimerOperations(), `status ${status}`).toHaveLength(0)
+    }
   })
 
   it('[⑥동시성] retryPendingTimerOp 동시 호출 시 같은 op가 이중 전송되지 않는다', async () => {
@@ -315,4 +363,52 @@ describe('tagStore._doRefreshTags — 기기 간 캐시 정합성 (applyLocalTim
     const leaf = useTagStore.getState().findById(2)
     expect(leaf?.state).toBe(true)
   })
+
+  it('[EC7·재로그인] 401로 보존된 op는 재로그인 후 태그 로드 시 재전송된다', async () => {
+    // 1) 오프라인 중 쌓인 op가 401로 보존된 상태
+    post.mockRejectedValue({ response: { status: 401 } })
+    enqueuePendingTimerOperation({
+      type: 'stop', tagId: 1, elapsedTime: 5,
+      latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+    })
+    await useTagStore.getState().retryPendingTimerOp()
+    expect(peekPendingTimerOperations()).toHaveLength(1)
+
+    // 2) 재로그인 성공 → today 화면 진입(loadTags) 경로
+    post.mockReset()
+    post.mockResolvedValue({ data: {} })
+    const getMock = apiClient.get as unknown as ReturnType<typeof vi.fn>
+    getMock.mockResolvedValue({ data: [] })
+    await useTagStore.getState().loadTags(1)
+    // loadTagsFromCache 안의 재전송은 비동기로 떼어져 있어 한 틱 흘려보낸다
+    await useTagStore.getState().getRetryPromise()
+
+    expect(peekPendingTimerOperations()).toHaveLength(0)
+  })
+
+
+  it('[EC7·경계] 태그 캐시가 신선(<30s)해도 보존된 op는 재전송된다', async () => {
+    // 401 보존
+    post.mockRejectedValue({ response: { status: 401 } })
+    enqueuePendingTimerOperation({
+      type: 'stop', tagId: 1, elapsedTime: 5,
+      latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+    })
+    await useTagStore.getState().retryPendingTimerOp()
+    expect(peekPendingTimerOperations()).toHaveLength(1)
+
+    // 방금 태그를 받아온 상태로 만든다 → loadTagsFromCache 의 신선도 조기 반환 조건
+    useTagStore.setState({ tagTree: [{ id: 9, name: 'root', type: 'ROOT', state: false,
+      elapsedTime: 0, latestStopTimeMs: null, children: [] }] as never, lastFetchedAt: Date.now() })
+
+    // 재로그인 직후 today 진입
+    post.mockReset()
+    post.mockResolvedValue({ data: {} })
+    await useTagStore.getState().loadTagsFromCache(1)
+    await useTagStore.getState().getRetryPromise()
+
+    // 신선도 때문에 사용자의 오프라인 작업이 묻히면 안 된다
+    expect(peekPendingTimerOperations()).toHaveLength(0)
+  })
+
 })

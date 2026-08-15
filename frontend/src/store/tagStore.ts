@@ -126,6 +126,7 @@ interface TagStoreState {
   _doRefreshTags: (memberId: number) => Promise<void>
   setTagState: (tagId: number, state: boolean) => void
   retryPendingTimerOp: () => Promise<void>
+  _retryPendingIfEligible: () => void
   getRetryPromise: () => Promise<void> | null
   handleOnline: () => void
   clearCache: () => Promise<void>
@@ -185,6 +186,11 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   async loadTagsFromCache(memberId) {
     set({ fetchError: false, _activeMemberId: memberId })
 
+    // 대기 중인 op 재전송은 태그 신선도와 무관하게 먼저 시도한다.
+    // 아래 신선도 조기 반환 뒤에 두면, 재로그인이 직전 태그 조회로부터 30초 안에
+    // 일어났을 때 오프라인에서 쌓인 사용자 작업이 재전송되지 않고 묻힌다.
+    get()._retryPendingIfEligible()
+
     const FRESH_THRESHOLD_MS = 30_000
     const state = get()
     if (
@@ -204,13 +210,16 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     const tagTree = applyLocalTimerOverrides(get().tagTree)
     set({ tagTree })
 
-    const pendingTimerOperation = peekPendingTimerOperation()
-    if (pendingTimerOperation && navigator.onLine && !pendingTimerOperation.retryAttempted) {
-      get().retryPendingTimerOp().then(() => {
-        const mid = get()._activeMemberId
-        if (mid) get().refreshTags(mid)
-      })
-    }
+  },
+
+  /** 대기 op가 있고 지금 보낼 수 있으면 재전송을 시작한다(중복 호출은 in-flight 프라미스가 흡수). */
+  _retryPendingIfEligible() {
+    const pending = peekPendingTimerOperation()
+    if (!pending || !navigator.onLine || pending.retryAttempted) return
+    get().retryPendingTimerOp().then(() => {
+      const mid = get()._activeMemberId
+      if (mid) get().refreshTags(mid)
+    })
   },
 
   async loadTags(memberId) {
@@ -339,9 +348,19 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
           removePendingTimerOperation(pending.id)
         } catch (e: unknown) {
           const status = (e as { response?: { status?: number } }).response?.status
+
+          // 401은 "이 op가 틀렸다"가 아니라 "지금 자격이 없다" — 오프라인 중 세션이 만료된
+          // 전형적인 경우다. 폐기하면 사용자가 오프라인에서 한 작업이 조용히 사라지므로
+          // 큐에 보존하고 재생만 중단한다. 어차피 뒤의 op도 같은 이유로 401이라 계속해봐야
+          // 소용없다. 재로그인 후 재전송이 트리거되면 그대로 처리된다.
+          if (status === 401) {
+            clearRetryAttempted(pending.id)
+            return
+          }
+
           const isClientError = typeof status === 'number' && status >= 400 && status < 500
           if (isClientError) {
-            // 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그·재인증 필요 등).
+            // 401 외 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그 등).
             // 큐 헤드에 남겨두면 뒤의 정상 op까지 영구히 막으므로, 폐기하고 다음 op로 진행한다.
             removePendingTimerOperation(pending.id)
             continue
