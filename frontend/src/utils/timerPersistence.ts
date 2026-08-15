@@ -5,6 +5,11 @@ const PENDING_TIMER_OPS_KEY = 'timemgr-pending-timer-ops'
 const RESET_MARKER_KEY = 'timemgr-reset-marker'
 const RESET_MARKER_TTL_MS = 60_000
 
+// 대기 중인 타이머 op의 보관 기한. record 큐(BackgroundSyncPlugin maxRetentionTime)와
+// 같은 24시간으로 맞춘다. 기한이 없으면 며칠 뒤 복귀했을 때 잊고 있던 조작이 되살아나
+// 사용자가 설명할 수 없는 기록이 생긴다.
+export const PENDING_OP_TTL_MS = 24 * 60 * 60 * 1000
+
 export interface TimerState {
   tagId: number
   isRunning: boolean
@@ -128,7 +133,18 @@ export function peekPendingTimerOperations(): PendingTimerOperation[] {
   try {
     const raw = localStorage.getItem(PENDING_TIMER_OPS_KEY)
     const parsed = raw ? JSON.parse(raw) : []
-    return Array.isArray(parsed) ? parsed : []
+    if (!Array.isArray(parsed)) return []
+
+    // 리셋 마커와 같은 방식으로 읽을 때 만료분을 걷어낸다(pruneResetMarkers 참조).
+    const cutoff = Date.now() - PENDING_OP_TTL_MS
+    const alive = parsed.filter(
+      (op: PendingTimerOperation) => typeof op?.savedAt === 'number' && op.savedAt > cutoff
+    )
+    if (alive.length !== parsed.length) {
+      if (alive.length === 0) localStorage.removeItem(PENDING_TIMER_OPS_KEY)
+      else localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(alive))
+    }
+    return alive
   } catch {
     return []
   }

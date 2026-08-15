@@ -14,6 +14,7 @@ import {
   saveResetTimerMarker,
   saveTimerState,
   shouldApplyResetTimerMarker,
+  PENDING_OP_TTL_MS,
 } from './timerPersistence'
 
 function makeTimerState(overrides = {}) {
@@ -157,4 +158,49 @@ describe('timerPersistence', () => {
     expect(peekResetTimerMarker(1)).not.toBeNull()
     expect(peekResetTimerMarker(2)).not.toBeNull()
   })
+
+  // ── EC8: 대기 큐 보관 기한 ──────────────────────────────────────────
+  // record 큐는 24h(BackgroundSyncPlugin), 리셋 마커는 60s TTL이 있는데 타이머 op만
+  // 무기한이었다. 며칠 뒤 복귀 시 옛 조작이 되살아나면 사용자가 이해할 수 없는 기록이 생긴다.
+  describe('대기 op 보관 기한', () => {
+    it('보관 기한이 지난 op는 조회에서 제외되고 저장소에서도 정리된다', () => {
+      enqueuePendingTimerOperation({
+        type: 'stop', tagId: 1, elapsedTime: 5,
+        latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+      })
+      // 저장된 op를 기한 밖으로 밀어낸다
+      const raw = JSON.parse(localStorage.getItem('timemgr-pending-timer-ops')!)
+      raw[0].savedAt = Date.now() - (PENDING_OP_TTL_MS + 1000)
+      localStorage.setItem('timemgr-pending-timer-ops', JSON.stringify(raw))
+
+      expect(peekPendingTimerOperations()).toHaveLength(0)
+      expect(localStorage.getItem('timemgr-pending-timer-ops')).toBeNull()
+    })
+
+    it('기한 내 op는 유지된다', () => {
+      enqueuePendingTimerOperation({
+        type: 'stop', tagId: 1, elapsedTime: 5,
+        latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+      })
+      const raw = JSON.parse(localStorage.getItem('timemgr-pending-timer-ops')!)
+      raw[0].savedAt = Date.now() - (PENDING_OP_TTL_MS - 60_000)
+      localStorage.setItem('timemgr-pending-timer-ops', JSON.stringify(raw))
+
+      expect(peekPendingTimerOperations()).toHaveLength(1)
+    })
+
+    it('만료된 op만 걸러내고 유효한 op의 순서는 보존한다', () => {
+      enqueuePendingTimerOperation({ type: 'start', tagId: 1, latestStartTime: Date.now() })
+      enqueuePendingTimerOperation({ type: 'reset', tagId: 2, elapsedTime: 0 })
+      const raw = JSON.parse(localStorage.getItem('timemgr-pending-timer-ops')!)
+      raw[0].savedAt = Date.now() - (PENDING_OP_TTL_MS + 1000)  // 첫 번째만 만료
+      localStorage.setItem('timemgr-pending-timer-ops', JSON.stringify(raw))
+
+      const remaining = peekPendingTimerOperations()
+      expect(remaining).toHaveLength(1)
+      expect(remaining[0].type).toBe('reset')
+      expect(remaining[0].tagId).toBe(2)
+    })
+  })
+
 })
