@@ -3,49 +3,66 @@ package project.TimeManager.application.service.command;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.domain.port.in.member.PurgeDeletedMembersUseCase;
 import project.TimeManager.domain.port.out.member.DeleteMemberPort;
-import project.TimeManager.domain.port.out.record.DeleteRecordsByMemberPort;
 
 import java.time.LocalDateTime;
 import java.util.List;
 
+/**
+ * 유예가 끝난 삭제 계정을 물리적으로 지운다.
+ *
+ * <p>이 클래스에는 {@code @Transactional} 이 없다 — 의도적이다. 실제 삭제는 회원 단위로
+ * {@link MemberPurger} 의 독립 트랜잭션에서 일어나고, 여기서는 실패를 <b>격리</b>해
+ * 한 명이 막혀도 나머지가 지워지게 한다.
+ */
 @Slf4j
 @Service
-@Transactional
 public class PurgeDeletedMembersCommandService implements PurgeDeletedMembersUseCase {
 
     private final DeleteMemberPort deleteMemberPort;
-    private final DeleteRecordsByMemberPort deleteRecordsByMemberPort;
+    private final MemberPurger memberPurger;
     private final int graceDays;
 
     public PurgeDeletedMembersCommandService(
             DeleteMemberPort deleteMemberPort,
-            DeleteRecordsByMemberPort deleteRecordsByMemberPort,
+            MemberPurger memberPurger,
             @Value("${member.deletion.grace-days:30}") int graceDays) {
         this.deleteMemberPort = deleteMemberPort;
-        this.deleteRecordsByMemberPort = deleteRecordsByMemberPort;
+        this.memberPurger = memberPurger;
         this.graceDays = graceDays;
     }
 
-    /**
-     * 삭제 순서가 곧 정확성이다. 회원 → 태그는 JPA cascade 로 지워지지만
-     * 태그 → 기록에는 cascade 가 없어(그래야 기록 단건 삭제가 태그를 건드리지 않는다)
-     * 기록을 먼저 지우지 않으면 record.tag_id 외래키 제약으로 삭제 전체가 실패한다.
-     */
     @Override
     public int purgeExpired() {
         LocalDateTime threshold = LocalDateTime.now().minusDays(graceDays);
+        // 단건 조회라 별도 트랜잭션 경계가 필요 없다(리포지토리 메서드가 자체 트랜잭션을 연다).
+        // 여기에 @Transactional 을 붙인 메서드를 두고 자기호출하면 프록시를 안 거쳐 무효다.
         List<Long> ids = deleteMemberPort.findPurgeableMemberIds(threshold);
         if (ids.isEmpty()) return 0;
 
+        int purged = 0;
+        int failed = 0;
         for (Long memberId : ids) {
-            int records = deleteRecordsByMemberPort.deleteByMemberId(memberId);
-            deleteMemberPort.purgeMember(memberId);
-            log.info("purge: memberId={} removed ({} record(s))", memberId, records);
+            try {
+                memberPurger.purgeOne(memberId);
+                purged++;
+            } catch (Exception e) {
+                // 이 회원만 롤백된다. 다음 회원은 새 트랜잭션에서 계속 진행한다.
+                // 원인이 사라지지 않으면 매일 같은 memberId 로 이 로그가 반복되므로,
+                // 로그를 memberId 로 검색하면 정체된 계정을 바로 찾을 수 있다.
+                failed++;
+                log.error("purge: memberId={} FAILED — 다음 실행에서 재시도한다", memberId, e);
+            }
         }
-        log.info("purge: {} member(s) removed (deleted before {})", ids.size(), threshold);
-        return ids.size();
+
+        if (failed > 0) {
+            log.error("purge: {} 명 삭제, {} 명 실패 (deleted before {}) — "
+                    + "실패가 계속되면 /privacy 의 '{}일 뒤 영구 삭제' 약속이 깨진다",
+                    purged, failed, threshold, graceDays);
+        } else {
+            log.info("purge: {} member(s) removed (deleted before {})", purged, threshold);
+        }
+        return purged;
     }
 }
