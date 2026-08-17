@@ -11,6 +11,8 @@ import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal } from './todayRecordTotal'
+import { hapticStart, hapticStop } from '@/native/haptics'
+import { ensureNotificationPermission } from '@/native/notificationPermission'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -124,6 +126,7 @@ export default function TodayView() {
       return
     }
     if (sw.isRunning) {
+      hapticStop()
       const segment = await stopStopwatch()
       // 정지 순간 runningDelta가 0으로 떨어지므로, 서버 summary 재조회가 도착하기 전까지의 공백 동안
       // 방금 끝낸 세그먼트를 낙관적으로 더해 "오늘 기록시간"이 이전 값으로 잠깐 튀는 것을 막는다.
@@ -132,7 +135,12 @@ export default function TodayView() {
       fetchTodayTotal()
       return
     }
+    hapticStart()
     await startStopwatch()
+    // 타이머를 시작한 직후가 알림 권한을 묻기에 자연스러운 두 번째 순간이다(첫 번째는
+    // 목표 설정). 이미 결정된 상태면 ensure 가 아무것도 하지 않으므로 매 시작마다
+    // 물어보는 일은 없다.
+    void ensureNotificationPermission()
   }, [fetchTodayTotal, isSwitching, startStopwatch, stopStopwatch, sw.isRunning, tag])
 
   const recentTags = recentTagIds
