@@ -8,7 +8,7 @@ import './globals.css'
 
 export const dynamic = 'force-dynamic'
 
-const BASE_URL = 'https://timemgr.mungji.com'
+const BASE_URL = 'https://timemanager.mungji.com'
 
 const themeScript = `
 (function () {
