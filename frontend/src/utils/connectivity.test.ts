@@ -2,10 +2,19 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __resetConnectivity,
   isOnline,
+  probeNow,
   reportReachable,
   reportUnreachable,
   subscribeConnectivity,
 } from './connectivity'
+
+/** jsdom 의 visibilityState 는 프로토타입 getter라 vi.spyOn 이 먹지 않는다. */
+function setVisibility(state: 'visible' | 'hidden') {
+  Object.defineProperty(document, 'visibilityState', {
+    configurable: true,
+    get: () => state,
+  })
+}
 
 describe('connectivity', () => {
   beforeEach(() => {
@@ -15,6 +24,7 @@ describe('connectivity', () => {
   })
 
   afterEach(() => {
+    setVisibility('visible')
     __resetConnectivity()
     vi.useRealTimers()
     vi.unstubAllGlobals()
@@ -77,6 +87,39 @@ describe('connectivity', () => {
 
     await vi.advanceTimersByTimeAsync(2_000)
     expect(fetch).toHaveBeenCalledTimes(2)
+  })
+
+  it('화면이 숨겨지면 probe 를 멈춘다 — 백그라운드에서 두드려봐야 쓸 데가 없다', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    reportUnreachable()
+    await vi.advanceTimersByTimeAsync(3_000)
+    expect(fetch).toHaveBeenCalledTimes(1)
+
+    // 숨겨도 이미 예약돼 있던 probe 한 번은 그대로 실행된다(t=7.5s, 백오프 1.5배).
+    // 그 실행이 다음 예약을 하지 않는 것이 핵심이다.
+    setVisibility('hidden')
+    await vi.advanceTimersByTimeAsync(5_000)
+    expect(fetch).toHaveBeenCalledTimes(2)
+    vi.mocked(fetch).mockClear()
+
+    await vi.advanceTimersByTimeAsync(300_000)
+    expect(fetch).not.toHaveBeenCalled()
+  })
+
+  it('다시 보이면 probeNow 가 백오프를 무시하고 즉시 이어받는다', async () => {
+    vi.mocked(fetch).mockRejectedValue(new Error('offline'))
+    reportUnreachable()
+    setVisibility('hidden')
+    await vi.advanceTimersByTimeAsync(60_000)
+    vi.mocked(fetch).mockClear()
+
+    setVisibility('visible')
+    vi.mocked(fetch).mockResolvedValue({ ok: true } as Response)
+    probeNow()
+    await vi.advanceTimersByTimeAsync(0)
+
+    expect(fetch).toHaveBeenCalledTimes(1)
+    expect(isOnline()).toBe(true)
   })
 
   it('요청 성공 보고가 들어오면 probe 루프를 멈춘다', async () => {

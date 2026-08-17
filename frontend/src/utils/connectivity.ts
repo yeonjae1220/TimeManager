@@ -82,6 +82,11 @@ async function runProbe(): Promise<void> {
     reportReachable()
   } catch {
     clearTimeout(kill)
+    // 화면이 보이지 않는 동안에는 멈춘다. 백그라운드에서 복귀를 감지해봐야 쓸 데가
+    // 없고(배너도 큐 재전송도 사용자가 앱을 볼 때 의미가 있다), 오프라인으로 방치된
+    // 기기가 무한히 네트워크를 두드리는 것을 막는다. 다시 보이는 순간 probeNow 가
+    // 즉시 이어받는다.
+    if (typeof document !== 'undefined' && document.visibilityState === 'hidden') return
     // 오래 끊겨 있는 기기가 같은 간격으로 계속 두드리지 않도록 서서히 늦춘다.
     probeDelay = Math.min(Math.round(probeDelay * 1.5), MAX_DELAY_MS)
     scheduleProbe(probeDelay)

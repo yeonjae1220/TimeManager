@@ -121,30 +121,44 @@
 
     // 원격 오리진에 직접 찔러 본다. no-cors 라 응답 내용은 못 읽지만 성공/실패는
     // 구분되고, 그게 우리가 알아야 하는 전부다.
-    var delay = 3000;
+    var INITIAL_DELAY = 3000;
     var MAX_DELAY = 30000;
+    var delay = INITIAL_DELAY;
+    var timer = null;
+    var inFlight = false;
+
+    // ⚠️ 예약은 반드시 이 함수를 통한다. 대기 중인 타이머를 지우지 않고 probe 를
+    // 또 걸면 체인이 갈라져 배로 늘어난다 — 오프라인 상태로 앱을 껐다 켤 때마다
+    // 두 배가 되어, 정작 배터리가 아쉬운 상황에서 probe 폭풍이 된다.
+    function schedule(ms) {
+      if (timer !== null) clearTimeout(timer);
+      timer = setTimeout(probe, ms);
+    }
+
     function probe() {
-      if (done) return;
+      timer = null;
+      if (done || inFlight) return;
+      inFlight = true;
       var ctl = new AbortController();
       var kill = setTimeout(function () { ctl.abort(); }, 4000);
       fetch(HOME, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctl.signal })
-        .then(function () { clearTimeout(kill); retry(); })
+        .then(function () { clearTimeout(kill); inFlight = false; retry(); })
         .catch(function () {
           clearTimeout(kill);
+          inFlight = false;
           // 오래 방치된 기기가 계속 같은 간격으로 두드리지 않도록 서서히 늦춘다.
           delay = Math.min(Math.round(delay * 1.5), MAX_DELAY);
-          setTimeout(probe, delay);
+          schedule(delay);
         });
     }
-    setTimeout(probe, delay);
+    schedule(delay);
 
-    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 큰 시점이다.
-    // 백오프가 늘어나 있어도 여기서 즉시 한 번 확인한다.
+    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 크다.
+    // 백오프가 늘어나 있어도 여기서 즉시 확인한다.
     document.addEventListener('visibilitychange', function () {
-      if (document.visibilityState === 'visible') {
-        delay = 3000;
-        probe();
-      }
+      if (document.visibilityState !== 'visible') return;
+      delay = INITIAL_DELAY;
+      schedule(0);
     });
   })();
 </script>

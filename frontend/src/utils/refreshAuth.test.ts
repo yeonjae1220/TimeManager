@@ -7,6 +7,14 @@ import {
 } from './refreshAuth'
 import { useAuthStore } from '@/store/authStore'
 
+// refreshAuth 는 실패를 연결 상태로 보고한다. 그 모듈은 자체 백오프 타이머를 돌리므로
+// 여기서 실물을 쓰면 이 파일의 가짜 타이머와 얽혀 무한 루프가 된다 — 보고 여부는
+// connectivity.test.ts 가 따로 검증하므로 여기서는 경계만 막는다.
+vi.mock('@/utils/connectivity', () => ({
+  reportReachable: vi.fn(),
+  reportUnreachable: vi.fn(),
+}))
+
 // axios 에러 형태 헬퍼 — axios.isAxiosError는 isAxiosError===true 객체를 인식한다.
 function axiosError(status?: number): unknown {
   return { isAxiosError: true, response: status === undefined ? undefined : { status } }
