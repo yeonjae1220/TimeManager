@@ -20,7 +20,9 @@ import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
+import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.tag.model.TagType;
+import project.TimeManager.domain.tag.model.TimerState;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -55,6 +57,7 @@ class DeleteMemberIntegrationTest {
     @Autowired MemberJpaRepository memberJpaRepository;
     @Autowired TagJpaRepository tagJpaRepository;
     @Autowired RecordJpaRepository recordJpaRepository;
+    @Autowired LoadTagPort loadTagPort;
 
     private static final AtomicInteger SEQ = new AtomicInteger();
 
@@ -159,6 +162,33 @@ class DeleteMemberIntegrationTest {
         assertThat(loadMemberPort.loadAllMembers())
                 .extracting(m -> m.getId().value())
                 .doesNotContain(f.memberId());
+    }
+
+    @Test
+    @DisplayName("관리자 '실행중 타이머' 뷰에서도 삭제된 회원의 태그가 빠진다")
+    void softDeletedMemberRunningTagsAreExcluded() {
+        Fixture f = register();
+        startTimer(f.tagId());
+        assertThat(loadTagPort.findAllRunningTags())
+                .as("삭제 전에는 보여야 대조가 성립한다")
+                .extracting(t -> t.getId().value())
+                .contains(f.tagId());
+
+        deleteMemberUseCase.deleteMember(f.memberId());
+
+        // 이 조회는 태그에서 출발해 회원을 조인하므로 MemberPersistenceAdapter 관문을 지나지 않는다.
+        // 별도로 걸러주지 않으면 회원 목록에는 없는 회원의 타이머가 관리자 화면에만 남는다.
+        assertThat(loadTagPort.findAllRunningTags())
+                .extracting(t -> t.getId().value())
+                .doesNotContain(f.tagId());
+    }
+
+    /** 도메인 흐름을 거치지 않고 실행중 상태만 만든다 — 여기서 검증할 것은 타이머가 아니라 가시성이다. */
+    private void startTimer(Long tagId) {
+        TagJpaEntity tag = tagJpaRepository.findById(tagId).orElseThrow();
+        tag.setTimerState(TimerState.RUNNING);
+        tag.setLatestStartTime(java.time.ZonedDateTime.now().minusMinutes(5));
+        tagJpaRepository.save(tag);
     }
 
     // ===== 유예 만료 후 완전 삭제 =====
