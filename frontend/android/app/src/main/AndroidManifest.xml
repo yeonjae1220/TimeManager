@@ -48,4 +48,15 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- API 33+ 는 알림 표시에 런타임 권한이 필요하다. 32 이하는 자동 부여. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      ⚠️ USE_EXACT_ALARM / SCHEDULE_EXACT_ALARM 은 선언하지 않는다.
+      Play 가 알람·시계·캘린더 앱에만 허용하는 제한 권한이라 선언하는 순간 심사 폼이 붙고,
+      거절되면 릴리스 자체가 막힌다. 이 앱의 알림("3시간 되었습니다", "목표 도달")은
+      몇 분 늦어도 무해하므로 inexact 스케줄링으로 간다
+      (= LocalNotifications 호출에서 allowWhileIdle 을 켜지 않는다).
+    -->
 </manifest>
