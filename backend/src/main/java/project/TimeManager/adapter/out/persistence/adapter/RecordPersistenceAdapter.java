@@ -11,6 +11,7 @@ import project.TimeManager.adapter.out.persistence.mapper.RecordMapper;
 import project.TimeManager.adapter.out.persistence.repository.RecordJpaRepository;
 import project.TimeManager.adapter.out.persistence.repository.TagJpaRepository;
 import project.TimeManager.application.dto.result.RecordResult;
+import project.TimeManager.domain.port.out.record.DeleteRecordsByMemberPort;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort;
 import project.TimeManager.domain.port.out.record.LoadRecordPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
@@ -25,7 +26,7 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort, LoadRecordsByTagPort, FindOverlappingRecordsPort, LoadRecordsByMemberPort {
+public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort, LoadRecordsByTagPort, FindOverlappingRecordsPort, LoadRecordsByMemberPort, DeleteRecordsByMemberPort {
 
     private final RecordJpaRepository recordJpaRepository;
     private final TagJpaRepository tagJpaRepository;
@@ -54,6 +55,11 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
     @Override
     public void deleteRecord(Long recordId) {
         recordJpaRepository.deleteById(recordId);
+    }
+
+    @Override
+    public int deleteByMemberId(Long memberId) {
+        return recordJpaRepository.deleteByMemberId(memberId);
     }
 
     @Override
