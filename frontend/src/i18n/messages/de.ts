@@ -171,7 +171,7 @@ const de: Messages = {
 
   'profile.loadFail': 'Profil konnte nicht geladen werden.',
   'profile.pwMismatch': 'Die neuen Passwörter stimmen nicht überein.',
-  'profile.deleteConfirm': 'Beim Löschen Ihres Kontos werden alle Daten gelöscht. Trotzdem löschen?',
+  'profile.deleteConfirm': 'Beim Löschen Ihres Kontos werden Sie sofort abgemeldet. Alle Daten werden nach 30 Tagen endgültig gelöscht. Löschen?',
   'profile.deleteFail': 'Konto konnte nicht gelöscht werden.',
   'profile.account': 'Konto',
   'profile.email': 'E-Mail',
@@ -198,6 +198,26 @@ const de: Messages = {
   'profile.deleteAccount': 'Konto löschen',
   'profile.uiLanguage': 'Sprache',
   'profile.uiLanguageHint': 'Wählen Sie die Anzeigesprache der App.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Datenschutzerklärung',
+
+  // daily goal
+  'goal.title': 'Tagesziel',
+  'goal.subtitle': 'Lege das heutige Ziel für {tag} fest.',
+  'goal.none': 'Kein Ziel',
+  'goal.hhmm': '{h} Std. {m} Min.',
+  'goal.save': 'Speichern',
+  'goal.saveFail': 'Ziel konnte nicht gespeichert werden.',
+  'goal.openAria': 'Tippen, um ein Tagesziel festzulegen',
+
+  'notif.untitledTag': 'Timer',
+  'notif.goalReached.title': 'Heutiges Ziel',
+  'notif.goalReached.body': '{tag} sollte das heutige Ziel erreicht haben. Schau mal nach.',
+  'notif.longRun.title': 'Timer läuft noch?',
+  'notif.longRun.body': 'Seit dem Start von {tag} sind {hours} Std. vergangen. Schau mal nach.',
+
 }
 
 export default de

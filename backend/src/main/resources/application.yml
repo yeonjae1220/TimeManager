@@ -79,3 +79,10 @@ lab:
     endpoint: ${LAB_FEEDBACK_ENDPOINT:http://lab-dashboard.lab.svc.cluster.local/api/internal/feedback}
     token: ${LAB_FEEDBACK_TOKEN:}
     app-name: timemanager
+
+member:
+  deletion:
+    # 탈퇴 후 데이터를 물리 삭제하기까지의 유예. 실수 삭제를 되돌릴 수 있는 창이다.
+    # ⚠️ /privacy 페이지가 이 값을 공개 약속으로 명시하고 있다(DELETION_GRACE_DAYS).
+    #    바꾸면 그 문서와 profile.deleteConfirm 문구(9개 언어)도 함께 고칠 것.
+    grace-days: ${MEMBER_DELETION_GRACE_DAYS:30}

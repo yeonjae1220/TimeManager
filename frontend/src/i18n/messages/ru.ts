@@ -171,7 +171,7 @@ const ru: Messages = {
 
   'profile.loadFail': 'Не удалось загрузить профиль.',
   'profile.pwMismatch': 'Новые пароли не совпадают.',
-  'profile.deleteConfirm': 'Удаление аккаунта сотрёт все данные. Всё равно удалить?',
+  'profile.deleteConfirm': 'После удаления аккаунта вход сразу станет невозможен, а через 30 дней все данные будут удалены безвозвратно. Удалить?',
   'profile.deleteFail': 'Не удалось удалить аккаунт.',
   'profile.account': 'аккаунт',
   'profile.email': 'эл. почта',
@@ -198,6 +198,26 @@ const ru: Messages = {
   'profile.deleteAccount': 'Удалить аккаунт',
   'profile.uiLanguage': 'Язык',
   'profile.uiLanguageHint': 'Выберите язык интерфейса приложения.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Политика конфиденциальности',
+
+  // daily goal
+  'goal.title': 'Дневная цель',
+  'goal.subtitle': 'Задайте сегодняшнюю цель для {tag}.',
+  'goal.none': 'Без цели',
+  'goal.hhmm': '{h} ч {m} мин',
+  'goal.save': 'Сохранить',
+  'goal.saveFail': 'Не удалось сохранить цель.',
+  'goal.openAria': 'Нажмите, чтобы задать дневную цель',
+
+  'notif.untitledTag': 'Таймер',
+  'notif.goalReached.title': 'Цель на сегодня',
+  'notif.goalReached.body': '{tag} уже должен был достичь сегодняшней цели. Загляните в приложение.',
+  'notif.longRun.title': 'Таймер всё ещё идёт?',
+  'notif.longRun.body': 'С момента запуска {tag} прошло {hours} ч. Загляните в приложение.',
+
 }
 
 export default ru

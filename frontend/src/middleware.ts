@@ -12,7 +12,7 @@ export function middleware(request: NextRequest) {
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",
-    "connect-src 'self' https://timemgr.mungji.com",
+    "connect-src 'self' https://timemanager.mungji.com",
     // Service Worker(/sw.js) 로드 — strict-dynamic 전파가 브라우저마다 달라 명시
     "worker-src 'self'",
     "manifest-src 'self'",

@@ -171,7 +171,7 @@ const fr: Messages = {
 
   'profile.loadFail': 'Impossible de charger le profil.',
   'profile.pwMismatch': 'Les nouveaux mots de passe ne correspondent pas.',
-  'profile.deleteConfirm': 'Supprimer votre compte efface toutes les données. Supprimer quand même ?',
+  'profile.deleteConfirm': 'La suppression de votre compte vous déconnecte immédiatement. Toutes les données seront effacées définitivement au bout de 30 jours. Supprimer ?',
   'profile.deleteFail': 'Échec de la suppression du compte.',
   'profile.account': 'compte',
   'profile.email': 'e-mail',
@@ -198,6 +198,26 @@ const fr: Messages = {
   'profile.deleteAccount': 'Supprimer le compte',
   'profile.uiLanguage': 'Langue',
   'profile.uiLanguageHint': 'Choisissez la langue d’affichage de l’application.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Politique de confidentialité',
+
+  // daily goal
+  'goal.title': 'Objectif quotidien',
+  'goal.subtitle': 'Définissez l\'objectif du jour pour {tag}.',
+  'goal.none': 'Aucun objectif',
+  'goal.hhmm': '{h} h {m} min',
+  'goal.save': 'Enregistrer',
+  'goal.saveFail': 'Impossible d\'enregistrer l\'objectif.',
+  'goal.openAria': 'Touchez pour définir un objectif quotidien',
+
+  'notif.untitledTag': 'Minuteur',
+  'notif.goalReached.title': 'Objectif du jour',
+  'notif.goalReached.body': '{tag} devrait avoir atteint l\'objectif du jour. Jetez-y un œil.',
+  'notif.longRun.title': 'Minuteur toujours actif ?',
+  'notif.longRun.body': 'Cela fait {hours} h que vous avez lancé {tag}. Jetez-y un œil.',
+
 }
 
 export default fr

@@ -73,8 +73,15 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
             throw new DomainException("만료된 리프레시 토큰입니다");
         }
 
+        // 회원을 못 찾으면 기본 역할로 넘어가지 않고 끊는다. 탈퇴한 계정(조회에서
+        // 제외됨)의 남은 리프레시 토큰이 액세스 토큰을 계속 찍어내던 구멍이었다 —
+        // 세션 무효화는 정리일 뿐이고, 실제 관문은 여기다.
         MemberRole role = loadMemberPort.loadMember(session.getMemberId().value())
-                .map(m -> m.getRole()).orElse(MemberRole.MEMBER);
+                .map(m -> m.getRole())
+                .orElseThrow(() -> {
+                    tokenStorePort.delete(command.refreshToken());
+                    return new DomainException("유효하지 않은 리프레시 토큰입니다");
+                });
         String newAccessToken = tokenGeneratorPort.generateAccessToken(session.getMemberId(), role);
 
         Duration rotationInterval = Duration.ofHours(rotationIntervalHours);

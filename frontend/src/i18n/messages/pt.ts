@@ -171,7 +171,7 @@ const pt: Messages = {
 
   'profile.loadFail': 'Não foi possível carregar o perfil.',
   'profile.pwMismatch': 'As novas senhas não coincidem.',
-  'profile.deleteConfirm': 'Excluir sua conta apaga todos os dados. Excluir mesmo assim?',
+  'profile.deleteConfirm': 'Excluir sua conta encerra a sessão imediatamente. Todos os dados serão apagados definitivamente após 30 dias. Excluir?',
   'profile.deleteFail': 'Falha ao excluir a conta.',
   'profile.account': 'conta',
   'profile.email': 'e-mail',
@@ -198,6 +198,26 @@ const pt: Messages = {
   'profile.deleteAccount': 'Excluir conta',
   'profile.uiLanguage': 'Idioma',
   'profile.uiLanguageHint': 'Escolha o idioma de exibição do aplicativo.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Política de Privacidade',
+
+  // daily goal
+  'goal.title': 'Meta diária',
+  'goal.subtitle': 'Defina a meta de hoje para {tag}.',
+  'goal.none': 'Sem meta',
+  'goal.hhmm': '{h} h {m} min',
+  'goal.save': 'Salvar',
+  'goal.saveFail': 'Não foi possível salvar a meta.',
+  'goal.openAria': 'Toque para definir uma meta diária',
+
+  'notif.untitledTag': 'Cronômetro',
+  'notif.goalReached.title': 'Meta de hoje',
+  'notif.goalReached.body': '{tag} deve ter atingido a meta de hoje. Dê uma olhada.',
+  'notif.longRun.title': 'O cronômetro ainda está ativo?',
+  'notif.longRun.body': 'Já se passaram {hours} h desde que você iniciou {tag}. Dê uma olhada.',
+
 }
 
 export default pt

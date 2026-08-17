@@ -16,6 +16,10 @@ const config: CapacitorConfig = {
   server: {
     url: 'https://timemanager.mungji.com',
     cleartext: false,
+    // 원격 문서를 못 받았을 때(기내모드 콜드 스타트 등) WebKit 기본 에러 화면 대신
+    // 번들 안의 정적 파일을 띄운다. errorPath 는 webDir 기준 경로라 url 과 병행 가능하다.
+    // 흰 화면은 App Store 2.1(Performance) 리젝의 대표 사유다.
+    errorPath: 'offline.html',
   },
   ios: {
     // ⚠️ true 필수 — Apple은 WKWebView에서 Service Worker·일부 스토리지 API를

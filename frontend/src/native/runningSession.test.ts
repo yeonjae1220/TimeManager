@@ -1,0 +1,294 @@
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import {
+  __resetNativeRunningSession,
+  resyncNativeRunningSession,
+  sessionFromTimerState,
+  syncNativeRunningSession,
+  type NativeRunningSession,
+} from './runningSession'
+import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
+
+const plugin = vi.hoisted(() => ({
+  getPending: vi.fn(),
+  cancel: vi.fn(),
+  schedule: vi.fn(),
+  checkPermissions: vi.fn(),
+  requestPermissions: vi.fn(),
+}))
+
+vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: plugin }))
+
+const NOW = new Date('2026-08-17T09:00:00.000Z').getTime()
+const HOUR = 60 * 60 * 1000
+
+function session(overrides: Partial<NativeRunningSession> = {}): NativeRunningSession {
+  return {
+    tagId: 7,
+    tagName: '알고리즘',
+    startedAtMs: NOW,
+    baseElapsedSec: 0,
+    dailyBaseSec: 0,
+    dailyGoalSec: 0,
+    ...overrides,
+  }
+}
+
+/** getPending 응답을 만든다. ns 를 생략하면 우리 것이 아닌 알림(남의 네임스페이스). */
+function pendingEntry(id: number, extra: Record<string, unknown> | undefined) {
+  return { id, title: '', body: '', extra }
+}
+
+function enableNative(available = ['LocalNotifications']) {
+  window.Capacitor = {
+    isNativePlatform: () => true,
+    getPlatform: () => 'android',
+    isPluginAvailable: (name: string) => available.includes(name),
+  }
+}
+
+/** 스케줄된 알림 id 목록(호출이 없으면 빈 배열). */
+function scheduledIds(): number[] {
+  return plugin.schedule.mock.calls.flatMap(
+    (call) => (call[0] as { notifications: Array<{ id: number }> }).notifications.map((n) => n.id),
+  )
+}
+
+describe('runningSession', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    plugin.requestPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    delete (window as { Capacitor?: unknown }).Capacitor
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  describe('sessionFromTimerState', () => {
+    const base = {
+      tagId: 3,
+      isRunning: true,
+      elapsedTime: 120,
+      latestStartTime: NOW,
+      latestEndTime: null,
+      latestStopTimeMs: null,
+      dailyTotalTime: 600,
+      dailyGoalTime: 3600,
+      savedAt: NOW,
+    }
+
+    it('실행 중이 아니면 null — 네이티브 표면이 없어야 한다는 뜻', () => {
+      expect(sessionFromTimerState({ ...base, isRunning: false })).toBeNull()
+      expect(sessionFromTimerState(null)).toBeNull()
+    })
+
+    it('시작 시각이 없으면 null — 경과시간을 셀 기준이 없다', () => {
+      expect(sessionFromTimerState({ ...base, latestStartTime: 0 })).toBeNull()
+      expect(sessionFromTimerState({ ...base, latestStartTime: null })).toBeNull()
+    })
+
+    it('실행 중이면 타이머 스냅샷을 그대로 옮긴다', () => {
+      expect(sessionFromTimerState(base, '독서')).toEqual({
+        tagId: 3,
+        tagName: '독서',
+        startedAtMs: NOW,
+        baseElapsedSec: 120,
+        dailyBaseSec: 600,
+        dailyGoalSec: 3600,
+      })
+    })
+  })
+
+  describe('syncNativeRunningSession', () => {
+    it('웹에서는 플러그인을 건드리지 않는다', async () => {
+      await syncNativeRunningSession(session())
+      expect(plugin.getPending).not.toHaveBeenCalled()
+      expect(plugin.schedule).not.toHaveBeenCalled()
+    })
+
+    it('목표가 없으면 장시간 리마인더 3발만 건다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session())
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('목표가 있으면 남은 시간만큼 뒤로 목표 알림을 건다', async () => {
+      enableNative()
+      // 목표 3600초 중 600초는 이미 채웠으므로 시작 시각 + 3000초.
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600, dailyBaseSec: 600 }))
+
+      const [[arg]] = plugin.schedule.mock.calls
+      const goal = arg.notifications.find((n: { id: number }) => n.id === 90001)
+      expect(goal.schedule.at.getTime()).toBe(NOW + 3000 * 1000)
+      expect(goal.body).toContain('알고리즘')
+    })
+
+    it('[회귀] 모든 알림을 inexact 로 예약한다 — 정확 알람 설정 화면으로 튕기지 않도록', async () => {
+      enableNative()
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+      const [[arg]] = plugin.schedule.mock.calls
+      // isExactNotification 기본값은 true 이고, 그러면 플러그인이 API 31+ 에서
+      // 시스템 "알람 및 리마인더" 설정 화면을 띄워 사용자를 앱 밖으로 내보낸다.
+      // allowWhileIdle 은 이 축과 무관하다(setExact vs setExactAndAllowWhileIdle 선택일 뿐).
+      for (const n of arg.notifications) {
+        expect(n.isExactNotification).toBe(false)
+        expect(n.schedule.allowWhileIdle).toBeUndefined()
+      }
+    })
+
+    it('이미 목표를 채운 상태로 시작하면 목표 알림은 걸지 않는다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600, dailyBaseSec: 3600 }))
+      expect(scheduledIds()).not.toContain(90001)
+    })
+
+    it('이미 지난 시각은 예약하지 않는다 — 앱을 켜자마자 발화하는 것을 막는다', async () => {
+      enableNative()
+      // 7시간 전에 시작한 세션: 3h·6h 는 지났고 12h 만 남았다.
+      await syncNativeRunningSession(session({ startedAtMs: NOW - 7 * HOUR }))
+      expect(scheduledIds()).toEqual([90012])
+    })
+
+    it('null 이면 우리 네임스페이스의 예약을 전부 취소한다', async () => {
+      enableNative()
+      plugin.getPending.mockResolvedValue({
+        notifications: [
+          pendingEntry(90003, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW }),
+          pendingEntry(90012, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW }),
+          pendingEntry(555, { ns: 'other' }),
+          pendingEntry(556, undefined),
+        ],
+      })
+
+      await syncNativeRunningSession(null)
+
+      expect(plugin.cancel).toHaveBeenCalledWith({
+        notifications: [{ id: 90003 }, { id: 90012 }],
+      })
+      expect(plugin.schedule).not.toHaveBeenCalled()
+    })
+
+    it('우리 예약은 전부 취소하고 필요한 것만 다시 건다', async () => {
+      enableNative()
+      plugin.getPending.mockResolvedValue({
+        notifications: [
+          // 같은 태그지만 옛 시작 시각 — 정지 후 재시작된 경우다.
+          pendingEntry(90003, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW - HOUR }),
+          pendingEntry(90006, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW }),
+          pendingEntry(555, { ns: 'other' }),
+        ],
+      })
+
+      await syncNativeRunningSession(session())
+
+      // 남의 네임스페이스(555)는 건드리지 않는다.
+      expect(plugin.cancel).toHaveBeenCalledWith({
+        notifications: [{ id: 90003 }, { id: 90006 }],
+      })
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('[회귀] 실행 중에 목표를 새로 설정하면 목표 알림이 걸린다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session({ dailyGoalSec: 0 }))
+      expect(scheduledIds()).not.toContain(90001)
+
+      plugin.schedule.mockClear()
+      // 목표 설정 → loadTag → tagId·startedAtMs 는 그대로이고 목표만 바뀐다.
+      // 서명에 목표가 빠져 있으면 조기 return 에 걸려 영영 안 걸린다.
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+      expect(scheduledIds()).toContain(90001)
+    })
+
+    it('[회귀] 목표가 바뀌면 같은 id 의 예약 시각도 갱신된다', async () => {
+      enableNative()
+      plugin.getPending.mockResolvedValue({
+        notifications: [pendingEntry(90001, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW })],
+      })
+
+      await syncNativeRunningSession(session({ dailyGoalSec: 7200 }))
+
+      // id 만 보고 "이미 있다"고 재사용하면 옛 시각이 남는다.
+      const [[arg]] = plugin.schedule.mock.calls
+      const goal = arg.notifications.find((n: { id: number }) => n.id === 90001)
+      expect(goal.schedule.at.getTime()).toBe(NOW + 7200 * 1000)
+    })
+
+    it('[회귀] 권한을 나중에 허용하면 다음 sync 가 같은 세션에 알림을 건다', async () => {
+      enableNative()
+      plugin.checkPermissions.mockResolvedValue({ display: 'prompt' })
+      await syncNativeRunningSession(session())
+      expect(plugin.schedule).not.toHaveBeenCalled()
+
+      // 권한 미허용은 "수렴 완료"가 아니므로 서명을 캐시하지 않는다 →
+      // 같은 세션으로 다시 불러도 조기 return 에 걸리지 않는다.
+      plugin.checkPermissions.mockResolvedValue({ display: 'granted' })
+      await syncNativeRunningSession(session())
+
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('resync 는 서명 캐시를 무시하고 마지막 세션으로 다시 수렴시킨다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session())
+      plugin.schedule.mockClear()
+
+      await resyncNativeRunningSession()
+
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('같은 세션으로 다시 부르면 즉시 return 한다 — 포그라운드 복귀마다 호출돼도 비용 0', async () => {
+      enableNative()
+      await syncNativeRunningSession(session())
+      plugin.getPending.mockClear()
+
+      await syncNativeRunningSession(session())
+
+      expect(plugin.getPending).not.toHaveBeenCalled()
+    })
+
+    it('권한이 없으면 스케줄하지 않지만 stale 취소는 한다', async () => {
+      enableNative()
+      plugin.checkPermissions.mockResolvedValue({ display: 'denied' })
+      plugin.getPending.mockResolvedValue({
+        notifications: [pendingEntry(90003, { ns: 'tm-timer', tagId: 1, startedAtMs: 1 })],
+      })
+
+      await syncNativeRunningSession(session())
+
+      expect(plugin.cancel).toHaveBeenCalledWith({ notifications: [{ id: 90003 }] })
+      expect(plugin.schedule).not.toHaveBeenCalled()
+      // 권한 요청은 여기서 하지 않는다 — 사용자 행위에 붙인다.
+      expect(plugin.requestPermissions).not.toHaveBeenCalled()
+    })
+
+    it('구 바이너리(플러그인 없음)에서도 예외를 던지지 않는다', async () => {
+      enableNative([])
+      await expect(syncNativeRunningSession(session())).resolves.toBeUndefined()
+      expect(plugin.getPending).not.toHaveBeenCalled()
+    })
+
+    it('실패하면 서명 캐시를 비워 다음 호출이 다시 시도한다', async () => {
+      enableNative()
+      plugin.getPending.mockRejectedValueOnce(new Error('bridge down'))
+
+      await syncNativeRunningSession(session())
+      expect(plugin.schedule).not.toHaveBeenCalled()
+
+      await syncNativeRunningSession(session())
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+  })
+})

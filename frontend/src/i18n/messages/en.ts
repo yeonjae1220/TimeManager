@@ -187,7 +187,7 @@ const en = {
   // profile
   'profile.loadFail': 'Failed to load profile.',
   'profile.pwMismatch': 'New passwords do not match.',
-  'profile.deleteConfirm': 'Deleting your account erases all data. Delete anyway?',
+  'profile.deleteConfirm': 'Deleting your account signs you out immediately. All data is permanently erased after 30 days. Delete?',
   'profile.deleteFail': 'Failed to delete account.',
   'profile.account': 'account',
   'profile.email': 'email',
@@ -214,6 +214,26 @@ const en = {
   'profile.deleteAccount': 'Delete account',
   'profile.uiLanguage': 'Language',
   'profile.uiLanguageHint': 'Choose the display language for the app.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Privacy Policy',
+
+  // daily goal
+  'goal.title': 'Daily goal',
+  'goal.subtitle': 'Set today\'s goal for {tag}.',
+  'goal.none': 'No goal',
+  'goal.hhmm': '{h}h {m}m',
+  'goal.save': 'Save',
+  'goal.saveFail': 'Failed to save the goal.',
+  'goal.openAria': 'Tap to set a daily goal',
+
+  'notif.untitledTag': 'Timer',
+  'notif.goalReached.title': 'Today\'s goal',
+  'notif.goalReached.body': '{tag} should have reached today\'s goal. Take a look.',
+  'notif.longRun.title': 'Timer still running?',
+  'notif.longRun.body': 'It\'s been {hours}h since you started {tag}. Take a look.',
+
 } as const
 
 export default en

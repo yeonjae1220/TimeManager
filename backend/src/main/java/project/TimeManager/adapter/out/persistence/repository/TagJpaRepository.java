@@ -23,7 +23,10 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     List<TagJpaEntity> findRunningByMemberId(@Param("memberId") Long memberId,
                                              @Param("state") TimerState state);
 
-    @Query("SELECT t FROM TagJpaEntity t JOIN FETCH t.member WHERE t.timerState = :state")
+    // 삭제 상태 회원의 태그는 제외한다. 회원 조회는 MemberPersistenceAdapter 가 일괄로 걸러주지만
+    // 이 쿼리는 태그에서 출발해 회원을 조인하므로 그 관문을 지나지 않는다 — 여기서만 별도로 걸러야
+    // 관리자 화면(회원 목록·집계 vs 실행중 타이머)이 서로 다른 회원 집합을 보지 않는다.
+    @Query("SELECT t FROM TagJpaEntity t JOIN FETCH t.member m WHERE t.timerState = :state AND m.deletedAt IS NULL")
     List<TagJpaEntity> findAllByTimerState(@Param("state") TimerState state);
 
     Optional<TagJpaEntity> findByTypeAndMember(TagType type, MemberJpaEntity member);

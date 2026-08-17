@@ -1,7 +1,7 @@
 'use client'
 
 import { createContext, useContext, useEffect, useMemo, useState } from 'react'
-import { messages, resolveUiLang, FALLBACK_LANG, LANG_KEY } from './messages/index'
+import { resolveUiLang, translate, LANG_KEY } from './messages/index'
 import type { MessageKey, UiLanguage } from './messages/index'
 
 // HttpOnly를 의도적으로 생략 — 이 함수가 document.cookie로 직접 쓰며,
@@ -61,15 +61,7 @@ export function I18nProvider({
       }
       writeLangCookie(normalized)
     },
-    // 현재 언어 → 폴백 언어 → 키 자체 순으로 폴백 (절대 빈 문자열 X)
-    t: (key, vars) => {
-      const raw = messages[language][key] ?? messages[FALLBACK_LANG][key] ?? key
-      if (!vars) return raw
-      return Object.entries(vars).reduce<string>(
-        (acc, [k, v]) => acc.replaceAll(`{${k}}`, String(v)),
-        raw,
-      )
-    },
+    t: (key, vars) => translate(language, key, vars),
   }), [language])
 
   return <I18nContext.Provider value={value}>{children}</I18nContext.Provider>

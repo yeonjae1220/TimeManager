@@ -5,7 +5,14 @@ vi.mock('@/utils/apiClient', () => ({
   default: { post: vi.fn(), get: vi.fn(), patch: vi.fn() },
 }))
 
+// 네이티브 표면 동기화는 호출 여부·인자만 본다(실제 스케줄링은 runningSession.test.ts).
+vi.mock('@/native/runningSession', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/native/runningSession')>()),
+  syncNativeRunningSession: vi.fn().mockResolvedValue(undefined),
+}))
+
 import apiClient from '@/utils/apiClient'
+import { syncNativeRunningSession } from '@/native/runningSession'
 import { useTagStore } from './tagStore'
 import {
   clearTimerState,
@@ -18,6 +25,8 @@ import {
 } from '@/utils/timerPersistence'
 
 const post = apiClient.post as unknown as ReturnType<typeof vi.fn>
+const syncNative = syncNativeRunningSession as unknown as ReturnType<typeof vi.fn>
+const lastSyncedSession = () => syncNative.mock.calls.at(-1)?.[0]
 
 function activeTimer(overrides: Record<string, unknown> = {}) {
   return {
@@ -43,6 +52,7 @@ describe('tagStore.retryPendingTimerOp — 오프라인 큐 재생 정합성', (
   beforeEach(() => {
     localStorage.clear()
     post.mockReset()
+    syncNative.mockClear()
     post.mockResolvedValue({ data: {} })
   })
 
@@ -411,4 +421,53 @@ describe('tagStore._doRefreshTags — 기기 간 캐시 정합성 (applyLocalTim
     expect(peekPendingTimerOperations()).toHaveLength(0)
   })
 
+})
+
+describe('tagStore.retryPendingTimerOp — 재생 후 네이티브 표면 재수렴', () => {
+  beforeEach(() => {
+    localStorage.clear()
+    post.mockReset()
+    syncNative.mockClear()
+    post.mockResolvedValue({ data: {} })
+    useTagStore.setState({ _activeMemberId: 7, tagTree: [], lastFetchedAt: null })
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+  })
+
+  it('고아 start 를 폐기한 뒤 null 로 수렴한다 — 유령 알림이 남지 않는다', async () => {
+    // 로컬은 정지 상태인데 큐에 start 만 남은 상황(오프라인 start → 온라인 stop 성공).
+    clearTimerState()
+    enqueuePendingTimerOperation({ type: 'start', tagId: 1, latestStartTime: Date.now() - 5000 })
+
+    await useTagStore.getState().retryPendingTimerOp()
+
+    expect(startCalls()).toHaveLength(0)
+    expect(peekPendingTimerOperations()).toHaveLength(0)
+    expect(lastSyncedSession()).toBeNull()
+  })
+
+  it('4xx 폐기 후에도 로컬 상태 기준으로 재수렴한다', async () => {
+    saveTimerState(activeTimer({ tagId: 1 }))
+    enqueuePendingTimerOperation({ type: 'reset', tagId: 1, elapsedTime: 0 })
+    post.mockRejectedValueOnce({ response: { status: 400 } })
+
+    await useTagStore.getState().retryPendingTimerOp()
+
+    expect(peekPendingTimerOperations()).toHaveLength(0)
+    // 로컬은 여전히 running 이므로 알림도 살아 있어야 한다.
+    expect(lastSyncedSession()).toMatchObject({ tagId: 1 })
+  })
+
+  it('실행 중이면 태그 트리에서 이름을 찾아 알림 문구에 쓴다', async () => {
+    useTagStore.setState({
+      tagTree: [{ id: 1, name: '알고리즘', type: 'LEAF', state: true, elapsedTime: 0, latestStopTimeMs: null, children: [] }],
+    })
+    saveTimerState(activeTimer({ tagId: 1 }))
+
+    await useTagStore.getState().retryPendingTimerOp()
+
+    expect(lastSyncedSession()).toMatchObject({ tagId: 1, tagName: '알고리즘' })
+  })
 })

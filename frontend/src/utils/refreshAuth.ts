@@ -1,6 +1,7 @@
 'use client'
 
 import axios from 'axios'
+import { reportReachable, reportUnreachable } from '@/utils/connectivity'
 import { useAuthStore } from '@/store/authStore'
 
 /**
@@ -67,9 +68,20 @@ async function attemptRefresh(): Promise<RefreshOutcome> {
         { withCredentials: true },
       )
       useAuthStore.getState().setAuth(data.accessToken, data.memberId)
+      reportReachable()
       return { status: 'authenticated', token: data.accessToken }
     } catch (error) {
       const kind = classifyRefreshError(error)
+
+      // 이 모듈은 apiClient 를 거치지 않고 axios 를 직접 쓴다(인터셉터 재귀를 피하려고).
+      // 그래서 연결 상태 보고도 여기서 직접 해야 한다 — 빠뜨리면 콜드 스타트처럼
+      // refresh 가 첫 실패인 상황에서 오프라인 배너가 뜨지 않고 복귀 감지도 안 돈다.
+      // 판정 규칙은 apiClient 와 같다: 응답이 있으면 도달, 응답 없는 네트워크 오류면
+      // 미도달. 그 외(예상 밖의 JS 예외 등)는 연결 상태의 근거가 아니므로 보고하지 않는다.
+      if (axios.isAxiosError(error)) {
+        if (error.response) reportReachable()
+        else if (error.code !== 'ERR_CANCELED') reportUnreachable()
+      }
 
       if (kind === 'unauthenticated') {
         useAuthStore.getState().clearAuth()

@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <application
         android:allowBackup="true"
@@ -48,4 +49,23 @@
     <!-- Permissions -->
 
     <uses-permission android:name="android.permission.INTERNET" />
+
+    <!-- API 33+ 는 알림 표시에 런타임 권한이 필요하다. 32 이하는 자동 부여. -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <!--
+      ⚠️ USE_EXACT_ALARM / SCHEDULE_EXACT_ALARM 은 쓰지 않는다.
+      Play 가 알람·시계·캘린더 앱에만 허용하는 제한 권한이라 선언하는 순간 심사 폼이 붙고,
+      거절되면 릴리스 자체가 막힌다. 이 앱의 알림("3시간 되었습니다", "목표 도달")은
+      몇 분 늦어도 무해하므로 inexact 스케줄링으로 간다.
+
+      여기에 안 적는 것만으로는 부족하다 — @capacitor/local-notifications 의 라이브러리
+      매니페스트가 SCHEDULE_EXACT_ALARM 을 선언하고 있어 매니페스트 병합으로 APK 에
+      딸려 들어온다(실측: 병합 결과에 존재). tools:node="remove" 로 걷어내야 한다.
+
+      실제 스케줄링을 inexact 로 만드는 것은 이 선언이 아니라 호출부의
+      isExactNotification:false 다(runningSession.ts). 기본값 true 로 두면 플러그인이
+      schedule() 도중 시스템 "알람 및 리마인더" 화면으로 사용자를 내보낸다.
+    -->
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" tools:node="remove" />
 </manifest>

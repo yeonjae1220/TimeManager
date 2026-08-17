@@ -171,7 +171,7 @@ const zh: Messages = {
 
   'profile.loadFail': '无法加载个人资料。',
   'profile.pwMismatch': '两次输入的新密码不一致。',
-  'profile.deleteConfirm': '删除账户将清除所有数据。确定要删除吗？',
+  'profile.deleteConfirm': '删除账户后将立即无法登录，30 天后所有数据将被永久删除。确定删除吗？',
   'profile.deleteFail': '删除账户失败。',
   'profile.account': '账户',
   'profile.email': '邮箱',
@@ -198,6 +198,26 @@ const zh: Messages = {
   'profile.deleteAccount': '删除账户',
   'profile.uiLanguage': '语言',
   'profile.uiLanguageHint': '选择应用的显示语言。',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': '隐私政策',
+
+  // daily goal
+  'goal.title': '今日目标',
+  'goal.subtitle': '设置 {tag} 的今日目标。',
+  'goal.none': '无目标',
+  'goal.hhmm': '{h}小时{m}分',
+  'goal.save': '保存',
+  'goal.saveFail': '保存目标失败。',
+  'goal.openAria': '点按设置今日目标',
+
+  'notif.untitledTag': '计时器',
+  'notif.goalReached.title': '今日目标',
+  'notif.goalReached.body': '{tag} 应该已达成今日目标。请查看一下。',
+  'notif.longRun.title': '计时器仍在运行？',
+  'notif.longRun.body': '{tag} 已开始 {hours} 小时。请查看一下。',
+
 }
 
 export default zh

@@ -171,7 +171,7 @@ const ko: Messages = {
 
   'profile.loadFail': '프로필을 불러오지 못했습니다.',
   'profile.pwMismatch': '새 비밀번호가 일치하지 않습니다.',
-  'profile.deleteConfirm': '계정을 삭제하면 모든 데이터가 사라집니다. 정말 삭제할까요?',
+  'profile.deleteConfirm': '계정을 삭제하면 즉시 로그인할 수 없게 되고, 30일 뒤 모든 데이터가 영구 삭제됩니다. 삭제할까요?',
   'profile.deleteFail': '계정 삭제에 실패했습니다.',
   'profile.account': '계정',
   'profile.email': '이메일',
@@ -198,6 +198,26 @@ const ko: Messages = {
   'profile.deleteAccount': '계정 삭제',
   'profile.uiLanguage': '언어',
   'profile.uiLanguageHint': '앱에 표시할 언어를 선택하세요.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': '개인정보처리방침',
+
+  // daily goal
+  'goal.title': '오늘 목표',
+  'goal.subtitle': '{tag} 의 오늘 목표를 설정합니다.',
+  'goal.none': '목표 없음',
+  'goal.hhmm': '{h}시간 {m}분',
+  'goal.save': '저장',
+  'goal.saveFail': '목표를 저장하지 못했습니다.',
+  'goal.openAria': '탭해서 오늘 목표 설정',
+
+  'notif.untitledTag': '타이머',
+  'notif.goalReached.title': '오늘 목표',
+  'notif.goalReached.body': '{tag} 이(가) 오늘 목표에 도달했을 시각입니다. 확인해 보세요.',
+  'notif.longRun.title': '타이머가 켜져 있습니다',
+  'notif.longRun.body': '{tag} 을(를) 시작한 지 {hours}시간 되었습니다. 확인해 보세요.',
+
 }
 
 export default ko

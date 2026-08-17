@@ -10,6 +10,7 @@ import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.CreateTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.MoveTagRequest;
 import project.TimeManager.adapter.in.web.dto.request.RenameTagRequest;
+import project.TimeManager.adapter.in.web.dto.request.SetDailyGoalRequest;
 import project.TimeManager.adapter.in.web.dto.request.ReorderTagsRequest;
 import project.TimeManager.adapter.in.web.dto.request.ResetTimerRequest;
 import project.TimeManager.adapter.in.web.dto.request.StartTimerRequest;
@@ -20,6 +21,7 @@ import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
 import project.TimeManager.application.dto.command.RenameTagCommand;
 import project.TimeManager.application.dto.command.ReorderTagsCommand;
+import project.TimeManager.application.dto.command.SetDailyGoalCommand;
 import project.TimeManager.application.dto.command.ResetTimerCommand;
 import project.TimeManager.application.dto.command.StartTimerCommand;
 import project.TimeManager.application.dto.command.StopTimerCommand;
@@ -32,6 +34,7 @@ import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReconcileRunningTimersUseCase;
 import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
+import project.TimeManager.domain.port.in.tag.SetDailyGoalUseCase;
 import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
@@ -54,6 +57,7 @@ public class TagApiController {
     private final MoveTagUseCase moveTagUseCase;
     private final RenameTagUseCase renameTagUseCase;
     private final ReorderTagsUseCase reorderTagsUseCase;
+    private final SetDailyGoalUseCase setDailyGoalUseCase;
     private final ReconcileRunningTimersUseCase reconcileRunningTimersUseCase;
 
     @GetMapping
@@ -121,6 +125,15 @@ public class TagApiController {
                                           @Valid @RequestBody RenameTagRequest request) {
         return ResponseEntity.ok(renameTagUseCase.renameTag(
                 new RenameTagCommand(tagId, request.name(), memberId)
+        ));
+    }
+
+    @PatchMapping("/{tagId}/daily-goal")
+    public ResponseEntity<Long> setDailyGoal(@PathVariable Long tagId,
+                                             @AuthenticationPrincipal Long memberId,
+                                             @Valid @RequestBody SetDailyGoalRequest request) {
+        return ResponseEntity.ok(setDailyGoalUseCase.setDailyGoal(
+                new SetDailyGoalCommand(tagId, request.dailyGoalTime(), memberId)
         ));
     }
 

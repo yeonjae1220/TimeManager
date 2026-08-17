@@ -331,6 +331,16 @@ export default function ProfileView() {
             >
               {deleting ? '...' : t('profile.deleteAccount')}
             </button>
+
+            {/* 계정 삭제 바로 옆에 둔다 — 무엇이 지워지는지 결정하기 직전에 읽는 문서다.
+                App Store Connect·Play Console 에 등록하는 URL 과 같은 페이지. */}
+            <a
+              href="/privacy"
+              className="mono"
+              style={{ fontSize: 11, color: 'var(--text-3)', letterSpacing: '0.06em', padding: '8px 0', textAlign: 'center', textDecoration: 'none' }}
+            >
+              {t('common.privacyPolicy')}
+            </a>
           </section>
         </div>
       </div>

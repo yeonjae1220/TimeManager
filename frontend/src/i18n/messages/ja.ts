@@ -171,7 +171,7 @@ const ja: Messages = {
 
   'profile.loadFail': 'プロフィールを読み込めませんでした。',
   'profile.pwMismatch': '新しいパスワードが一致しません。',
-  'profile.deleteConfirm': 'アカウントを削除するとすべてのデータが消えます。本当に削除しますか？',
+  'profile.deleteConfirm': 'アカウントを削除すると直ちにログインできなくなり、30日後にすべてのデータが完全に削除されます。削除しますか？',
   'profile.deleteFail': 'アカウントの削除に失敗しました。',
   'profile.account': 'アカウント',
   'profile.email': 'メール',
@@ -198,6 +198,26 @@ const ja: Messages = {
   'profile.deleteAccount': 'アカウントを削除',
   'profile.uiLanguage': '言語',
   'profile.uiLanguageHint': 'アプリの表示言語を選択します。',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'プライバシーポリシー',
+
+  // daily goal
+  'goal.title': '今日の目標',
+  'goal.subtitle': '{tag} の今日の目標を設定します。',
+  'goal.none': '目標なし',
+  'goal.hhmm': '{h}時間{m}分',
+  'goal.save': '保存',
+  'goal.saveFail': '目標を保存できませんでした。',
+  'goal.openAria': 'タップして今日の目標を設定',
+
+  'notif.untitledTag': 'タイマー',
+  'notif.goalReached.title': '今日の目標',
+  'notif.goalReached.body': '{tag} が今日の目標に達した頃です。確認してみてください。',
+  'notif.longRun.title': 'タイマーが動いています',
+  'notif.longRun.body': '{tag} を開始してから {hours} 時間経ちました。確認してみてください。',
+
 }
 
 export default ja

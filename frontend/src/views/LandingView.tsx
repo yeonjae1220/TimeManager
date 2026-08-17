@@ -120,8 +120,11 @@ export default function LandingView() {
           ))}
         </div>
 
-        <footer style={{ marginTop: 40 }}>
+        <footer style={{ marginTop: 40, display: 'flex', alignItems: 'center', gap: 12 }}>
           <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)' }}>timemgr · v0.1</span>
+          <a href="/privacy" className="mono" style={{ fontSize: 10, color: 'var(--text-3)', textDecoration: 'none' }}>
+            {t('common.privacyPolicy')}
+          </a>
         </footer>
       </main>
     </div>

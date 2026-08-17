@@ -7,6 +7,7 @@ import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.auth.TokenStorePort;
 import project.TimeManager.shared.security.TokenHasher;
 
+import java.util.List;
 import java.util.Optional;
 
 @Component
@@ -29,6 +30,13 @@ public class RedisTokenStoreAdapter implements TokenStorePort {
     @Override
     public void delete(String refreshToken) {
         authSessionRedisRepository.deleteById(TokenHasher.sha256(refreshToken));
+    }
+
+    @Override
+    public int deleteByMemberId(Long memberId) {
+        List<AuthSessionRedisEntity> sessions = authSessionRedisRepository.findByMemberId(memberId);
+        authSessionRedisRepository.deleteAll(sessions);
+        return sessions.size();
     }
 
     private AuthSessionRedisEntity toEntity(AuthSession session) {

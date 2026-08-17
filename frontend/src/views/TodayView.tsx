@@ -4,12 +4,18 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
+import DailyGoalSheet from '@/components/DailyGoalSheet'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
+// 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
+import { isOnline as getIsOnline, probeNow, subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal } from './todayRecordTotal'
+import { hapticStart, hapticStop } from '@/native/haptics'
+import { ensureNotificationPermission } from '@/native/notificationPermission'
+import { resyncNativeRunningSession } from '@/native/runningSession'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -49,6 +55,7 @@ export default function TodayView() {
   } = useTagTimer()
 
   const [showTagPicker, setShowTagPicker] = useState(false)
+  const [showGoalSheet, setShowGoalSheet] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
@@ -84,20 +91,29 @@ export default function TodayView() {
     loadTags(memberId)
     fetchTodayTotal()
 
-    const onOnline = () => {
-      setIsOnline(true)
+    // 배너와 재전송 트리거를 모두 connectivity 한 곳에서 받는다.
+    // window 'online'/'offline' 을 직접 듣지 않는 이유는 네이티브 WebView 에서
+    // 그 이벤트가 아예 발생하지 않기 때문이다(utils/connectivity.ts 주석 참조) —
+    // 그대로 두면 오프라인 배너가 앱에서 영원히 안 뜨고, 신호가 돌아와도 오프라인
+    // 큐가 재전송되지 않는다.
+    setIsOnline(getIsOnline())
+    const unsubscribe = subscribeConnectivity((online) => {
+      setIsOnline(online)
+      if (!online) return
       handleOnline()
       fetchTodayTotal()
-    }
-    const onOffline = () => setIsOnline(false)
+    })
 
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
-    setIsOnline(navigator.onLine)
+    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 크다. 백오프가
+    // 늘어나 있어도 여기서 즉시 확인한다(온라인이면 no-op).
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') probeNow()
+    }
+    document.addEventListener('visibilitychange', onVisible)
 
     return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
+      unsubscribe()
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
 
@@ -122,6 +138,7 @@ export default function TodayView() {
       return
     }
     if (sw.isRunning) {
+      hapticStop()
       const segment = await stopStopwatch()
       // 정지 순간 runningDelta가 0으로 떨어지므로, 서버 summary 재조회가 도착하기 전까지의 공백 동안
       // 방금 끝낸 세그먼트를 낙관적으로 더해 "오늘 기록시간"이 이전 값으로 잠깐 튀는 것을 막는다.
@@ -130,7 +147,17 @@ export default function TodayView() {
       fetchTodayTotal()
       return
     }
+    hapticStart()
     await startStopwatch()
+    // 타이머를 시작한 직후가 알림 권한을 묻기에 자연스러운 두 번째 순간이다(첫 번째는
+    // 목표 설정). 이미 결정된 상태면 ensure 가 아무것도 하지 않으므로 매 시작마다
+    // 물어보는 일은 없다.
+    //
+    // 허용됐으면 반드시 재수렴시킨다 — startStopwatch 안의 sync 는 권한을 묻기 전에
+    // 이미 지나갔으므로, 이게 없으면 방금 시작한 세션만 알림 없이 흘러간다.
+    void ensureNotificationPermission().then((granted) => {
+      if (granted) void resyncNativeRunningSession()
+    })
   }, [fetchTodayTotal, isSwitching, startStopwatch, stopStopwatch, sw.isRunning, tag])
 
   const recentTags = recentTagIds
@@ -187,27 +214,43 @@ export default function TodayView() {
               {formattedElapsedTime}
             </div>
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t('today.elapsed')}</span>
-            <div
-              aria-hidden="true"
+            {/* 진행률 바 = 목표 설정 진입점. 목표가 0이면 바가 늘 100%로 죽어 있어
+                아무 정보도 주지 못하므로, 탭해서 목표를 세울 수 있게 한다. */}
+            <button
+              type="button"
+              onClick={() => setShowGoalSheet(true)}
+              aria-label={t('goal.openAria')}
               style={{
+                display: 'block',
                 width: 'min(220px, 58vw)',
-                height: 2,
                 margin: '14px auto 0',
-                overflow: 'hidden',
-                background: 'var(--border-subtle)',
-                borderRadius: 999,
+                padding: '8px 0',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
-              <div
+              <span
                 style={{
-                  width: sw.isRunning ? `${timerProgress}%` : 0,
-                  height: '100%',
-                  background: 'var(--text-2)',
-                  opacity: sw.isRunning ? 0.45 : 0,
-                  transition: 'width 0.6s ease, opacity 0.2s ease',
+                  display: 'block',
+                  height: 2,
+                  overflow: 'hidden',
+                  background: 'var(--border-subtle)',
+                  borderRadius: 999,
                 }}
-              />
-            </div>
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    width: sw.isRunning ? `${timerProgress}%` : 0,
+                    height: '100%',
+                    background: 'var(--text-2)',
+                    opacity: sw.isRunning ? 0.45 : 0,
+                    transition: 'width 0.6s ease, opacity 0.2s ease',
+                  }}
+                />
+              </span>
+            </button>
             {sw.isRunning && isWakeLockActive && (
               <div
                 role="status"
@@ -364,6 +407,18 @@ export default function TodayView() {
           </>
         )}
       </div>
+
+      {/* Daily goal sheet — 저장 후 loadTag 를 다시 돌리면 화면과 네이티브 알림이
+          같은 경로(useTagTimer 의 sync 배선)로 함께 갱신된다. */}
+      {showGoalSheet && tag && (
+        <DailyGoalSheet
+          tagId={tag.id}
+          tagName={tag.name}
+          currentGoalSeconds={sw.dailyGoalTime}
+          onClose={() => setShowGoalSheet(false)}
+          onSaved={() => { if (memberId) void loadTag(tag.id, memberId) }}
+        />
+      )}
 
       {/* Tag picker modal */}
       {showTagPicker && (

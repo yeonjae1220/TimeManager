@@ -171,7 +171,7 @@ const es: Messages = {
 
   'profile.loadFail': 'No se pudo cargar el perfil.',
   'profile.pwMismatch': 'Las nuevas contraseñas no coinciden.',
-  'profile.deleteConfirm': 'Eliminar tu cuenta borra todos los datos. ¿Eliminar de todos modos?',
+  'profile.deleteConfirm': 'Al eliminar tu cuenta se cerrará la sesión de inmediato. Todos los datos se borrarán definitivamente a los 30 días. ¿Eliminar?',
   'profile.deleteFail': 'No se pudo eliminar la cuenta.',
   'profile.account': 'cuenta',
   'profile.email': 'correo',
@@ -198,6 +198,26 @@ const es: Messages = {
   'profile.deleteAccount': 'Eliminar cuenta',
   'profile.uiLanguage': 'Idioma',
   'profile.uiLanguageHint': 'Elige el idioma de la aplicación.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': 'Política de privacidad',
+
+  // daily goal
+  'goal.title': 'Objetivo diario',
+  'goal.subtitle': 'Define el objetivo de hoy para {tag}.',
+  'goal.none': 'Sin objetivo',
+  'goal.hhmm': '{h} h {m} min',
+  'goal.save': 'Guardar',
+  'goal.saveFail': 'No se pudo guardar el objetivo.',
+  'goal.openAria': 'Toca para definir un objetivo diario',
+
+  'notif.untitledTag': 'Temporizador',
+  'notif.goalReached.title': 'Objetivo de hoy',
+  'notif.goalReached.body': '{tag} debería haber alcanzado el objetivo de hoy. Échale un vistazo.',
+  'notif.longRun.title': '¿El temporizador sigue activo?',
+  'notif.longRun.body': 'Han pasado {hours} h desde que iniciaste {tag}. Échale un vistazo.',
+
 }
 
 export default es

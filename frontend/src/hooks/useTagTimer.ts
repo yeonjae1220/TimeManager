@@ -13,6 +13,7 @@ import {
   shouldApplyResetTimerMarker,
 } from '@/utils/timerPersistence'
 import { useTagStore, type Tag } from '@/store/tagStore'
+import { syncNativeRunningSession } from '@/native/runningSession'
 
 export interface StopwatchState {
   isRunning: boolean
@@ -52,12 +53,20 @@ const INITIAL_STATE: StopwatchState = {
   totalTimeCal: 0,
 }
 
+/**
+ * 포그라운드 복귀 시 재조회 최소 간격. 앱 전환을 빠르게 반복해도 API 를 도배하지 않는다.
+ */
+const FOREGROUND_REFRESH_THROTTLE_MS = 5_000
+
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
   const [isWakeLockActive, setIsWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const isRunningRef = useRef(false)
+  // 포그라운드 복귀 재조회용 — 마지막으로 loadTag 에 넘어온 인자와 마지막 재조회 시각.
+  const lastLoadArgsRef = useRef<{ tagId: number; memberId: number } | null>(null)
+  const lastForegroundRefreshRef = useRef(0)
 
   const requestWakeLock = useCallback(async () => {
     if (!('wakeLock' in navigator)) return
@@ -95,18 +104,6 @@ export function useTagTimer() {
   // isRunningRef를 sw.isRunning과 동기화 — visibilitychange 핸들러에서 안전하게 읽기 위함
   useEffect(() => { isRunningRef.current = sw.isRunning }, [sw.isRunning])
 
-  // 탭이 다시 활성화되면 타이머 실행 중일 때 Wake Lock 재취득
-  // (OS가 백그라운드 전환 시 자동으로 wake lock을 해제하므로 복귀 시 재취득 필요)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isRunningRef.current) {
-        requestWakeLock()
-      }
-    }
-    document.addEventListener('visibilitychange', handleVisibilityChange)
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [requestWakeLock])
-
   // 언마운트 시 wake lock 해제 — today 화면을 떠나면 sentinel 정리
   useEffect(() => {
     return () => {
@@ -141,6 +138,7 @@ export function useTagTimer() {
   }, [sw.isRunning, tick])
 
   const loadTag = useCallback(async (tagId: number, memberId: number) => {
+    lastLoadArgsRef.current = { tagId, memberId }
     try {
       const response = await apiClient.get<Tag & {
         elapsedTime: number
@@ -183,10 +181,50 @@ export function useTagTimer() {
       }
       setSw(newSw)
       if (newSw.isRunning) requestWakeLock()
+
+      // 네이티브 표면의 기준점. 이 API 는 서버에서 reconcileRunningTimersQuietly() 를 먼저
+      // 돌리고, newSw 는 그 결과를 로컬 스냅샷·리셋 마커와 화해시킨 값이다. 즉 여기가
+      // "지금 정말로 실행 중인가" 에 가장 가까운 답이라, 다른 기기에서 정지된 세션의
+      // 유령 알림도 여기서 정리된다.
+      void syncNativeRunningSession(
+        newSw.isRunning
+          ? {
+              tagId,
+              tagName: data.name,
+              startedAtMs: newSw.latestStartTime,
+              baseElapsedSec: newSw.elapsedTime,
+              dailyBaseSec: newSw.dailyTotalTime,
+              dailyGoalSec: newSw.dailyGoalTime,
+            }
+          : null
+      )
     } catch (e) {
       console.error('Failed to load tag:', e instanceof Error ? e.message : String(e))
     }
   }, [requestWakeLock])
+
+  // 포그라운드 복귀 처리. 두 가지를 한다:
+  //  1) 실행 중이면 Wake Lock 재취득 — OS 가 백그라운드 전환 시 자동 해제한다.
+  //  2) loadTag 재조회 — "다른 기기에서 정지"로 생긴 유령 알림/유령 Live Activity 를
+  //     죽이는 유일한 실효 수단이다. 재조회 결과가 loadTag 안에서 그대로
+  //     syncNativeRunningSession 으로 흘러가므로 여기에 별도 sync 를 두지 않는다.
+  // Capacitor WebView 는 앱 전환에도 visibilitychange 를 발화하므로 appStateChange
+  // 리스너를 따로 붙일 필요가 없다.
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      if (isRunningRef.current) requestWakeLock()
+
+      const args = lastLoadArgsRef.current
+      if (!args) return
+      const now = Date.now()
+      if (now - lastForegroundRefreshRef.current < FOREGROUND_REFRESH_THROTTLE_MS) return
+      lastForegroundRefreshRef.current = now
+      void loadTag(args.tagId, args.memberId)
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [requestWakeLock, loadTag])
 
   const startStopwatch = useCallback(async () => {
     if (!tag || sw.isRunning) return
@@ -206,6 +244,17 @@ export function useTagTimer() {
       dailyGoalTime: sw.dailyGoalTime,
     })
     requestWakeLock()
+
+    // API 호출 **전**에 건다. 오프라인이면 start 는 큐로 가지만 로컬 타이머는 이미 돌고
+    // 있으므로, 알림까지 취소하면 오프라인 사용자만 알림을 못 받는 퇴행이 된다.
+    void syncNativeRunningSession({
+      tagId: tag.id,
+      tagName: tag.name,
+      startedAtMs: startTime,
+      baseElapsedSec: sw.elapsedTime,
+      dailyBaseSec: sw.dailyTotalTime,
+      dailyGoalSec: sw.dailyGoalTime,
+    })
 
     try {
       await apiClient.post(`/api/v1/tags/${tag.id}/timer/start`, {
@@ -259,6 +308,9 @@ export function useTagTimer() {
       dailyGoalTime: sw.dailyGoalTime,
     })
 
+    // 정지도 API 전에. 로컬이 이미 멈췄으므로 오프라인이어도 알림은 즉시 사라져야 한다.
+    void syncNativeRunningSession(null)
+
     try {
       await apiClient.post(`/api/v1/tags/${tag.id}/timer/stop`, {
         elapsedTime: elapsed,
@@ -290,6 +342,7 @@ export function useTagTimer() {
     setSw((prev) => ({ ...prev, elapsedTime: 0, elapsedTimeCal: 0 }))
     saveResetTimerMarker(tag.id)
     clearTimerState()
+    void syncNativeRunningSession(null)
 
     const tagStore = useTagStore.getState()
 
