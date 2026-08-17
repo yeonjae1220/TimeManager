@@ -7,15 +7,17 @@
   네트워크 실패로 원격 문서(server.url)를 못 받았을 때 WebView 가 대신 띄우는 화면.
   capacitor.config.ts 의 server.errorPath 가 이 파일을 가리킨다.
 
-  ⚠️ 제약: 이 파일은 앱 번들 안에서 file:// 로 열리므로 **외부 요청이 0이어야 한다**.
-     폰트·이미지·CSS·JS 전부 인라인. 앱의 i18n 시스템(서버 렌더 의존)도 못 쓴다 —
+  ⚠️ 제약: 이 화면은 네트워크가 없을 때 떠야 하므로 **렌더에 필요한 외부 자산이 0이어야
+     한다**. 폰트·이미지·CSS·JS 전부 인라인. 앱의 i18n 시스템(서버 렌더 의존)도 못 쓴다 —
      그래서 문구를 여기에 복제한다. 원본은 src/i18n/messages/*.ts 이며, 문구를 고칠
      일이 생기면 양쪽을 함께 고쳐야 한다.
+     (연결 확인용 probe 요청은 예외다 — 실패하는 것이 정상 동작이라 렌더를 막지 않는다.)
 
   middleware.ts 의 nonce CSP 를 거치지 않으므로 자체 CSP 를 박는다.
+  connect-src 는 probe 대상 오리진만 연다.
 -->
 <meta http-equiv="Content-Security-Policy"
-      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src https://timemanager.mungji.com; base-uri 'none'; form-action 'none'">
 <title>TimeManager</title>
 <style>
   :root {
@@ -102,11 +104,48 @@
     // 이 오리진으로 되돌아가는 것이 곧 재시도다. App-Bound Domains 하에서도
     // 허용된 도메인이라 이동이 막히지 않는다.
     var HOME = 'https://timemanager.mungji.com/';
-    function retry() { location.replace(HOME); }
+    var done = false;
+    function retry() {
+      if (done) return;
+      done = true;
+      location.replace(HOME);
+    }
 
     document.getElementById('retry').addEventListener('click', retry);
-    // 연결이 돌아오면 사용자가 아무것도 안 해도 복귀한다.
+
+    // ⚠️ online 이벤트만으로는 안 된다. Android WebView 는 시스템 연결 상태를
+    // 추적하지 않아 navigator.onLine 이 기내모드에서도 true 로 고정되고
+    // online/offline 이벤트가 아예 발생하지 않는다(에뮬레이터 실측). 이 리스너는
+    // iOS·웹 PWA 에서만 의미가 있으므로, 실제 복귀 감지는 아래 probe 가 맡는다.
     window.addEventListener('online', retry);
+
+    // 원격 오리진에 직접 찔러 본다. no-cors 라 응답 내용은 못 읽지만 성공/실패는
+    // 구분되고, 그게 우리가 알아야 하는 전부다.
+    var delay = 3000;
+    var MAX_DELAY = 30000;
+    function probe() {
+      if (done) return;
+      var ctl = new AbortController();
+      var kill = setTimeout(function () { ctl.abort(); }, 4000);
+      fetch(HOME, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctl.signal })
+        .then(function () { clearTimeout(kill); retry(); })
+        .catch(function () {
+          clearTimeout(kill);
+          // 오래 방치된 기기가 계속 같은 간격으로 두드리지 않도록 서서히 늦춘다.
+          delay = Math.min(Math.round(delay * 1.5), MAX_DELAY);
+          setTimeout(probe, delay);
+        });
+    }
+    setTimeout(probe, delay);
+
+    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 큰 시점이다.
+    // 백오프가 늘어나 있어도 여기서 즉시 한 번 확인한다.
+    document.addEventListener('visibilitychange', function () {
+      if (document.visibilityState === 'visible') {
+        delay = 3000;
+        probe();
+      }
+    });
   })();
 </script>
 </body>
