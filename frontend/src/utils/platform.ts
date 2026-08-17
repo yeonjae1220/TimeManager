@@ -7,6 +7,8 @@ declare global {
     Capacitor?: {
       isNativePlatform?: () => boolean
       getPlatform?: () => 'ios' | 'android' | 'web'
+      /** 설치된 앱 바이너리에 해당 플러그인이 들어 있는지. 구 바이너리 판별에 쓴다. */
+      isPluginAvailable?: (name: string) => boolean
     }
   }
 }
