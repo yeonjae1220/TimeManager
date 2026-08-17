@@ -167,6 +167,11 @@ self.addEventListener('activate', (event) => {
 // ── Phase 3: Push 알림 수신 ──────────────────────────────────────────
 // TODO: 서버 측 Web Push 구독(subscribe)·발송 구현 후 실제 동작.
 //       현재는 SW 수신 레이어만 준비된 상태.
+//
+// ⚠️ 네이티브 앱(Capacitor)에서는 이 경로가 절대 동작하지 않는다. WKWebView 가
+//    Push API 를 지원하지 않기 때문이다(백엔드의 VAPID 설비도 마찬가지로 무용).
+//    네이티브 알림은 기기에서 스케줄하는 로컬 알림으로 간다 — src/native/runningSession.ts.
+//    이 핸들러는 PWA(홈 화면에 추가) 경로에서만 유효하므로 남겨둔다.
 self.addEventListener('push', (event) => {
   if (!event.data) return
 
