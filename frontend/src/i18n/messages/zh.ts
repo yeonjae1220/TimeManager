@@ -201,6 +201,8 @@ const zh: Messages = {
   // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
   // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
   // "실행 중"이라 단언하지 않는다.
+  'common.privacyPolicy': '隐私政策',
+
   // daily goal
   'goal.title': '今日目标',
   'goal.subtitle': '设置 {tag} 的今日目标。',
