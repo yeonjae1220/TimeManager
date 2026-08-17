@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<!--
+  네트워크 실패로 원격 문서(server.url)를 못 받았을 때 WebView 가 대신 띄우는 화면.
+  capacitor.config.ts 의 server.errorPath 가 이 파일을 가리킨다.
+
+  ⚠️ 제약: 이 파일은 앱 번들 안에서 file:// 로 열리므로 **외부 요청이 0이어야 한다**.
+     폰트·이미지·CSS·JS 전부 인라인. 앱의 i18n 시스템(서버 렌더 의존)도 못 쓴다 —
+     그래서 문구를 여기에 복제한다. 원본은 src/i18n/messages/*.ts 이며, 문구를 고칠
+     일이 생기면 양쪽을 함께 고쳐야 한다.
+
+  middleware.ts 의 nonce CSP 를 거치지 않으므로 자체 CSP 를 박는다.
+-->
+<meta http-equiv="Content-Security-Policy"
+      content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'; img-src 'none'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+<title>TimeManager</title>
+<style>
+  :root {
+    --bg: #ffffff;
+    --surface: #f6f6f7;
+    --text: #202024;
+    --text-2: #6b6b73;
+    --border: #e3e3e7;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #101013;
+      --surface: #1a1a1f;
+      --text: #f2f2f4;
+      --text-2: #9a9aa4;
+      --border: #2a2a31;
+    }
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px calc(24px + env(safe-area-inset-right)) 24px calc(24px + env(safe-area-inset-left));
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  main { max-width: 320px; text-align: center; }
+  .brand {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    letter-spacing: 0.18em;
+    text-transform: uppercase;
+    color: var(--text-2);
+  }
+  h1 { font-size: 18px; font-weight: 600; margin: 18px 0 8px; }
+  p { font-size: 14px; line-height: 1.6; color: var(--text-2); margin: 0; }
+  button {
+    margin-top: 24px;
+    width: 100%;
+    height: 46px;
+    font-size: 14px;
+    color: var(--text);
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+  }
+  button:active { opacity: 0.7; }
+</style>
+</head>
+<body>
+<main>
+  <div class="brand">timemgr</div>
+  <h1 id="title">You're offline</h1>
+  <p id="body">Check your connection. This screen will retry on its own once you're back online.</p>
+  <button id="retry" type="button">Retry</button>
+</main>
+<script>
+  (function () {
+    // 앱의 i18n 과 같은 2자 슬라이스 정규화. 미지원 언어는 en 으로 폴백한다.
+    var MESSAGES = {
+      en: ["You're offline", "Check your connection. This screen will retry on its own once you're back online.", 'Retry'],
+      ko: ['오프라인입니다', '네트워크 연결을 확인해 주세요. 연결되면 이 화면이 스스로 다시 시도합니다.', '다시 시도'],
+      ja: ['オフラインです', '接続を確認してください。オンラインに戻ると自動で再試行します。', '再試行'],
+      zh: ['当前处于离线状态', '请检查网络连接。恢复联网后将自动重试。', '重试'],
+      es: ['Sin conexión', 'Comprueba tu conexión. Esta pantalla lo reintentará sola cuando vuelvas a estar en línea.', 'Reintentar'],
+      fr: ['Vous êtes hors ligne', 'Vérifiez votre connexion. Cet écran réessaiera tout seul dès votre retour en ligne.', 'Réessayer'],
+      de: ['Du bist offline', 'Prüfe deine Verbindung. Dieser Bildschirm versucht es automatisch erneut, sobald du wieder online bist.', 'Erneut versuchen'],
+      pt: ['Você está offline', 'Verifique sua conexão. Esta tela tentará novamente sozinha quando você voltar a ficar online.', 'Tentar novamente'],
+      ru: ['Нет подключения', 'Проверьте соединение. Экран повторит попытку сам, как только связь появится.', 'Повторить']
+    };
+
+    var lang = (navigator.language || 'en').slice(0, 2).toLowerCase();
+    var m = MESSAGES[lang] || MESSAGES.en;
+    document.documentElement.lang = MESSAGES[lang] ? lang : 'en';
+    document.getElementById('title').textContent = m[0];
+    document.getElementById('body').textContent = m[1];
+    document.getElementById('retry').textContent = m[2];
+
+    // 이 오리진으로 되돌아가는 것이 곧 재시도다. App-Bound Domains 하에서도
+    // 허용된 도메인이라 이동이 막히지 않는다.
+    var HOME = 'https://timemanager.mungji.com/';
+    function retry() { location.replace(HOME); }
+
+    document.getElementById('retry').addEventListener('click', retry);
+    // 연결이 돌아오면 사용자가 아무것도 안 해도 복귀한다.
+    window.addEventListener('online', retry);
+  })();
+</script>
+</body>
+</html>
