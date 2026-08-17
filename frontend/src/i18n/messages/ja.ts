@@ -198,6 +198,15 @@ const ja: Messages = {
   'profile.deleteAccount': 'アカウントを削除',
   'profile.uiLanguage': '言語',
   'profile.uiLanguageHint': 'アプリの表示言語を選択します。',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': 'タイマー',
+  'notif.goalReached.title': '今日の目標',
+  'notif.goalReached.body': '{tag} が今日の目標に達した頃です。確認してみてください。',
+  'notif.longRun.title': 'タイマーが動いています',
+  'notif.longRun.body': '{tag} を開始してから {hours} 時間経ちました。確認してみてください。',
+
 }
 
 export default ja

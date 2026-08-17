@@ -14,6 +14,7 @@ import {
   removePendingTimerOperation,
   shouldApplyResetTimerMarker,
 } from '@/utils/timerPersistence'
+import { sessionFromTimerState, syncNativeRunningSession } from '@/native/runningSession'
 
 export interface Tag {
   id: number
@@ -377,6 +378,12 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       await inner
     } finally {
       _retryPromise = null
+      // 큐 재생이 끝나면 로컬 권위 상태 기준으로 네이티브 표면을 한 번 재수렴시킨다.
+      // 고아 start 폐기·401 보존·4xx 폐기 등 재생 경로가 여럿이라 경로마다 알림을
+      // 취소하면 진실의 소스가 둘이 되어 오히려 드리프트한다. 결과만 보고 수렴시킨다.
+      const active = peekTimerState()
+      const name = active ? findTagById(get().tagTree, active.tagId)?.name : undefined
+      void syncNativeRunningSession(sessionFromTimerState(active, name))
     }
   },
 

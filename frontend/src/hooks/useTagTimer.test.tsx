@@ -5,6 +5,12 @@ import { act, cleanup, renderHook } from '@testing-library/react'
 // start/stop/reset 전 과정을 end-to-end로 검증한다.
 vi.mock('@/utils/apiClient', () => ({ default: { get: vi.fn(), post: vi.fn() } }))
 
+// 네이티브 표면 동기화는 호출 여부·인자만 본다(실제 스케줄링은 runningSession.test.ts).
+vi.mock('@/native/runningSession', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('@/native/runningSession')>()),
+  syncNativeRunningSession: vi.fn().mockResolvedValue(undefined),
+}))
+
 import apiClient from '@/utils/apiClient'
 import { useTagTimer } from './useTagTimer'
 import { useTagStore } from '@/store/tagStore'
@@ -15,6 +21,12 @@ import {
   saveResetTimerMarker,
   saveTimerState,
 } from '@/utils/timerPersistence'
+
+import { syncNativeRunningSession } from '@/native/runningSession'
+
+const syncNative = syncNativeRunningSession as unknown as ReturnType<typeof vi.fn>
+/** 마지막으로 네이티브 표면에 선언된 세션(없으면 undefined = 한 번도 호출 안 됨). */
+const lastSyncedSession = () => syncNative.mock.calls.at(-1)?.[0]
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>
 const post = apiClient.post as unknown as ReturnType<typeof vi.fn>
@@ -65,6 +77,7 @@ beforeEach(() => {
   localStorage.clear()
   post.mockReset()
   get.mockReset()
+  syncNative.mockClear()
   post.mockResolvedValue({ data: {} })
   useTagStore.setState({
     isRefreshing: false,
@@ -441,5 +454,110 @@ describe('useTagTimer — 추가 엣지케이스 검증 (잠재 버그 스윕)',
     expect(release).toHaveBeenCalled()
 
     delete (navigator as unknown as { wakeLock?: unknown }).wakeLock
+  })
+})
+
+describe('useTagTimer — 네이티브 표면 동기화', () => {
+  it('[loadTag] 서버가 실행 중이라고 답하면 그 세션을 선언한다', async () => {
+    const startedAt = Date.now() - 60_000
+    await renderWithTag({
+      state: true,
+      latestStartTimeMs: startedAt,
+      latestStopTimeMs: null,
+      elapsedTime: 30,
+      dailyTotalTime: 300,
+      dailyGoalTime: 3600,
+    })
+
+    expect(lastSyncedSession()).toEqual({
+      tagId: 1,
+      tagName: 'Ovlo',
+      startedAtMs: startedAt,
+      baseElapsedSec: 30,
+      dailyBaseSec: 300,
+      dailyGoalSec: 3600,
+    })
+  })
+
+  it('[loadTag] 정지 상태로 로드되면 null 을 선언한다 — 다른 기기에서 정지된 경우', async () => {
+    await renderWithTag()
+    expect(lastSyncedSession()).toBeNull()
+  })
+
+  it('[start] API 호출 전에 세션을 선언한다 — 오프라인에서도 알림이 걸려야 한다', async () => {
+    const { result } = await renderWithTag({ dailyGoalTime: 1800 })
+    failNextOnce()
+
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    expect(startCalls()).toHaveLength(1)
+    expect(opTypes()).toEqual(['start'])
+    expect(lastSyncedSession()).toMatchObject({ tagId: 1, tagName: 'Ovlo', dailyGoalSec: 1800 })
+  })
+
+  it('[stop·오프라인] API 가 실패해도 즉시 null 을 선언한다 — 로컬은 이미 멈췄다', async () => {
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    failNextOnce()
+    await act(async () => {
+      await result.current.stopStopwatch()
+    })
+
+    expect(opTypes()).toEqual(['stop'])
+    expect(lastSyncedSession()).toBeNull()
+  })
+
+  it('[reset] 리셋하면 null 을 선언한다', async () => {
+    const { result } = await renderWithTag()
+    syncNative.mockClear()
+
+    await act(async () => {
+      await result.current.resetStopwatch()
+    })
+
+    expect(syncNative).toHaveBeenCalledWith(null)
+  })
+
+  it('[포그라운드 복귀] 재조회로 서버 정지를 반영해 유령 알림을 지운다', async () => {
+    const startedAt = Date.now() - 60_000
+    const { result } = await renderWithTag({
+      state: true,
+      latestStartTimeMs: startedAt,
+      latestStopTimeMs: null,
+    })
+    expect(lastSyncedSession()).toMatchObject({ tagId: 1 })
+
+    // 다른 기기에서 정지 → 서버는 이제 정지 상태를 돌려준다.
+    // 로컬 스냅샷이 서버 응답을 이기지 않도록(savedAt 비교) 정지 시각을 미래로 준다.
+    get.mockResolvedValue({
+      data: tagPayload({ state: false, latestStartTimeMs: null, latestStopTimeMs: Date.now() + 1000 }),
+    })
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      await Promise.resolve()
+    })
+
+    expect(get).toHaveBeenCalledTimes(2)
+    expect(lastSyncedSession()).toBeNull()
+  })
+
+  it('[포그라운드 복귀] 5초 안에 반복 전환해도 재조회는 한 번뿐이다', async () => {
+    await renderWithTag()
+    expect(get).toHaveBeenCalledTimes(1)
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      await Promise.resolve()
+    })
+
+    expect(get).toHaveBeenCalledTimes(2)
   })
 })

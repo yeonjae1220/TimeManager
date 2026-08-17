@@ -198,6 +198,15 @@ const ru: Messages = {
   'profile.deleteAccount': 'Удалить аккаунт',
   'profile.uiLanguage': 'Язык',
   'profile.uiLanguageHint': 'Выберите язык интерфейса приложения.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': 'Таймер',
+  'notif.goalReached.title': 'Цель на сегодня',
+  'notif.goalReached.body': '{tag} уже должен был достичь сегодняшней цели. Загляните в приложение.',
+  'notif.longRun.title': 'Таймер всё ещё идёт?',
+  'notif.longRun.body': 'С момента запуска {tag} прошло {hours} ч. Загляните в приложение.',
+
 }
 
 export default ru

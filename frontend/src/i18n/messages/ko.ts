@@ -198,6 +198,15 @@ const ko: Messages = {
   'profile.deleteAccount': '계정 삭제',
   'profile.uiLanguage': '언어',
   'profile.uiLanguageHint': '앱에 표시할 언어를 선택하세요.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': '타이머',
+  'notif.goalReached.title': '오늘 목표',
+  'notif.goalReached.body': '{tag} 이(가) 오늘 목표에 도달했을 시각입니다. 확인해 보세요.',
+  'notif.longRun.title': '타이머가 켜져 있습니다',
+  'notif.longRun.body': '{tag} 을(를) 시작한 지 {hours}시간 되었습니다. 확인해 보세요.',
+
 }
 
 export default ko

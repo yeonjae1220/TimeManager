@@ -214,6 +214,15 @@ const en = {
   'profile.deleteAccount': 'Delete account',
   'profile.uiLanguage': 'Language',
   'profile.uiLanguageHint': 'Choose the display language for the app.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': 'Timer',
+  'notif.goalReached.title': 'Today\'s goal',
+  'notif.goalReached.body': '{tag} should have reached today\'s goal. Take a look.',
+  'notif.longRun.title': 'Timer still running?',
+  'notif.longRun.body': 'It\'s been {hours}h since you started {tag}. Take a look.',
+
 } as const
 
 export default en

@@ -198,6 +198,15 @@ const zh: Messages = {
   'profile.deleteAccount': '删除账户',
   'profile.uiLanguage': '语言',
   'profile.uiLanguageHint': '选择应用的显示语言。',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': '计时器',
+  'notif.goalReached.title': '今日目标',
+  'notif.goalReached.body': '{tag} 应该已达成今日目标。请查看一下。',
+  'notif.longRun.title': '计时器仍在运行？',
+  'notif.longRun.body': '{tag} 已开始 {hours} 小时。请查看一下。',
+
 }
 
 export default zh

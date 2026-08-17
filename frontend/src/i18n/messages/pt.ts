@@ -198,6 +198,15 @@ const pt: Messages = {
   'profile.deleteAccount': 'Excluir conta',
   'profile.uiLanguage': 'Idioma',
   'profile.uiLanguageHint': 'Escolha o idioma de exibição do aplicativo.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': 'Cronômetro',
+  'notif.goalReached.title': 'Meta de hoje',
+  'notif.goalReached.body': '{tag} deve ter atingido a meta de hoje. Dê uma olhada.',
+  'notif.longRun.title': 'O cronômetro ainda está ativo?',
+  'notif.longRun.body': 'Já se passaram {hours} h desde que você iniciou {tag}. Dê uma olhada.',
+
 }
 
 export default pt

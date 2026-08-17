@@ -198,6 +198,15 @@ const fr: Messages = {
   'profile.deleteAccount': 'Supprimer le compte',
   'profile.uiLanguage': 'Langue',
   'profile.uiLanguageHint': 'Choisissez la langue d’affichage de l’application.',
+  // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
+  // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
+  // "실행 중"이라 단언하지 않는다.
+  'notif.untitledTag': 'Minuteur',
+  'notif.goalReached.title': 'Objectif du jour',
+  'notif.goalReached.body': '{tag} devrait avoir atteint l\'objectif du jour. Jetez-y un œil.',
+  'notif.longRun.title': 'Minuteur toujours actif ?',
+  'notif.longRun.body': 'Cela fait {hours} h que vous avez lancé {tag}. Jetez-y un œil.',
+
 }
 
 export default fr
