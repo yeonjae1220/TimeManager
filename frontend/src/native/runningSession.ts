@@ -177,8 +177,15 @@ export async function syncNativeRunningSession(
             id: n.id,
             title: n.title,
             body: n.body,
-            // allowWhileIdle 을 켜지 않는다 = inexact 스케줄링. 정확 알람은 Play 제한
-            // 권한(USE_EXACT_ALARM)을 요구하는데, 이 알림들은 몇 분 늦어도 무해하다.
+            // inexact 스케줄링. 이 알림들은 몇 분 늦어도 무해한 반면, 정확 알람은
+            // Play 제한 권한을 건드린다.
+            //
+            // ⚠️ 이 축을 정하는 것은 isExactNotification 이다(기본 true). allowWhileIdle
+            // 은 exact/inexact 와 무관하고 setExact vs setExactAndAllowWhileIdle 을
+            // 고를 뿐이다. 기본값으로 두면 API 31+ 에서 플러그인이 schedule() 도중
+            // 시스템 "알람 및 리마인더" 설정 화면을 띄워 사용자를 앱 밖으로 내보낸다
+            // — 타이머를 켜려고 버튼을 누른 바로 그 순간에.
+            isExactNotification: false,
             schedule: { at: new Date(n.atMs) },
             extra: { ns: NS, tagId: session.tagId, startedAtMs: session.startedAtMs },
           })),

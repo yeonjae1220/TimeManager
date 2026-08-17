@@ -130,8 +130,20 @@ describe('runningSession', () => {
       const goal = arg.notifications.find((n: { id: number }) => n.id === 90001)
       expect(goal.schedule.at.getTime()).toBe(NOW + 3000 * 1000)
       expect(goal.body).toContain('알고리즘')
-      // 정확 알람(Play 제한 권한)을 요구하지 않도록 allowWhileIdle 을 켜지 않는다.
-      expect(goal.schedule.allowWhileIdle).toBeUndefined()
+    })
+
+    it('[회귀] 모든 알림을 inexact 로 예약한다 — 정확 알람 설정 화면으로 튕기지 않도록', async () => {
+      enableNative()
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+      const [[arg]] = plugin.schedule.mock.calls
+      // isExactNotification 기본값은 true 이고, 그러면 플러그인이 API 31+ 에서
+      // 시스템 "알람 및 리마인더" 설정 화면을 띄워 사용자를 앱 밖으로 내보낸다.
+      // allowWhileIdle 은 이 축과 무관하다(setExact vs setExactAndAllowWhileIdle 선택일 뿐).
+      for (const n of arg.notifications) {
+        expect(n.isExactNotification).toBe(false)
+        expect(n.schedule.allowWhileIdle).toBeUndefined()
+      }
     })
 
     it('이미 목표를 채운 상태로 시작하면 목표 알림은 걸지 않는다', async () => {
