@@ -8,12 +8,14 @@ import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.MoveTagCommand;
 import project.TimeManager.application.dto.command.RenameTagCommand;
 import project.TimeManager.application.dto.command.ReorderTagsCommand;
+import project.TimeManager.application.dto.command.SetDailyGoalCommand;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
 import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
+import project.TimeManager.domain.port.in.tag.SetDailyGoalUseCase;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagPort;
 import project.TimeManager.domain.port.out.tag.SaveTagsOrderPort;
@@ -24,7 +26,8 @@ import project.TimeManager.domain.tag.model.Tag;
 @Transactional
 @RequiredArgsConstructor
 @Slf4j
-public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, RenameTagUseCase, ReorderTagsUseCase {
+public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, RenameTagUseCase, ReorderTagsUseCase,
+        SetDailyGoalUseCase {
 
     private final LoadTagPort loadTagPort;
     private final SaveTagPort saveTagPort;
@@ -92,6 +95,22 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, Rena
         saveTagPort.saveTag(tag);
 
         log.info("Tag renamed: id={}, newName={}", command.tagId(), command.newName());
+        return command.tagId();
+    }
+
+    @Override
+    public Long setDailyGoal(SetDailyGoalCommand command) {
+        Tag tag = loadTagPort.loadTag(command.tagId())
+                .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
+
+        if (!tag.getMemberId().value().equals(command.memberId())) {
+            throw new DomainException("접근 권한이 없습니다");
+        }
+
+        tag.updateDailyGoalTime(command.dailyGoalTime());
+        saveTagPort.saveTag(tag);
+
+        log.info("Tag daily goal updated: id={}, dailyGoalTime={}", command.tagId(), command.dailyGoalTime());
         return command.tagId();
     }
 

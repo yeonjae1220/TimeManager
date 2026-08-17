@@ -1,11 +1,15 @@
 package project.TimeManager.domain.tag.model;
 
+import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
 
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 
 public class Tag {
+
+    /** 하루 = 86400초. dailyGoalTime 의 상한. */
+    private static final long SECONDS_PER_DAY = 86_400L;
 
     private static final ZonedDateTime EPOCH = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault());
 
@@ -133,6 +137,17 @@ public class Tag {
 
     public void rename(String newName) {
         this.name = newName;
+    }
+
+    /**
+     * 오늘 목표 시간(초)을 설정한다. 0 은 "목표 없음"이다.
+     * 하루(86400초)를 넘는 목표는 어떤 해석으로도 달성할 수 없으므로 불변식으로 막는다.
+     */
+    public void updateDailyGoalTime(Long newDailyGoalTime) {
+        if (newDailyGoalTime == null || newDailyGoalTime < 0 || newDailyGoalTime > SECONDS_PER_DAY) {
+            throw new DomainException("목표 시간은 0초 이상 " + SECONDS_PER_DAY + "초 이하여야 합니다: " + newDailyGoalTime);
+        }
+        this.dailyGoalTime = newDailyGoalTime;
     }
 
     public void updateTagTotalTime(Long delta) {

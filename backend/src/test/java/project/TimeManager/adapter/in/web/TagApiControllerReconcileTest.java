@@ -14,6 +14,7 @@ import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReconcileRunningTimersUseCase;
 import project.TimeManager.domain.port.in.tag.RenameTagUseCase;
 import project.TimeManager.domain.port.in.tag.ReorderTagsUseCase;
+import project.TimeManager.domain.port.in.tag.SetDailyGoalUseCase;
 import project.TimeManager.domain.port.in.tag.ResetTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StartTimerUseCase;
 import project.TimeManager.domain.port.in.tag.StopTimerUseCase;
@@ -47,6 +48,7 @@ class TagApiControllerReconcileTest {
                 mock(MoveTagUseCase.class),
                 mock(RenameTagUseCase.class),
                 mock(ReorderTagsUseCase.class),
+                mock(SetDailyGoalUseCase.class),
                 reconcileRunningTimersUseCase
         );
     }
