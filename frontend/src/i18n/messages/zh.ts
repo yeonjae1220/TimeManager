@@ -201,6 +201,15 @@ const zh: Messages = {
   // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
   // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
   // "실행 중"이라 단언하지 않는다.
+  // daily goal
+  'goal.title': '今日目标',
+  'goal.subtitle': '设置 {tag} 的今日目标。',
+  'goal.none': '无目标',
+  'goal.hhmm': '{h}小时{m}分',
+  'goal.save': '保存',
+  'goal.saveFail': '保存目标失败。',
+  'goal.openAria': '点按设置今日目标',
+
   'notif.untitledTag': '计时器',
   'notif.goalReached.title': '今日目标',
   'notif.goalReached.body': '{tag} 应该已达成今日目标。请查看一下。',

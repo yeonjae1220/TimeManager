@@ -201,6 +201,15 @@ const ko: Messages = {
   // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
   // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
   // "실행 중"이라 단언하지 않는다.
+  // daily goal
+  'goal.title': '오늘 목표',
+  'goal.subtitle': '{tag} 의 오늘 목표를 설정합니다.',
+  'goal.none': '목표 없음',
+  'goal.hhmm': '{h}시간 {m}분',
+  'goal.save': '저장',
+  'goal.saveFail': '목표를 저장하지 못했습니다.',
+  'goal.openAria': '탭해서 오늘 목표 설정',
+
   'notif.untitledTag': '타이머',
   'notif.goalReached.title': '오늘 목표',
   'notif.goalReached.body': '{tag} 이(가) 오늘 목표에 도달했을 시각입니다. 확인해 보세요.',

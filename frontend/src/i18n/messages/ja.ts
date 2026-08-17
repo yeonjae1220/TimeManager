@@ -201,6 +201,15 @@ const ja: Messages = {
   // native notifications — 네이티브가 렌더하므로 스케줄 시점에 확정해 넘긴다.
   // 문구는 확인형이다: 다른 기기에서 정지하면 스케줄이 stale 해질 수 있어
   // "실행 중"이라 단언하지 않는다.
+  // daily goal
+  'goal.title': '今日の目標',
+  'goal.subtitle': '{tag} の今日の目標を設定します。',
+  'goal.none': '目標なし',
+  'goal.hhmm': '{h}時間{m}分',
+  'goal.save': '保存',
+  'goal.saveFail': '目標を保存できませんでした。',
+  'goal.openAria': 'タップして今日の目標を設定',
+
   'notif.untitledTag': 'タイマー',
   'notif.goalReached.title': '今日の目標',
   'notif.goalReached.body': '{tag} が今日の目標に達した頃です。確認してみてください。',

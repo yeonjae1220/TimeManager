@@ -4,6 +4,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
+import DailyGoalSheet from '@/components/DailyGoalSheet'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
@@ -49,6 +50,7 @@ export default function TodayView() {
   } = useTagTimer()
 
   const [showTagPicker, setShowTagPicker] = useState(false)
+  const [showGoalSheet, setShowGoalSheet] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
   const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
@@ -187,27 +189,43 @@ export default function TodayView() {
               {formattedElapsedTime}
             </div>
             <span className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase' }}>{t('today.elapsed')}</span>
-            <div
-              aria-hidden="true"
+            {/* 진행률 바 = 목표 설정 진입점. 목표가 0이면 바가 늘 100%로 죽어 있어
+                아무 정보도 주지 못하므로, 탭해서 목표를 세울 수 있게 한다. */}
+            <button
+              type="button"
+              onClick={() => setShowGoalSheet(true)}
+              aria-label={t('goal.openAria')}
               style={{
+                display: 'block',
                 width: 'min(220px, 58vw)',
-                height: 2,
                 margin: '14px auto 0',
-                overflow: 'hidden',
-                background: 'var(--border-subtle)',
-                borderRadius: 999,
+                padding: '8px 0',
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
               }}
             >
-              <div
+              <span
                 style={{
-                  width: sw.isRunning ? `${timerProgress}%` : 0,
-                  height: '100%',
-                  background: 'var(--text-2)',
-                  opacity: sw.isRunning ? 0.45 : 0,
-                  transition: 'width 0.6s ease, opacity 0.2s ease',
+                  display: 'block',
+                  height: 2,
+                  overflow: 'hidden',
+                  background: 'var(--border-subtle)',
+                  borderRadius: 999,
                 }}
-              />
-            </div>
+              >
+                <span
+                  style={{
+                    display: 'block',
+                    width: sw.isRunning ? `${timerProgress}%` : 0,
+                    height: '100%',
+                    background: 'var(--text-2)',
+                    opacity: sw.isRunning ? 0.45 : 0,
+                    transition: 'width 0.6s ease, opacity 0.2s ease',
+                  }}
+                />
+              </span>
+            </button>
             {sw.isRunning && isWakeLockActive && (
               <div
                 role="status"
@@ -364,6 +382,18 @@ export default function TodayView() {
           </>
         )}
       </div>
+
+      {/* Daily goal sheet — 저장 후 loadTag 를 다시 돌리면 화면과 네이티브 알림이
+          같은 경로(useTagTimer 의 sync 배선)로 함께 갱신된다. */}
+      {showGoalSheet && tag && (
+        <DailyGoalSheet
+          tagId={tag.id}
+          tagName={tag.name}
+          currentGoalSeconds={sw.dailyGoalTime}
+          onClose={() => setShowGoalSheet(false)}
+          onSaved={() => { if (memberId) void loadTag(tag.id, memberId) }}
+        />
+      )}
 
       {/* Tag picker modal */}
       {showTagPicker && (
