@@ -15,6 +15,7 @@ import {
   shouldApplyResetTimerMarker,
 } from '@/utils/timerPersistence'
 import { sessionFromTimerState, syncNativeRunningSession } from '@/native/runningSession'
+import { isOnline } from '@/utils/connectivity'
 
 export interface Tag {
   id: number
@@ -216,7 +217,9 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   /** 대기 op가 있고 지금 보낼 수 있으면 재전송을 시작한다(중복 호출은 in-flight 프라미스가 흡수). */
   _retryPendingIfEligible() {
     const pending = peekPendingTimerOperation()
-    if (!pending || !navigator.onLine || pending.retryAttempted) return
+    // navigator.onLine 은 네이티브 WebView 에서 항상 true 라 게이트 역할을 못 한다.
+    // 관찰된 연결 상태로 판단한다(utils/connectivity.ts).
+    if (!pending || !isOnline() || pending.retryAttempted) return
     get().retryPendingTimerOp().then(() => {
       const mid = get()._activeMemberId
       if (mid) get().refreshTags(mid)

@@ -9,6 +9,8 @@ import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
+// 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
+import { isOnline as getIsOnline, probeNow, subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal } from './todayRecordTotal'
 import { hapticStart, hapticStop } from '@/native/haptics'
@@ -89,20 +91,29 @@ export default function TodayView() {
     loadTags(memberId)
     fetchTodayTotal()
 
-    const onOnline = () => {
-      setIsOnline(true)
+    // 배너와 재전송 트리거를 모두 connectivity 한 곳에서 받는다.
+    // window 'online'/'offline' 을 직접 듣지 않는 이유는 네이티브 WebView 에서
+    // 그 이벤트가 아예 발생하지 않기 때문이다(utils/connectivity.ts 주석 참조) —
+    // 그대로 두면 오프라인 배너가 앱에서 영원히 안 뜨고, 신호가 돌아와도 오프라인
+    // 큐가 재전송되지 않는다.
+    setIsOnline(getIsOnline())
+    const unsubscribe = subscribeConnectivity((online) => {
+      setIsOnline(online)
+      if (!online) return
       handleOnline()
       fetchTodayTotal()
-    }
-    const onOffline = () => setIsOnline(false)
+    })
 
-    window.addEventListener('online', onOnline)
-    window.addEventListener('offline', onOffline)
-    setIsOnline(navigator.onLine)
+    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 크다. 백오프가
+    // 늘어나 있어도 여기서 즉시 확인한다(온라인이면 no-op).
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') probeNow()
+    }
+    document.addEventListener('visibilitychange', onVisible)
 
     return () => {
-      window.removeEventListener('online', onOnline)
-      window.removeEventListener('offline', onOffline)
+      unsubscribe()
+      document.removeEventListener('visibilitychange', onVisible)
     }
   }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
 
