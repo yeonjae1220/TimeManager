@@ -187,7 +187,7 @@ const en = {
   // profile
   'profile.loadFail': 'Failed to load profile.',
   'profile.pwMismatch': 'New passwords do not match.',
-  'profile.deleteConfirm': 'Deleting your account erases all data. Delete anyway?',
+  'profile.deleteConfirm': 'Deleting your account signs you out immediately. All data is permanently erased after 30 days. Delete?',
   'profile.deleteFail': 'Failed to delete account.',
   'profile.account': 'account',
   'profile.email': 'email',

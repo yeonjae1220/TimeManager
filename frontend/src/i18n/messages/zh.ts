@@ -171,7 +171,7 @@ const zh: Messages = {
 
   'profile.loadFail': '无法加载个人资料。',
   'profile.pwMismatch': '两次输入的新密码不一致。',
-  'profile.deleteConfirm': '删除账户将清除所有数据。确定要删除吗？',
+  'profile.deleteConfirm': '删除账户后将立即无法登录，30 天后所有数据将被永久删除。确定删除吗？',
   'profile.deleteFail': '删除账户失败。',
   'profile.account': '账户',
   'profile.email': '邮箱',

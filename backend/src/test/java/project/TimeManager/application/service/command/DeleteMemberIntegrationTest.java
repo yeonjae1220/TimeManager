@@ -15,11 +15,14 @@ import project.TimeManager.application.dto.command.CreateTagCommand;
 import project.TimeManager.application.dto.command.member.RegisterMemberCommand;
 import project.TimeManager.application.service.notification.PushSender;
 import project.TimeManager.domain.port.in.member.DeleteMemberUseCase;
+import project.TimeManager.domain.port.in.member.PurgeDeletedMembersUseCase;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
+import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
+import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.tag.model.TagType;
 
-import java.time.ZonedDateTime;
+import java.time.LocalDateTime;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicInteger;
 
@@ -27,14 +30,14 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 
 /**
- * 계정 삭제가 그 계정에 딸린 데이터를 실제로 지우는지 검증한다.
+ * 계정 삭제(소프트) 와 유예 만료 후 완전 삭제(purge) 를 검증한다.
  *
- * 단위 테스트로는 잡을 수 없는 결함을 노린다 — 삭제 실패는 서비스 코드가 아니라 DB
- * 외래키 제약에서 나므로, 모킹된 포트로는 항상 통과한다. 그래서 실제 커밋까지 가는
+ * 단위 테스트로는 잡을 수 없는 결함을 노린다 — 완전 삭제 실패는 서비스 코드가 아니라
+ * DB 외래키 제약에서 나므로 모킹된 포트로는 항상 통과한다. 그래서 실제 커밋까지 가는
  * 통합 테스트여야 하고(@Transactional 롤백에 기대면 flush 순서가 운영과 달라진다),
  * 커밋하는 만큼 다른 테스트에 데이터를 남기지 않도록 컨텍스트를 정리한다.
  *
- * 공개된 /privacy 문서가 "계정과 함께 태그·기록이 제거된다"고 약속하고 있으므로,
+ * 공개된 /privacy 문서가 "30일 유예 후 완전 삭제" 를 약속하므로,
  * 이 테스트는 기능 검증인 동시에 그 약속의 회귀 방지선이다.
  */
 @SpringBootTest
@@ -44,81 +47,179 @@ class DeleteMemberIntegrationTest {
     @MockBean PushSender pushSender;
 
     @Autowired DeleteMemberUseCase deleteMemberUseCase;
+    @Autowired PurgeDeletedMembersUseCase purgeDeletedMembersUseCase;
     @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired CreateTagUseCase createTagUseCase;
+    @Autowired LoadMemberPort loadMemberPort;
+    @Autowired LoadMemberCredentialsPort loadMemberCredentialsPort;
     @Autowired MemberJpaRepository memberJpaRepository;
     @Autowired TagJpaRepository tagJpaRepository;
     @Autowired RecordJpaRepository recordJpaRepository;
 
     private static final AtomicInteger SEQ = new AtomicInteger();
 
-    private Long registerMember() {
+    private record Fixture(Long memberId, String email, Long tagId, Long recordId) {}
+
+    private Fixture register() {
         int seq = SEQ.incrementAndGet();
-        return registerMemberUseCase.register(new RegisterMemberCommand(
-                "delMember" + seq, "delete" + seq + "@test.com", "password123")).value();
+        String email = "delete" + seq + "@test.com";
+        Long memberId = registerMemberUseCase
+                .register(new RegisterMemberCommand("delMember" + seq, email, "password123")).value();
+        Long tagId = createTagUseCase.createTag(
+                new CreateTagCommand("태그" + seq, memberId, rootTagIdOf(memberId)));
+        return new Fixture(memberId, email, tagId, createRecord(tagId));
     }
 
     private Long rootTagIdOf(Long memberId) {
         return tagJpaRepository.findByMemberId(memberId).stream()
                 .filter(t -> t.getType() == TagType.ROOT)
-                .findFirst()
-                .orElseThrow()
-                .getId();
+                .findFirst().orElseThrow().getId();
     }
 
     private Long createRecord(Long tagId) {
         TagJpaEntity tag = tagJpaRepository.findById(tagId).orElseThrow();
-        ZonedDateTime start = ZonedDateTime.now().minusHours(1);
+        var start = java.time.ZonedDateTime.now().minusHours(1);
         return recordJpaRepository.save(new RecordJpaEntity(tag, start, start.plusMinutes(30))).getId();
     }
 
+    /** 유예 기간이 지난 것처럼 보이게 삭제 시각을 과거로 민다. */
+    private void backdateDeletion(Long memberId, LocalDateTime when) {
+        var entity = memberJpaRepository.findById(memberId).orElseThrow();
+        entity.setDeletedAt(when);
+        memberJpaRepository.save(entity);
+    }
+
+    // ===== 소프트 삭제 =====
+
     @Test
-    @DisplayName("기록이 있는 계정을 삭제하면 태그와 기록이 함께 사라진다")
-    void deletesTagsAndRecords() {
-        Long memberId = registerMember();
-        Long tagId = createTagUseCase.createTag(
-                new CreateTagCommand("삭제될 태그", memberId, rootTagIdOf(memberId)));
-        Long recordId = createRecord(tagId);
+    @DisplayName("삭제하면 회원을 더 이상 조회할 수 없다 — 이것이 모든 읽기 경로를 막는 관문이다")
+    void softDeletedMemberIsNotLoadable() {
+        Fixture f = register();
 
-        assertThatCode(() -> deleteMemberUseCase.deleteMember(memberId)).doesNotThrowAnyException();
+        deleteMemberUseCase.deleteMember(f.memberId());
 
-        assertThat(memberJpaRepository.findById(memberId)).isEmpty();
-        assertThat(tagJpaRepository.findByMemberId(memberId)).isEmpty();
-        assertThat(recordJpaRepository.findById(recordId))
+        assertThat(loadMemberPort.loadMember(f.memberId())).isEmpty();
+        assertThat(loadMemberPort.findMemberByEmail(f.email())).isEmpty();
+        assertThat(loadMemberCredentialsPort.findByEmail(f.email()))
+                .as("로그인 경로가 삭제된 계정을 찾으면 안 된다")
+                .isEmpty();
+    }
+
+    @Test
+    @DisplayName("삭제해도 행은 남는다 — 유예 기간 동안 복구할 수 있어야 한다")
+    void softDeleteKeepsRowsForGracePeriod() {
+        Fixture f = register();
+
+        deleteMemberUseCase.deleteMember(f.memberId());
+
+        assertThat(memberJpaRepository.findById(f.memberId()))
+                .as("물리 행은 유예 기간 동안 살아 있다")
+                .isPresent();
+        assertThat(tagJpaRepository.findById(f.tagId())).isPresent();
+        assertThat(recordJpaRepository.findById(f.recordId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("삭제 시 이메일을 봉인해 같은 주소로 즉시 재가입할 수 있다")
+    void deletionSealsEmailSoItCanBeReused() {
+        Fixture f = register();
+
+        deleteMemberUseCase.deleteMember(f.memberId());
+
+        var sealed = memberJpaRepository.findById(f.memberId()).orElseThrow();
+        assertThat(sealed.getEmail())
+                .as("unique 제약을 비켜야 재가입이 가능하다")
+                .isNotEqualTo(f.email())
+                .contains(f.email());
+
+        assertThatCode(() -> registerMemberUseCase.register(
+                new RegisterMemberCommand("다시가입", f.email(), "password123")))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("이미 삭제된 회원을 다시 삭제해도 조용히 지나간다 — 재시도가 깨지면 안 된다")
+    void deletingTwiceIsIdempotent() {
+        Fixture f = register();
+        deleteMemberUseCase.deleteMember(f.memberId());
+
+        assertThatCode(() -> deleteMemberUseCase.deleteMember(f.memberId()))
+                .doesNotThrowAnyException();
+    }
+
+    @Test
+    @DisplayName("관리자 목록과 집계에서 삭제된 회원이 빠진다")
+    void softDeletedMemberIsExcludedFromAdminViews() {
+        Fixture f = register();
+        long before = loadMemberPort.count();
+
+        deleteMemberUseCase.deleteMember(f.memberId());
+
+        assertThat(loadMemberPort.count()).isEqualTo(before - 1);
+        assertThat(loadMemberPort.loadAllMembers())
+                .extracting(m -> m.getId().value())
+                .doesNotContain(f.memberId());
+    }
+
+    // ===== 유예 만료 후 완전 삭제 =====
+
+    @Test
+    @DisplayName("유예가 지난 계정은 태그·기록까지 물리적으로 사라진다")
+    void purgeRemovesEverythingAfterGrace() {
+        Fixture f = register();
+        deleteMemberUseCase.deleteMember(f.memberId());
+        backdateDeletion(f.memberId(), LocalDateTime.now().minusDays(31));
+
+        int purged = purgeDeletedMembersUseCase.purgeExpired();
+
+        assertThat(purged).isGreaterThanOrEqualTo(1);
+        assertThat(memberJpaRepository.findById(f.memberId())).isEmpty();
+        assertThat(tagJpaRepository.findById(f.tagId())).isEmpty();
+        assertThat(recordJpaRepository.findById(f.recordId()))
                 .as("기록이 남으면 태그가 사라진 고아 행이 된다")
                 .isEmpty();
     }
 
     @Test
     @DisplayName("하위 태그의 기록까지 지운다 — 태그는 트리라 자식에도 기록이 달린다")
-    void deletesRecordsOnChildTags() {
-        Long memberId = registerMember();
-        Long parentId = createTagUseCase.createTag(
-                new CreateTagCommand("부모", memberId, rootTagIdOf(memberId)));
-        Long childId = createTagUseCase.createTag(
-                new CreateTagCommand("자식", memberId, parentId));
-        Long parentRecordId = createRecord(parentId);
+    void purgeRemovesRecordsOnChildTags() {
+        Fixture f = register();
+        Long childId = createTagUseCase.createTag(new CreateTagCommand("자식", f.memberId(), f.tagId()));
         Long childRecordId = createRecord(childId);
 
-        assertThatCode(() -> deleteMemberUseCase.deleteMember(memberId)).doesNotThrowAnyException();
+        deleteMemberUseCase.deleteMember(f.memberId());
+        backdateDeletion(f.memberId(), LocalDateTime.now().minusDays(31));
+        purgeDeletedMembersUseCase.purgeExpired();
 
-        assertThat(recordJpaRepository.findAllById(List.of(parentRecordId, childRecordId))).isEmpty();
+        assertThat(recordJpaRepository.findAllById(List.of(f.recordId(), childRecordId))).isEmpty();
     }
 
     @Test
-    @DisplayName("다른 회원의 태그와 기록은 건드리지 않는다")
-    void leavesOtherMembersDataIntact() {
-        Long victimId = registerMember();
-        Long survivorId = registerMember();
-        Long survivorTagId = createTagUseCase.createTag(
-                new CreateTagCommand("살아남을 태그", survivorId, rootTagIdOf(survivorId)));
-        Long survivorRecordId = createRecord(survivorTagId);
-        createRecord(createTagUseCase.createTag(
-                new CreateTagCommand("사라질 태그", victimId, rootTagIdOf(victimId))));
+    @DisplayName("유예 기간이 남은 계정은 건드리지 않는다")
+    void purgeSkipsMembersStillInGrace() {
+        Fixture f = register();
+        deleteMemberUseCase.deleteMember(f.memberId());
+        backdateDeletion(f.memberId(), LocalDateTime.now().minusDays(3));
 
-        deleteMemberUseCase.deleteMember(victimId);
+        purgeDeletedMembersUseCase.purgeExpired();
 
-        assertThat(tagJpaRepository.findById(survivorTagId)).isPresent();
-        assertThat(recordJpaRepository.findById(survivorRecordId)).isPresent();
+        assertThat(memberJpaRepository.findById(f.memberId())).isPresent();
+        assertThat(recordJpaRepository.findById(f.recordId())).isPresent();
+    }
+
+    @Test
+    @DisplayName("삭제하지 않은 회원은 절대 purge 대상이 아니다")
+    void purgeNeverTouchesLiveMembers() {
+        Fixture live = register();
+        Fixture doomed = register();
+        deleteMemberUseCase.deleteMember(doomed.memberId());
+        backdateDeletion(doomed.memberId(), LocalDateTime.now().minusDays(31));
+
+        purgeDeletedMembersUseCase.purgeExpired();
+
+        assertThat(memberJpaRepository.findById(live.memberId())).isPresent();
+        assertThat(tagJpaRepository.findById(live.tagId())).isPresent();
+        assertThat(recordJpaRepository.findById(live.recordId())).isPresent();
+        assertThat(memberJpaRepository.findById(doomed.memberId())).isEmpty();
     }
 }

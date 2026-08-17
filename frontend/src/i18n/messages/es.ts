@@ -171,7 +171,7 @@ const es: Messages = {
 
   'profile.loadFail': 'No se pudo cargar el perfil.',
   'profile.pwMismatch': 'Las nuevas contraseñas no coinciden.',
-  'profile.deleteConfirm': 'Eliminar tu cuenta borra todos los datos. ¿Eliminar de todos modos?',
+  'profile.deleteConfirm': 'Al eliminar tu cuenta se cerrará la sesión de inmediato. Todos los datos se borrarán definitivamente a los 30 días. ¿Eliminar?',
   'profile.deleteFail': 'No se pudo eliminar la cuenta.',
   'profile.account': 'cuenta',
   'profile.email': 'correo',

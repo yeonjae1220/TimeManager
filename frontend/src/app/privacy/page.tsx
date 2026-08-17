@@ -14,6 +14,12 @@ import Link from 'next/link'
  */
 
 const LAST_UPDATED = '2026-08-17'
+/**
+ * 백엔드 `member.deletion.grace-days` 와 같은 값이어야 한다.
+ * 이 문서는 공개 약속이므로 설정을 바꾸면 여기도 함께 고칠 것
+ * (PurgeDeletedMembersCommandService 가 실제로 이 기간을 집행한다).
+ */
+const DELETION_GRACE_DAYS = 30
 const CONTACT_EMAIL = 'duswokim1220@gmail.com'
 
 export const metadata: Metadata = {
@@ -98,11 +104,26 @@ export default function PrivacyPage() {
       <Section title="5. Retention and deletion · 보관 기간과 삭제">
         <p>
           Your data is kept while your account exists. You can delete your account at any time from
-          Profile → Delete account; doing so removes your account together with the tags, records,
-          and notification subscriptions attached to it. Deletion is immediate and cannot be undone
-          — export anything you want to keep first.<br />
-          <span lang="ko">계정이 존재하는 동안 데이터를 보관합니다. 프로필 → 계정 삭제에서 언제든 삭제할 수 있으며,
-          계정과 함께 그 계정에 속한 태그·기록·알림 구독 정보가 제거됩니다. 삭제는 즉시 적용되고 되돌릴 수 없습니다.</span>
+          Profile → Delete account.<br />
+          <span lang="ko">계정이 존재하는 동안 데이터를 보관합니다. 프로필 → 계정 삭제에서 언제든 삭제할 수 있습니다.</span>
+        </p>
+        <p style={{ marginTop: 10 }}>
+          Deletion takes effect immediately: you are signed out, your sessions are revoked, your
+          notification subscriptions are removed, and the account can no longer be signed in to or
+          reached through the app. Your email address is released at the same moment, so you may
+          register a new account with it right away.<br />
+          <span lang="ko">삭제는 즉시 적용됩니다. 로그아웃되고 세션이 무효화되며 알림 구독 정보가 제거되고,
+          해당 계정으로는 더 이상 로그인하거나 앱에서 데이터에 접근할 수 없습니다. 이메일 주소는 그 시점에
+          함께 해제되므로 같은 주소로 바로 새 계정을 만들 수 있습니다.</span>
+        </p>
+        <p style={{ marginTop: 10 }}>
+          The underlying account, tags, and records are then retained for {DELETION_GRACE_DAYS} days
+          and permanently erased after that, so that an accidental deletion can be recovered by
+          contacting us within that window. After {DELETION_GRACE_DAYS} days the data is gone and
+          cannot be restored — export anything you want to keep first.<br />
+          <span lang="ko">계정·태그·기록 데이터 자체는 {DELETION_GRACE_DAYS}일간 보관한 뒤 영구 삭제합니다.
+          실수로 삭제한 경우 그 기간 안에 문의하시면 복구할 수 있도록 하기 위함입니다.
+          {DELETION_GRACE_DAYS}일이 지나면 데이터는 완전히 사라지며 복구할 수 없습니다.</span>
         </p>
         <p style={{ marginTop: 10 }}>
           IP addresses used for rate limiting are not stored in the database and expire with the

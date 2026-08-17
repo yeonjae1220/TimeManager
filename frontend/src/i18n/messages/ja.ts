@@ -171,7 +171,7 @@ const ja: Messages = {
 
   'profile.loadFail': 'プロフィールを読み込めませんでした。',
   'profile.pwMismatch': '新しいパスワードが一致しません。',
-  'profile.deleteConfirm': 'アカウントを削除するとすべてのデータが消えます。本当に削除しますか？',
+  'profile.deleteConfirm': 'アカウントを削除すると直ちにログインできなくなり、30日後にすべてのデータが完全に削除されます。削除しますか？',
   'profile.deleteFail': 'アカウントの削除に失敗しました。',
   'profile.account': 'アカウント',
   'profile.email': 'メール',

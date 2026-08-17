@@ -171,7 +171,7 @@ const fr: Messages = {
 
   'profile.loadFail': 'Impossible de charger le profil.',
   'profile.pwMismatch': 'Les nouveaux mots de passe ne correspondent pas.',
-  'profile.deleteConfirm': 'Supprimer votre compte efface toutes les données. Supprimer quand même ?',
+  'profile.deleteConfirm': 'La suppression de votre compte vous déconnecte immédiatement. Toutes les données seront effacées définitivement au bout de 30 jours. Supprimer ?',
   'profile.deleteFail': 'Échec de la suppression du compte.',
   'profile.account': 'compte',
   'profile.email': 'e-mail',

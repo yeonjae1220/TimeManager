@@ -171,7 +171,7 @@ const de: Messages = {
 
   'profile.loadFail': 'Profil konnte nicht geladen werden.',
   'profile.pwMismatch': 'Die neuen Passwörter stimmen nicht überein.',
-  'profile.deleteConfirm': 'Beim Löschen Ihres Kontos werden alle Daten gelöscht. Trotzdem löschen?',
+  'profile.deleteConfirm': 'Beim Löschen Ihres Kontos werden Sie sofort abgemeldet. Alle Daten werden nach 30 Tagen endgültig gelöscht. Löschen?',
   'profile.deleteFail': 'Konto konnte nicht gelöscht werden.',
   'profile.account': 'Konto',
   'profile.email': 'E-Mail',

@@ -44,6 +44,13 @@ class AuthCommandServiceTest {
 
     @InjectMocks AuthCommandService authCommandService;
 
+    /** refresh 는 회원을 실제로 조회한다 — 역할을 읽어야 하고, 없으면 탈퇴로 간주해 거부한다. */
+    private static project.TimeManager.domain.member.model.Member activeMember() {
+        return project.TimeManager.domain.member.model.Member.reconstitute(
+                MEMBER_ID, "tester", "tester@test.com", "hashed",
+                null, null, MemberRole.MEMBER, null, 5, null);
+    }
+
     @BeforeEach
     void setUp() {
         ReflectionTestUtils.setField(authCommandService, "rotationIntervalHours", 24L);
@@ -112,6 +119,7 @@ class AuthCommandServiceTest {
             Instant future = Instant.now().plus(30, ChronoUnit.DAYS);
             AuthSession recentSession = AuthSession.create(MEMBER_ID, REFRESH_TOKEN, future);
             given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(recentSession));
+            given(loadMemberPort.loadMember(MEMBER_ID.value())).willReturn(Optional.of(activeMember()));
             given(tokenGeneratorPort.generateAccessToken(eq(MEMBER_ID), any(MemberRole.class))).willReturn(ACCESS_TOKEN);
 
             // Act
@@ -132,6 +140,7 @@ class AuthCommandServiceTest {
             AuthSession oldSession = AuthSession.reconstitute(MEMBER_ID, REFRESH_TOKEN,
                     Instant.now().plus(30, ChronoUnit.DAYS), oldRotation);
             given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(oldSession));
+            given(loadMemberPort.loadMember(MEMBER_ID.value())).willReturn(Optional.of(activeMember()));
 
             String newRefreshToken = "new-refresh-token";
             String newAccessToken = "new-access-token";
@@ -156,6 +165,24 @@ class AuthCommandServiceTest {
             assertThatThrownBy(() -> authCommandService.refresh(new RefreshTokenCommand("invalid-token")))
                     .isInstanceOf(DomainException.class)
                     .hasMessageContaining("유효하지 않은 리프레시 토큰입니다");
+        }
+
+        @Test
+        @DisplayName("탈퇴한 회원의 리프레시 토큰은 거부하고 세션도 지운다")
+        void shouldRejectAndDelete_whenMemberIsGone() {
+            // 탈퇴하면 조회에서 빠지므로 loadMember 가 빈 값을 준다. 예전에는 여기서
+            // 기본 역할로 넘어가 액세스 토큰을 계속 발급해줬다.
+            Instant future = Instant.now().plus(30, ChronoUnit.DAYS);
+            AuthSession session = AuthSession.create(MEMBER_ID, REFRESH_TOKEN, future);
+            given(tokenStorePort.findByRefreshToken(REFRESH_TOKEN)).willReturn(Optional.of(session));
+            given(loadMemberPort.loadMember(MEMBER_ID.value())).willReturn(Optional.empty());
+
+            assertThatThrownBy(() -> authCommandService.refresh(new RefreshTokenCommand(REFRESH_TOKEN)))
+                    .isInstanceOf(DomainException.class)
+                    .hasMessageContaining("유효하지 않은 리프레시 토큰입니다");
+
+            then(tokenGeneratorPort).should(never()).generateAccessToken(any(), any());
+            then(tokenStorePort).should().delete(REFRESH_TOKEN);
         }
 
         @Test

@@ -171,7 +171,7 @@ const pt: Messages = {
 
   'profile.loadFail': 'Não foi possível carregar o perfil.',
   'profile.pwMismatch': 'As novas senhas não coincidem.',
-  'profile.deleteConfirm': 'Excluir sua conta apaga todos os dados. Excluir mesmo assim?',
+  'profile.deleteConfirm': 'Excluir sua conta encerra a sessão imediatamente. Todos os dados serão apagados definitivamente após 30 dias. Excluir?',
   'profile.deleteFail': 'Falha ao excluir a conta.',
   'profile.account': 'conta',
   'profile.email': 'e-mail',

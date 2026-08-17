@@ -171,7 +171,7 @@ const ko: Messages = {
 
   'profile.loadFail': '프로필을 불러오지 못했습니다.',
   'profile.pwMismatch': '새 비밀번호가 일치하지 않습니다.',
-  'profile.deleteConfirm': '계정을 삭제하면 모든 데이터가 사라집니다. 정말 삭제할까요?',
+  'profile.deleteConfirm': '계정을 삭제하면 즉시 로그인할 수 없게 되고, 30일 뒤 모든 데이터가 영구 삭제됩니다. 삭제할까요?',
   'profile.deleteFail': '계정 삭제에 실패했습니다.',
   'profile.account': '계정',
   'profile.email': '이메일',
