@@ -13,6 +13,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal } from './todayRecordTotal'
 import { hapticStart, hapticStop } from '@/native/haptics'
 import { ensureNotificationPermission } from '@/native/notificationPermission'
+import { resyncNativeRunningSession } from '@/native/runningSession'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
@@ -140,7 +141,12 @@ export default function TodayView() {
     // 타이머를 시작한 직후가 알림 권한을 묻기에 자연스러운 두 번째 순간이다(첫 번째는
     // 목표 설정). 이미 결정된 상태면 ensure 가 아무것도 하지 않으므로 매 시작마다
     // 물어보는 일은 없다.
-    void ensureNotificationPermission()
+    //
+    // 허용됐으면 반드시 재수렴시킨다 — startStopwatch 안의 sync 는 권한을 묻기 전에
+    // 이미 지나갔으므로, 이게 없으면 방금 시작한 세션만 알림 없이 흘러간다.
+    void ensureNotificationPermission().then((granted) => {
+      if (granted) void resyncNativeRunningSession()
+    })
   }, [fetchTodayTotal, isSwitching, startStopwatch, stopStopwatch, sw.isRunning, tag])
 
   const recentTags = recentTagIds

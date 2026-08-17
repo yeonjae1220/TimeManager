@@ -4,6 +4,7 @@ import { useState } from 'react'
 import apiClient from '@/utils/apiClient'
 import { useI18n } from '@/i18n/I18nProvider'
 import { ensureNotificationPermission } from '@/native/notificationPermission'
+import { resyncNativeRunningSession } from '@/native/runningSession'
 
 const SECONDS_PER_HOUR = 3600
 const SECONDS_PER_MINUTE = 60
@@ -51,7 +52,13 @@ export default function DailyGoalSheet({
       await apiClient.patch(`/api/v1/tags/${tagId}/daily-goal`, { dailyGoalTime: selected })
       // 목표를 세운 직후가 알림 권한을 묻기에 가장 자연스러운 순간이다 — 왜 필요한지
       // 사용자가 방금 스스로 정했기 때문이다. 목표를 지우는(0) 경우엔 묻지 않는다.
-      if (selected > 0) void ensureNotificationPermission()
+      // 허용됐으면 재수렴시킨다: onSaved 의 loadTag 가 부르는 sync 는 사용자가 권한
+      // 다이얼로그에 답하기 전에 끝나므로, 이게 없으면 목표 알림이 안 걸린다.
+      if (selected > 0) {
+        void ensureNotificationPermission().then((granted) => {
+          if (granted) void resyncNativeRunningSession()
+        })
+      }
       onSaved()
       onClose()
     } catch (e) {

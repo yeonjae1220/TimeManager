@@ -36,18 +36,18 @@ export interface NativeRunningSession {
 const NS = 'tm-timer'
 
 /** 알림 id. 동시에 실행되는 세션은 최대 1개(로컬 타이머 슬롯이 단일)라 고정값으로 충분하다. */
-const NOTIFICATION_ID = {
-  goal: 90001,
-  h3: 90003,
-  h6: 90006,
-  h12: 90012,
-} as const
+const GOAL_NOTIFICATION_ID = 90001
 
 /**
  * 장시간 리마인더는 3발만. 무한 반복하면 알림 피로로 사용자가 채널을 꺼버리고,
  * 그러면 목표 알림까지 같이 죽는다.
+ * 시각과 id 를 한 자리에 묶어둔다 — 항목을 추가할 때 id 를 같이 정하지 않으면 안 되게.
  */
-const LONG_RUN_HOURS = [3, 6, 12] as const
+const LONG_RUN_REMINDERS = [
+  { hours: 3, id: 90003 },
+  { hours: 6, id: 90006 },
+  { hours: 12, id: 90012 },
+] as const
 
 const HOUR_MS = 60 * 60 * 1000
 
@@ -61,15 +61,24 @@ interface ScheduledNotification {
 /**
  * 마지막으로 수렴시킨 세션의 서명. 같은 서명이면 즉시 return 하므로
  * 포그라운드 복귀마다 호출돼도 비용이 0 이다.
- * 실패하면 null 로 되돌려 다음 호출이 다시 시도하게 한다.
+ * 실패하거나 권한이 없어 스케줄을 건너뛰었으면 null 로 되돌려 다음 호출이 다시 시도한다.
  */
 let lastSignature: string | null = null
+
+/** 마지막으로 선언된 세션. 권한 허용 직후 같은 세션으로 다시 수렴시키기 위해 들고 있는다. */
+let lastSession: NativeRunningSession | null = null
 
 /** 동시 호출 직렬화 — getPending → cancel → schedule 사이에 다른 sync 가 끼어들면 어긋난다. */
 let queue: Promise<void> = Promise.resolve()
 
+/**
+ * 예약 내용을 바꾸는 모든 입력이 서명에 들어가야 한다.
+ * tagId·startedAtMs 만 넣으면 "실행 중에 목표를 새로 설정" 하는 흔한 흐름에서
+ * 서명이 그대로라 조기 return 에 걸려 목표 알림이 영영 안 걸린다(회귀 테스트 있음).
+ */
 function signatureOf(session: NativeRunningSession | null): string {
-  return session ? `${session.tagId}:${session.startedAtMs}` : 'none'
+  if (!session) return 'none'
+  return `${session.tagId}:${session.startedAtMs}:${session.dailyGoalSec}:${session.dailyBaseSec}`
 }
 
 /** 로컬 타이머 스냅샷을 네이티브 세션으로. 실행 중이 아니면 null(= 네이티브 표면 없음). */
@@ -99,7 +108,7 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
     const remainingSec = session.dailyGoalSec - session.dailyBaseSec
     if (remainingSec > 0) {
       planned.push({
-        id: NOTIFICATION_ID.goal,
+        id: GOAL_NOTIFICATION_ID,
         title: translate(lang, 'notif.goalReached.title'),
         body: translate(lang, 'notif.goalReached.body', { tag }),
         atMs: session.startedAtMs + remainingSec * 1000,
@@ -107,9 +116,9 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
     }
   }
 
-  for (const hours of LONG_RUN_HOURS) {
+  for (const { hours, id } of LONG_RUN_REMINDERS) {
     planned.push({
-      id: NOTIFICATION_ID[`h${hours}` as keyof typeof NOTIFICATION_ID],
+      id,
       title: translate(lang, 'notif.longRun.title'),
       body: translate(lang, 'notif.longRun.body', { tag, hours }),
       atMs: session.startedAtMs + hours * HOUR_MS,
@@ -129,45 +138,42 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
 export async function syncNativeRunningSession(
   session: NativeRunningSession | null,
 ): Promise<void> {
+  lastSession = session
   const signature = signatureOf(session)
   if (signature === lastSignature) return
   lastSignature = signature
 
   const run = queue.then(async () => {
-    const ok = await withPlugin(
+    const outcome = await withPlugin(
       NOTIFICATION_PLUGIN,
       () => import('@capacitor/local-notifications'),
-      async ({ LocalNotifications }) => {
+      async ({ LocalNotifications }): Promise<'ok' | 'no-permission'> => {
         const pending = await LocalNotifications.getPending()
         const ours = pending.notifications.filter(
           (n) => (n.extra as { ns?: string } | undefined)?.ns === NS,
         )
 
-        // 이번 세션에 속하지 않는 예약은 전부 취소한다. 정지·리셋·태그 전환·다른 기기에서의
-        // 정지가 전부 이 한 줄로 처리된다 — 경로별 취소 코드를 두지 않는 이유다.
-        const belongsToSession = (n: { extra?: unknown }) => {
-          if (!session) return false
-          const extra = n.extra as { tagId?: number; startedAtMs?: number } | undefined
-          return extra?.tagId === session.tagId && extra?.startedAtMs === session.startedAtMs
-        }
-        const stale = ours.filter((n) => !belongsToSession(n))
-        if (stale.length > 0) {
-          await LocalNotifications.cancel({ notifications: stale.map(({ id }) => ({ id })) })
+        // 우리 예약은 전부 취소하고 필요한 것만 다시 건다. 정지·리셋·태그 전환·목표 변경·
+        // 다른 기기에서의 정지가 전부 이 한 번으로 처리된다.
+        //
+        // id 가 같은 예약을 "살아 있다"고 보고 재사용하지 않는 이유: 목표가 바뀌면 같은
+        // id(90001)의 발화 **시각**이 달라져야 하는데, id 만 비교하면 옛 시각이 그대로
+        // 남는다(회귀 테스트 있음). 최대 4개짜리 집합이라 전부 다시 거는 비용이 무의미하다.
+        if (ours.length > 0) {
+          await LocalNotifications.cancel({ notifications: ours.map(({ id }) => ({ id })) })
         }
 
-        if (!session) return true
+        if (!session) return 'ok'
 
         // 권한이 없으면 스케줄해봐야 조용히 버려진다. 여기서 요청하지는 않는다 —
         // 요청 시점은 사용자 행위(목표 설정·첫 시작)에 붙인다.
-        if ((await checkNotificationPermission()) !== 'granted') return true
+        if ((await checkNotificationPermission()) !== 'granted') return 'no-permission'
 
-        // 살아남은 예약은 그대로 둔다(같은 시각으로 다시 걸 이유가 없다).
-        const alive = new Set(ours.filter(belongsToSession).map((n) => n.id))
-        const toSchedule = buildNotifications(session, Date.now()).filter((n) => !alive.has(n.id))
-        if (toSchedule.length === 0) return true
+        const planned = buildNotifications(session, Date.now())
+        if (planned.length === 0) return 'ok'
 
         await LocalNotifications.schedule({
-          notifications: toSchedule.map((n) => ({
+          notifications: planned.map((n) => ({
             id: n.id,
             title: n.title,
             body: n.body,
@@ -177,13 +183,15 @@ export async function syncNativeRunningSession(
             extra: { ns: NS, tagId: session.tagId, startedAtMs: session.startedAtMs },
           })),
         })
-        return true
+        return 'ok'
       },
     )
 
-    // 웹에서는 undefined 가 정상(no-op)이고, 네이티브에서 undefined 면 실패다.
-    // 실패했으면 서명을 지워 다음 호출이 다시 시도하게 한다.
-    if (ok !== true && lastSignature === signature && isNativeApp()) {
+    // 웹에서는 undefined 가 정상(no-op)이라 아무것도 하지 않는다. 네이티브에서
+    // 'ok' 가 아니면 — 호출 실패(undefined)든 권한 미허용이든 — 아직 수렴하지 못한
+    // 것이므로 서명을 지워 다음 sync 가 다시 시도하게 한다. 권한을 나중에 허용한
+    // 사용자가 포그라운드 복귀만으로 자가 치유되는 경로이기도 하다.
+    if (outcome !== 'ok' && lastSignature === signature && isNativeApp()) {
       lastSignature = null
     }
   })
@@ -192,8 +200,21 @@ export async function syncNativeRunningSession(
   return run
 }
 
+/**
+ * 마지막으로 선언된 세션으로 강제 재수렴. 서명 캐시를 무시한다.
+ *
+ * 알림 권한을 방금 허용했을 때 쓴다 — 권한 요청은 sync 이후에 끝나므로, 그대로 두면
+ * 그 세션은 알림 없이 지나가고 다음 상태 변화(정지·재시작·목표 변경) 전까지 복구되지
+ * 않는다. 사용자가 "알림 켰는데 안 온다"고 느끼는 첫 세션이 정확히 이 창이다.
+ */
+export async function resyncNativeRunningSession(): Promise<void> {
+  lastSignature = null
+  return syncNativeRunningSession(lastSession)
+}
+
 /** 테스트 전용 — 모듈 스코프 캐시 초기화. */
 export function __resetNativeRunningSession(): void {
   lastSignature = null
+  lastSession = null
   queue = Promise.resolve()
 }

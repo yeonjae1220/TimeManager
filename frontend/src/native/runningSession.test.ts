@@ -1,6 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import {
   __resetNativeRunningSession,
+  resyncNativeRunningSession,
   sessionFromTimerState,
   syncNativeRunningSession,
   type NativeRunningSession,
@@ -165,21 +166,75 @@ describe('runningSession', () => {
       expect(plugin.schedule).not.toHaveBeenCalled()
     })
 
-    it('다른 세션의 예약은 취소하고 현재 세션 것은 그대로 둔다', async () => {
+    it('우리 예약은 전부 취소하고 필요한 것만 다시 건다', async () => {
       enableNative()
       plugin.getPending.mockResolvedValue({
         notifications: [
           // 같은 태그지만 옛 시작 시각 — 정지 후 재시작된 경우다.
           pendingEntry(90003, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW - HOUR }),
-          // 현재 세션 것 — 같은 시각으로 다시 걸 이유가 없다.
           pendingEntry(90006, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW }),
+          pendingEntry(555, { ns: 'other' }),
         ],
       })
 
       await syncNativeRunningSession(session())
 
-      expect(plugin.cancel).toHaveBeenCalledWith({ notifications: [{ id: 90003 }] })
-      expect(scheduledIds()).toEqual([90003, 90012])
+      // 남의 네임스페이스(555)는 건드리지 않는다.
+      expect(plugin.cancel).toHaveBeenCalledWith({
+        notifications: [{ id: 90003 }, { id: 90006 }],
+      })
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('[회귀] 실행 중에 목표를 새로 설정하면 목표 알림이 걸린다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session({ dailyGoalSec: 0 }))
+      expect(scheduledIds()).not.toContain(90001)
+
+      plugin.schedule.mockClear()
+      // 목표 설정 → loadTag → tagId·startedAtMs 는 그대로이고 목표만 바뀐다.
+      // 서명에 목표가 빠져 있으면 조기 return 에 걸려 영영 안 걸린다.
+      await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+      expect(scheduledIds()).toContain(90001)
+    })
+
+    it('[회귀] 목표가 바뀌면 같은 id 의 예약 시각도 갱신된다', async () => {
+      enableNative()
+      plugin.getPending.mockResolvedValue({
+        notifications: [pendingEntry(90001, { ns: 'tm-timer', tagId: 7, startedAtMs: NOW })],
+      })
+
+      await syncNativeRunningSession(session({ dailyGoalSec: 7200 }))
+
+      // id 만 보고 "이미 있다"고 재사용하면 옛 시각이 남는다.
+      const [[arg]] = plugin.schedule.mock.calls
+      const goal = arg.notifications.find((n: { id: number }) => n.id === 90001)
+      expect(goal.schedule.at.getTime()).toBe(NOW + 7200 * 1000)
+    })
+
+    it('[회귀] 권한을 나중에 허용하면 다음 sync 가 같은 세션에 알림을 건다', async () => {
+      enableNative()
+      plugin.checkPermissions.mockResolvedValue({ display: 'prompt' })
+      await syncNativeRunningSession(session())
+      expect(plugin.schedule).not.toHaveBeenCalled()
+
+      // 권한 미허용은 "수렴 완료"가 아니므로 서명을 캐시하지 않는다 →
+      // 같은 세션으로 다시 불러도 조기 return 에 걸리지 않는다.
+      plugin.checkPermissions.mockResolvedValue({ display: 'granted' })
+      await syncNativeRunningSession(session())
+
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
+    })
+
+    it('resync 는 서명 캐시를 무시하고 마지막 세션으로 다시 수렴시킨다', async () => {
+      enableNative()
+      await syncNativeRunningSession(session())
+      plugin.schedule.mockClear()
+
+      await resyncNativeRunningSession()
+
+      expect(scheduledIds()).toEqual([90003, 90006, 90012])
     })
 
     it('같은 세션으로 다시 부르면 즉시 return 한다 — 포그라운드 복귀마다 호출돼도 비용 0', async () => {
