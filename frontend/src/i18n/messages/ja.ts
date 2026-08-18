@@ -217,6 +217,9 @@ const ja: Messages = {
   'notif.goalReached.body': '{tag} が今日の目標に達した頃です。確認してみてください。',
   'notif.longRun.title': 'タイマーが動いています',
   'notif.longRun.body': '{tag} を開始してから {hours} 時間経ちました。確認してみてください。',
+  'notif.ongoing.recording': '記録中',
+  'notif.ongoing.goalEta': '本日の目標達成予定 {time}',
+  'notif.ongoing.goalDone': '本日の目標を達成しました',
 
 }
 

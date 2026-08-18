@@ -5,6 +5,7 @@ import { isNativeApp } from '@/utils/platform'
 import { readUiLangFromClient, translate } from '@/i18n/messages/index'
 import type { TimerState } from '@/utils/timerPersistence'
 import { checkNotificationPermission, NOTIFICATION_PLUGIN } from './notificationPermission'
+import { goalReachAtMs } from './timerNotification'
 
 /**
  * 네이티브 표면(로컬 알림, 나중에 Live Activity·Foreground Service)을 실행 중인 세션에
@@ -103,17 +104,18 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
   const tag = session.tagName || translate(lang, 'notif.untitledTag')
   const planned: ScheduledNotification[] = []
 
-  // 목표 도달 예정 시각. 목표가 없거나 이미 지났으면 걸지 않는다.
-  if (session.dailyGoalSec > 0) {
-    const remainingSec = session.dailyGoalSec - session.dailyBaseSec
-    if (remainingSec > 0) {
-      planned.push({
-        id: GOAL_NOTIFICATION_ID,
-        title: translate(lang, 'notif.goalReached.title'),
-        body: translate(lang, 'notif.goalReached.body', { tag }),
-        atMs: session.startedAtMs + remainingSec * 1000,
-      })
-    }
+  // 목표 도달 예정 시각. 목표가 없거나 이미 지났으면 null 이라 걸지 않는다.
+  //
+  // 실행중 알림 본문의 "달성 예정 HH:MM" 과 **같은 함수**에서 나온다. 각자 계산하면
+  // 어긋나도 아무도 모르고, 사용자는 알림을 받은 뒤에도 상태표시줄에서 다른 시각을 읽는다.
+  const goalAtMs = goalReachAtMs(session)
+  if (goalAtMs !== null) {
+    planned.push({
+      id: GOAL_NOTIFICATION_ID,
+      title: translate(lang, 'notif.goalReached.title'),
+      body: translate(lang, 'notif.goalReached.body', { tag }),
+      atMs: goalAtMs,
+    })
   }
 
   for (const { hours, id } of LONG_RUN_REMINDERS) {

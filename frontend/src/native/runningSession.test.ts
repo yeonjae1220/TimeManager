@@ -7,6 +7,7 @@ import {
   type NativeRunningSession,
 } from './runningSession'
 import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
+import { buildTimerNotificationContent, goalReachAtMs } from './timerNotification'
 
 const plugin = vi.hoisted(() => ({
   getPending: vi.fn(),
@@ -290,5 +291,50 @@ describe('runningSession', () => {
       await syncNativeRunningSession(session())
       expect(scheduledIds()).toEqual([90003, 90006, 90012])
     })
+  })
+})
+
+/**
+ * 목표 도달 시각은 **두 표면**에 동시에 나타난다 — 실행중 알림 본문의 "달성 예정
+ * HH:MM" 과 실제로 발화하는 알림(90001). 둘이 어긋나면 사용자는 알림을 받은 뒤에도
+ * 상태표시줄에서 다른 시각을 읽는데, 어느 쪽도 에러를 내지 않아 아무도 모른다.
+ */
+describe('목표 도달 시각은 예약과 문구가 한 곳에서 나온다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === 'LocalNotifications',
+    }
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('예약된 발화 시각이 본문이 말하는 시각과 같다', async () => {
+    const s = session({ dailyGoalSec: 2 * 3600, dailyBaseSec: 1800 })
+
+    await syncNativeRunningSession(s)
+
+    const goal = plugin.schedule.mock.calls
+      .flatMap((call) => (call[0] as { notifications: Array<{ id: number, schedule: { at: Date } }> }).notifications)
+      .find((n) => n.id === 90001)
+
+    expect(goal?.schedule.at.getTime()).toBe(goalReachAtMs(s))
+    expect(buildTimerNotificationContent(s).text).toContain(
+      new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' })
+        .format(new Date(goalReachAtMs(s)!)),
+    )
   })
 })

@@ -1,5 +1,6 @@
 'use client'
 
+import { readUiLangFromClient, translate, type UiLanguage } from '@/i18n/messages/index'
 import { hasCapability, withPlugin } from '@/utils/nativeBridge'
 import { isNativeApp } from '@/utils/platform'
 import type { NativeRunningSession } from './runningSession'
@@ -67,6 +68,59 @@ interface TimerNotificationPlugin {
 export function chronometerBaseMs(session: NativeRunningSession): number {
   const startedAtMs = Math.min(session.startedAtMs, Date.now())
   return Math.round(startedAtMs - session.baseElapsedSec * 1000)
+}
+
+/**
+ * 오늘 목표에 도달할 시각(epoch ms). 목표가 없거나 시작 시점에 이미 채웠으면 null.
+ *
+ * 이 값 하나가 **두 곳**을 먹인다 — 실행중 알림 본문의 "달성 예정 HH:MM" 과 실제로
+ * 발화하는 목표 도달 알림(90001)의 예약 시각. 각자 계산하면 어긋나도 아무도 모르고,
+ * 사용자는 알림을 받은 뒤에도 상태표시줄에서 다른 시각을 읽게 된다.
+ *
+ * 기기 시계가 뒤처져 `startedAtMs` 가 미래여도 보정하지 않는다 — 보정하면 본문의
+ * 예정 시각만 앞당겨지고 실제 발화는 그대로라, 고치려던 어긋남을 오히려 만든다.
+ */
+export function goalReachAtMs(session: NativeRunningSession): number | null {
+  if (session.dailyGoalSec <= 0) return null
+  const remainingSec = session.dailyGoalSec - session.dailyBaseSec
+  if (remainingSec <= 0) return null
+  return session.startedAtMs + remainingSec * 1000
+}
+
+function formatClock(lang: UiLanguage, atMs: number): string {
+  return new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' }).format(new Date(atMs))
+}
+
+/**
+ * 세션을 알림 내용으로. 언어는 화면과 같은 규칙으로 읽는다.
+ *
+ * ⚠️ 본문은 **게시 시점에 얼어붙는다.** 그 뒤로 움직이는 것은 OS 가 굴리는 Chronometer
+ * 숫자뿐이고, 텍스트는 다음 sync 까지 그대로다. 그래서 "오늘 목표의 45%" 같은 진행률을
+ * 적으면 안 된다 — 60% 가 된 뒤에도 45% 로 남고, 바로 옆에서 초가 흐르는 만큼 사용자는
+ * 그 숫자를 더 확실히 믿는다. 세션이 도는 동안 **변하지 않는 사실**만 적는다.
+ *
+ * 그래서 남은 시간(계속 줄어듦)이 아니라 도달 **시각**(고정)을 적는다.
+ *
+ * 자정을 넘기는 예정 시각에 "내일" 을 붙이지 않는다 — dailyResetHour 때문에 이 앱의
+ * "오늘" 은 자정에 끝나지 않아서, 붙이는 쪽이 오히려 틀린다.
+ */
+export function buildTimerNotificationContent(
+  session: NativeRunningSession,
+): TimerNotificationContent {
+  const lang = readUiLangFromClient()
+  const goalAtMs = goalReachAtMs(session)
+
+  const text = session.dailyGoalSec <= 0
+    ? translate(lang, 'notif.ongoing.recording')
+    : goalAtMs === null
+      ? translate(lang, 'notif.ongoing.goalDone')
+      : translate(lang, 'notif.ongoing.goalEta', { time: formatClock(lang, goalAtMs) })
+
+  return {
+    title: session.tagName || translate(lang, 'notif.untitledTag'),
+    text,
+    whenMs: chronometerBaseMs(session),
+  }
 }
 
 /**

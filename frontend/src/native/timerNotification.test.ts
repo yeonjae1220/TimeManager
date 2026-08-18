@@ -1,11 +1,14 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
+  buildTimerNotificationContent,
   chronometerBaseMs,
+  goalReachAtMs,
   hideTimerNotification,
   showTimerNotification,
   TIMER_NOTIFICATION_PLUGIN,
 } from './timerNotification'
+import { LANG_KEY, SUPPORTED_UI_LANGUAGES } from '@/i18n/messages'
 import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
 import type { NativeRunningSession } from './runningSession'
 
@@ -192,6 +195,104 @@ describe('timerNotification', () => {
       plugin.hide.mockRejectedValue(new Error('boom'))
 
       await expect(hideTimerNotification()).resolves.toBe(false)
+    })
+  })
+})
+
+/**
+ * 알림 본문은 **게시 시점에 얼어붙는다** — 그 뒤로는 Chronometer 숫자만 OS 가 굴리고
+ * 텍스트는 다음 sync 까지 그대로다. 그래서 본문에는 "세션이 도는 동안 변하지 않는
+ * 사실"만 적는다. "목표의 45% 달성" 같은 진행률을 적으면 60% 가 된 뒤에도 45% 로
+ * 남아, 옆에서 초가 흐르는 만큼 더 확실하게 거짓을 말한다.
+ */
+describe('실행중 알림 문구', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    vi.useRealTimers()
+  })
+
+  const clockOf = (lang: string, atMs: number) =>
+    new Intl.DateTimeFormat(lang, { hour: '2-digit', minute: '2-digit' }).format(new Date(atMs))
+
+  describe('goalReachAtMs', () => {
+    it('목표가 없으면 null', () => {
+      expect(goalReachAtMs(session({ dailyGoalSec: 0 }))).toBeNull()
+    })
+
+    it('시작 시점에 이미 목표를 채웠으면 null', () => {
+      expect(goalReachAtMs(session({ dailyGoalSec: 3600, dailyBaseSec: 3600 }))).toBeNull()
+    })
+
+    it('남은 만큼 시작 시각에서 흐른 뒤가 도달 시각', () => {
+      const s = session({ dailyGoalSec: 7200, dailyBaseSec: 1800 })
+      expect(goalReachAtMs(s)).toBe(NOW + 5400 * 1000)
+    })
+  })
+
+  describe('buildTimerNotificationContent', () => {
+    it('제목은 태그 이름', () => {
+      expect(buildTimerNotificationContent(session()).title).toBe('알고리즘')
+    })
+
+    it('태그 이름이 비어 있으면 폴백 문구', () => {
+      expect(buildTimerNotificationContent(session({ tagName: '' })).title).toBe('Timer')
+    })
+
+    it('whenMs 는 Chronometer 기준시각 — 화면과 같은 숫자를 그린다', () => {
+      const s = session({ baseElapsedSec: 600 })
+      expect(buildTimerNotificationContent(s).whenMs).toBe(chronometerBaseMs(s))
+    })
+
+    it('목표가 없으면 진행 상태만 알린다', () => {
+      expect(buildTimerNotificationContent(session({ dailyGoalSec: 0 })).text).toBe('Recording')
+    })
+
+    it('시작 시점에 이미 목표를 채웠으면 달성으로 적는다', () => {
+      const s = session({ dailyGoalSec: 3600, dailyBaseSec: 4000 })
+      expect(buildTimerNotificationContent(s).text).toBe("Today's goal reached")
+    })
+
+    it('목표가 남아 있으면 달성 예정 **시각**을 적는다 (남은 시간이 아니라)', () => {
+      const s = session({ dailyGoalSec: 7200, dailyBaseSec: 1800 })
+      const eta = clockOf('en', NOW + 5400 * 1000)
+
+      expect(buildTimerNotificationContent(s).text).toBe(`On track to reach today's goal at ${eta}`)
+    })
+
+    /**
+     * 본문의 "예정 시각"과 실제로 발화하는 목표 도달 알림(90001)이 어긋나면, 사용자는
+     * 알림이 온 뒤에도 상태표시줄에서 다른 시각을 읽는다. 두 값이 같은 함수에서
+     * 나온다는 사실을 여기서 못박는다.
+     */
+    it('예정 시각은 목표 도달 알림의 발화 시각과 같은 값이다', () => {
+      const s = session({ dailyGoalSec: 7200, dailyBaseSec: 1800 })
+      const atMs = goalReachAtMs(s)!
+
+      expect(buildTimerNotificationContent(s).text).toContain(clockOf('en', atMs))
+    })
+
+    it('화면 언어를 따라간다', () => {
+      localStorage.setItem(LANG_KEY, 'ko')
+      const s = session({ dailyGoalSec: 7200, dailyBaseSec: 1800 })
+
+      expect(buildTimerNotificationContent(s).text)
+        .toBe(`오늘 목표 달성 예정 ${clockOf('ko', NOW + 5400 * 1000)}`)
+    })
+
+    it.each(SUPPORTED_UI_LANGUAGES)('%s 에서 치환이 남지 않는다', (lang) => {
+      localStorage.setItem(LANG_KEY, lang)
+      const s = session({ dailyGoalSec: 7200, dailyBaseSec: 1800 })
+      const { title, text } = buildTimerNotificationContent(s)
+
+      expect(text).not.toMatch(/[{}]/)
+      expect(text).toContain(clockOf(lang, NOW + 5400 * 1000))
+      expect(title).toBeTruthy()
     })
   })
 })
