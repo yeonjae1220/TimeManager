@@ -3,11 +3,13 @@ package project.TimeManager.adapter.out.persistence.repository;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 
 import java.time.LocalDateTime;
+import java.time.Instant;
 import java.util.List;
 import java.util.Optional;
 
@@ -34,6 +36,17 @@ public interface MemberJpaRepository extends JpaRepository<MemberJpaEntity, Long
 
     @Query("SELECT COUNT(m) FROM MemberJpaEntity m WHERE m.deletedAt IS NULL")
     long countActive();
+
+    /**
+     * 일일 리셋 배치가 이 회원의 경계를 처리 완료로 표시한다.
+     *
+     * 실제 리셋과 같은 트랜잭션에서만 호출해야 한다 — 표시만 커밋되면 그 경계는
+     * 다시 시도되지 않는다.
+     */
+    @Modifying
+    @Query("UPDATE MemberJpaEntity m SET m.lastResetBoundaryAt = :boundary WHERE m.id = :memberId")
+    void updateLastResetBoundary(@Param("memberId") Long memberId,
+                                 @Param("boundary") Instant boundary);
 
     /** purge 배치 전용 — 유예가 지난 삭제 계정. */
     @Query("SELECT m FROM MemberJpaEntity m WHERE m.deletedAt IS NOT NULL AND m.deletedAt < :threshold")

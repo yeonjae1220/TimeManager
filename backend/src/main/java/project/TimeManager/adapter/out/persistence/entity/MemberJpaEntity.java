@@ -9,6 +9,7 @@ import org.hibernate.annotations.CreationTimestamp;
 import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.member.model.OAuthProvider;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
 import java.util.List;
@@ -65,6 +66,19 @@ public class MemberJpaEntity {
      */
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    /**
+     * 일일 리셋 배치가 마지막으로 <b>처리한 경계 시각</b>. 리셋을 실행한 시각이 아니다.
+     *
+     * 배치가 "지금 몇 시인가" 대신 이 값과 직전 경계를 비교하기 때문에, 경계 시각에
+     * 파드가 안 떠 있었어도 다음 실행이 밀린 리셋을 따라잡는다. 실행 시각이 아니라
+     * 경계를 담아야 DST 로 하루가 23·25시간이 되는 날에도 판정이 어긋나지 않는다.
+     *
+     * 신규 회원은 가입 시각으로 채워진다 — 0(에포크)으로 두면 가입 직후 첫 실행이
+     * 곧바로 "밀린 리셋"으로 오인해 그날 쌓은 시간을 날린다.
+     */
+    @Column(name = "last_reset_boundary_at", nullable = false)
+    private Instant lastResetBoundaryAt = Instant.now();
 
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();
