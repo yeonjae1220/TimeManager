@@ -330,3 +330,102 @@ describe('supportsTimerNotification', () => {
     expect(supportsTimerNotification()).toBe(true)
   })
 })
+
+/**
+ * 세션의 숫자는 검증되지 않은 API 응답과 localStorage 스냅샷에서 온다. 타입은 number
+ * 라고 적혀 있지만 그건 선언일 뿐이라, NaN·undefined 가 그대로 흘러든다.
+ *
+ * 여기서 던지면 피해가 문구에서 끝나지 않는다 — 문구 생성은 sync 의 try/catch 밖이라
+ * sync 전체가 reject 하고, 그걸 await 하는 로그아웃이 세션 정리 전에 멈춘다.
+ */
+describe('망가진 숫자를 받아도 무너지지 않는다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    localStorage.clear()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('목표가 NaN 이면 목표 없음으로 강등한다 — "달성" 이라고 말하지 않는다', () => {
+    const { text } = buildTimerNotificationContent(session({ dailyGoalSec: Number.NaN }))
+
+    expect(text).toBe('Recording')
+  })
+
+  /** 내보낸 함수라 호출부가 늘어난다 — "null 이거나 유한한 epoch" 를 계약으로 못박는다. */
+  it('goalReachAtMs 는 NaN 을 돌려주지 않는다', () => {
+    expect(goalReachAtMs(session({ dailyGoalSec: Number.NaN }))).toBeNull()
+    expect(goalReachAtMs(session({ dailyGoalSec: 3600, dailyBaseSec: Number.NaN }))).not.toBeNaN()
+    expect(goalReachAtMs(session({ dailyGoalSec: 3600, startedAtMs: Number.NaN }))).not.toBeNaN()
+  })
+
+  it('오늘 누적이 NaN 이어도 달성 시각을 지어내지 않는다', () => {
+    const s = session({ dailyGoalSec: 3600, dailyBaseSec: Number.NaN })
+
+    expect(() => buildTimerNotificationContent(s)).not.toThrow()
+    expect(goalReachAtMs(s)).toBe(NOW + 3600 * 1000)
+  })
+
+  it('시작 시각이 NaN 이어도 기준시각은 유한하다', () => {
+    const s = session({ startedAtMs: Number.NaN, dailyGoalSec: 3600 })
+
+    expect(() => buildTimerNotificationContent(s)).not.toThrow()
+    expect(Number.isFinite(buildTimerNotificationContent(s).whenMs)).toBe(true)
+  })
+
+  it('누적 경과시간이 NaN 이면 이번 세션분만 센다', () => {
+    expect(buildTimerNotificationContent(session({ baseElapsedSec: Number.NaN })).whenMs).toBe(NOW)
+  })
+
+  it('강등은 조용히 넘어가지 않는다 — 흔적을 남긴다', () => {
+    buildTimerNotificationContent(session({ dailyGoalSec: Number.NaN }))
+
+    expect(console.warn).toHaveBeenCalled()
+  })
+})
+
+/**
+ * "예정" 은 그 시각이 지나면 거짓이 된다. 진행률(%)을 피한 이유와 같은 병이라,
+ * 같은 기준으로 막는다.
+ */
+describe('달성 예정 시각이 지나면', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    localStorage.clear()
+  })
+
+  afterEach(() => {
+    localStorage.clear()
+    vi.useRealTimers()
+  })
+
+  it('지나간 시각을 "예정" 이라고 말하지 않는다', () => {
+    const s = session({ dailyGoalSec: 3600 })
+    vi.setSystemTime(NOW + 3 * 60 * 60 * 1000)
+
+    expect(buildTimerNotificationContent(s).text).toBe("Today's goal reached")
+  })
+
+  it('아직 안 지났으면 그대로 예정으로 적는다', () => {
+    const s = session({ dailyGoalSec: 3600 })
+    vi.setSystemTime(NOW + 30 * 60 * 1000)
+
+    expect(buildTimerNotificationContent(s).text).toContain('On track')
+  })
+
+  /** 예약(90001)은 "지났으면 안 건다" 를 이미 따로 처리한다 — 그 규칙을 바꾸지 않는다. */
+  it('예약이 쓰는 goalReachAtMs 자체는 시간에 따라 변하지 않는다', () => {
+    const s = session({ dailyGoalSec: 3600 })
+    const before = goalReachAtMs(s)
+    vi.setSystemTime(NOW + 3 * 60 * 60 * 1000)
+
+    expect(goalReachAtMs(s)).toBe(before)
+  })
+})

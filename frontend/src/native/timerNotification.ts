@@ -49,6 +49,23 @@ interface TimerNotificationPlugin {
 }
 
 /**
+ * 세션의 숫자는 **검증되지 않은 API 응답과 localStorage 스냅샷**에서 온다. 타입에
+ * `number` 라고 적혀 있는 것은 선언일 뿐이라 NaN·undefined 가 그대로 흘러든다.
+ *
+ * 그대로 두면 `Intl.DateTimeFormat.format(new Date(NaN))` 이 RangeError 를 던지는데,
+ * 문구 생성은 sync 의 try/catch 밖이라 sync 전체가 reject 하고 — 그걸 await 하는
+ * 로그아웃이 세션 정리 전에 멈춘다. 알림 문구 하나가 로그아웃을 막는다.
+ *
+ * 그래서 경계에서 막는다. 못 쓰는 값은 안전한 기본값으로 강등하되, 조용히 넘어가지
+ * 않도록 흔적을 남긴다 — 강등된 알림은 "그럴듯하지만 틀린" 값을 그릴 수 있다.
+ */
+function finite(value: number, fallback: number, field: string): number {
+  if (Number.isFinite(value)) return value
+  console.warn(`[timerNotification] ${field} 가 유한한 수가 아니라 ${fallback} 으로 강등`, value)
+  return fallback
+}
+
+/**
  * 화면이 그리는 값과 알림이 그리는 값을 맞춘다.
  *
  * Chronometer 는 "기준시각으로부터 흐른 시간"만 표현할 수 있는데, 화면이 보여주는 값은
@@ -66,8 +83,9 @@ interface TimerNotificationPlugin {
  *    알림은 `console.warn` 한 줄만 남긴 채 안 뜬다. 정수로 못박아 그 경로를 없앤다.
  */
 export function chronometerBaseMs(session: NativeRunningSession): number {
-  const startedAtMs = Math.min(session.startedAtMs, Date.now())
-  return Math.round(startedAtMs - session.baseElapsedSec * 1000)
+  const now = Date.now()
+  const startedAtMs = Math.min(finite(session.startedAtMs, now, 'startedAtMs'), now)
+  return Math.round(startedAtMs - finite(session.baseElapsedSec, 0, 'baseElapsedSec') * 1000)
 }
 
 /**
@@ -81,10 +99,21 @@ export function chronometerBaseMs(session: NativeRunningSession): number {
  * 예정 시각만 앞당겨지고 실제 발화는 그대로라, 고치려던 어긋남을 오히려 만든다.
  */
 export function goalReachAtMs(session: NativeRunningSession): number | null {
-  if (session.dailyGoalSec <= 0) return null
-  const remainingSec = session.dailyGoalSec - session.dailyBaseSec
+  const goalSec = finite(session.dailyGoalSec, 0, 'dailyGoalSec')
+  if (goalSec <= 0) return null
+
+  const remainingSec = goalSec - finite(session.dailyBaseSec, 0, 'dailyBaseSec')
   if (remainingSec <= 0) return null
-  return session.startedAtMs + remainingSec * 1000
+
+  return finite(session.startedAtMs, Date.now(), 'startedAtMs') + remainingSec * 1000
+}
+
+/**
+ * 예정 시각이 이미 지났는지. `goalReachAtMs` 자체는 시간에 무관해야 한다 —
+ * 예약(90001)의 발화 시각이 흔들리면 안 되므로, "지났는가" 는 문구 쪽에서만 묻는다.
+ */
+export function isGoalReached(goalAtMs: number): boolean {
+  return goalAtMs <= Date.now()
 }
 
 function formatClock(lang: UiLanguage, atMs: number): string {
@@ -99,7 +128,9 @@ function formatClock(lang: UiLanguage, atMs: number): string {
  * 적으면 안 된다 — 60% 가 된 뒤에도 45% 로 남고, 바로 옆에서 초가 흐르는 만큼 사용자는
  * 그 숫자를 더 확실히 믿는다. 세션이 도는 동안 **변하지 않는 사실**만 적는다.
  *
- * 그래서 남은 시간(계속 줄어듦)이 아니라 도달 **시각**(고정)을 적는다.
+ * 그래서 남은 시간(계속 줄어듦)이 아니라 도달 **시각**(고정)을 적는다. 단 "예정" 은
+ * 그 시각이 지나면 그 자체로 거짓이 되므로, 지났으면 달성으로 바꿔 적는다 —
+ * 이미 떠 있는 알림까지 갱신되도록 서명에도 "지났는가" 가 들어간다(runningSession).
  *
  * 자정을 넘기는 예정 시각에 "내일" 을 붙이지 않는다 — dailyResetHour 때문에 이 앱의
  * "오늘" 은 자정에 끝나지 않아서, 붙이는 쪽이 오히려 틀린다.
@@ -110,9 +141,9 @@ export function buildTimerNotificationContent(
   const lang = readUiLangFromClient()
   const goalAtMs = goalReachAtMs(session)
 
-  const text = session.dailyGoalSec <= 0
+  const text = finite(session.dailyGoalSec, 0, 'dailyGoalSec') <= 0
     ? translate(lang, 'notif.ongoing.recording')
-    : goalAtMs === null
+    : goalAtMs === null || isGoalReached(goalAtMs)
       ? translate(lang, 'notif.ongoing.goalDone')
       : translate(lang, 'notif.ongoing.goalEta', { time: formatClock(lang, goalAtMs) })
 

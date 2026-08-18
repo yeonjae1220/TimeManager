@@ -472,3 +472,85 @@ describe('실행중 알림 수렴', () => {
     expect(surface.show.mock.calls.at(-1)?.[0].text).toContain('오늘 목표')
   })
 })
+
+describe('두 표면은 따로 수렴한다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    localStorage.clear()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    surface.supported.mockReset().mockReturnValue(true)
+    surface.show.mockReset().mockResolvedValue(true)
+    surface.hide.mockReset().mockResolvedValue(true)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === 'LocalNotifications',
+    }
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    localStorage.clear()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * "실행중 타이머" 는 상시 표시라 채널만 꺼두는 사용자가 흔하다. 그때 실행중 표시는
+   * 계속 실패하는데, 두 표면이 서명 하나를 공유하면 **멀쩡히 걸려 있는 리마인더 4개를**
+   * 매 sync 마다 취소하고 다시 건다 — 영구히.
+   */
+  it('실행중 채널만 차단돼도 리마인더는 다시 걸지 않는다', async () => {
+    surface.show.mockResolvedValue(false)
+
+    for (let i = 0; i < 5; i++) await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+    expect(surface.show, '실행중 표시는 계속 재시도한다 — 사용자가 채널을 다시 켤 수 있다')
+      .toHaveBeenCalledTimes(5)
+    expect(plugin.schedule, '예약은 이미 수렴했으므로 한 번이면 된다').toHaveBeenCalledTimes(1)
+  })
+
+  it('반대로 예약만 실패하면 실행중 표시는 다시 세우지 않는다', async () => {
+    plugin.getPending.mockRejectedValue(new Error('bridge down'))
+
+    for (let i = 0; i < 3; i++) await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(1)
+    expect(plugin.getPending).toHaveBeenCalledTimes(3)
+  })
+
+  /**
+   * 문구 생성은 withPlugin 의 try/catch 밖이라, 여기서 던지면 sync 전체가 reject 한다.
+   * 그 sync 를 await 하는 것이 로그아웃이므로 — 세션 정리도 라우팅도 실행되지 않는다.
+   */
+  it('실행중 표시가 던져도 sync 는 reject 하지 않고 예약은 그대로 걸린다', async () => {
+    surface.show.mockImplementation(() => { throw new Error('boom') })
+
+    await expect(syncNativeRunningSession(session())).resolves.toBeUndefined()
+    expect(scheduledIds()).toEqual([90003, 90006, 90012])
+  })
+
+  /**
+   * 이미 떠 있는 알림은 앱이 다시 손대기 전까지 옛 문구 그대로다. 예정 시각이 지나는
+   * 순간을 서명이 반영하지 않으면, 12시에 "10시 달성 예정" 을 계속 읽게 된다.
+   */
+  it('달성 예정 시각이 지나면 다음 sync 가 문구를 갱신한다', async () => {
+    const s = session({ dailyGoalSec: 3600 })
+
+    await syncNativeRunningSession(s)
+    expect(surface.show.mock.calls.at(-1)?.[0].text).toContain('On track')
+
+    vi.setSystemTime(NOW + 3 * 60 * 60 * 1000)
+    await syncNativeRunningSession(s)
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+    expect(surface.show.mock.calls.at(-1)?.[0].text).toBe("Today's goal reached")
+  })
+})
