@@ -10,6 +10,7 @@ import android.os.Build;
 import androidx.core.app.NotificationCompat;
 import androidx.core.app.NotificationManagerCompat;
 
+import com.getcapacitor.JSObject;
 import com.getcapacitor.Plugin;
 import com.getcapacitor.PluginCall;
 import com.getcapacitor.PluginMethod;
@@ -47,12 +48,12 @@ public class TimerNotificationPlugin extends Plugin {
     public void show(PluginCall call) {
         String title = call.getString("title");
         String text = call.getString("text");
-        Long whenMs = call.getLong("whenMs");
+        Long whenMs = readWhenMs(call);
 
         // whenMs 가 없으면 Chronometer 가 1970년부터 세서 말이 안 되는 숫자가 뜬다.
         // 조용히 0 으로 폴백하지 않고 거절한다 — 잘못된 표시가 표시 없음보다 나쁘다.
         if (whenMs == null) {
-            call.reject("whenMs is required");
+            call.reject("whenMs must be a number");
             return;
         }
 
@@ -76,14 +77,53 @@ public class TimerNotificationPlugin extends Plugin {
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .setContentIntent(launchIntent(context));
 
-        try {
-            NotificationManagerCompat.from(context).notify(NOTIFICATION_ID, builder.build());
-        } catch (SecurityException e) {
-            // API 33+ 에서 POST_NOTIFICATIONS 가 없으면 여기로 온다. 실패가 아니라 정상
-            // 상태다 — 알림이 없을 뿐 타이머는 그대로 돈다. 권한 요청은 웹 쪽이 맥락 있는
-            // 순간에 한다(notificationPermission.ts).
+        boolean shown = postSilentlyIfAllowed(context, builder);
+
+        // 게시 여부를 반드시 돌려준다. 권한이 없으면 시스템이 조용히 버리는데 호출은
+        // 성공하므로, 이 값이 없으면 웹은 "떴다"고 믿고 재수렴을 멈춘다 — 나중에 권한을
+        // 허용한 사용자가 다음 상태 변화 전까지 알림을 못 보는 창이 생긴다.
+        JSObject result = new JSObject();
+        result.put("shown", shown);
+        call.resolve(result);
+    }
+
+    /**
+     * {@code PluginCall.getLong} 은 값이 {@code instanceof Long} 일 때만 돌려주고
+     * <b>변환하지 않는다</b>. 브리지의 org.json 파서는 int 범위를 넘는 정수만 Long 으로
+     * 만들고 나머지는 Integer·Double 이라, getLong 에 기대면 값의 크기와 소수점 유무에
+     * 따라 조용히 null 이 된다. Number 로 받아 직접 좁힌다.
+     */
+    private Long readWhenMs(PluginCall call) {
+        Object raw = call.getData().opt("whenMs");
+        return raw instanceof Number ? ((Number) raw).longValue() : null;
+    }
+
+    /**
+     * 사용자에게 실제로 보일 때만 게시하고, 보일지를 돌려준다.
+     *
+     * <p>앱 전체 알림이 꺼져 있거나 이 채널만 꺼져 있으면 게시해도 시스템이 버린다.
+     * 둘을 모두 확인해야 "안 보인다"를 정확히 보고할 수 있다.
+     */
+    private boolean postSilentlyIfAllowed(Context context, NotificationCompat.Builder builder) {
+        NotificationManagerCompat manager = NotificationManagerCompat.from(context);
+        if (!manager.areNotificationsEnabled()) return false;
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            NotificationChannel channel = manager.getNotificationChannel(CHANNEL_ID);
+            if (channel != null && channel.getImportance() == NotificationManager.IMPORTANCE_NONE) {
+                return false;
+            }
         }
-        call.resolve();
+
+        try {
+            manager.notify(NOTIFICATION_ID, builder.build());
+            return true;
+        } catch (SecurityException e) {
+            // 커스텀 사운드 URI 등 우리가 권한을 못 가진 리소스를 참조할 때 나는 예외다.
+            // 알림 권한 미허용은 예외가 아니라 조용한 폐기라서 위 areNotificationsEnabled
+            // 검사가 담당한다. 여기서 죽으면 타이머 조작까지 깨지므로 잡아서 보고만 한다.
+            return false;
+        }
     }
 
     @PluginMethod
