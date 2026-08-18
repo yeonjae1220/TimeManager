@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.domain.port.out.member.DeleteMemberPort;
+import project.TimeManager.domain.port.out.notification.SavePushSubscriptionPort;
 import project.TimeManager.domain.port.out.record.DeleteRecordsByMemberPort;
 
 /**
@@ -25,15 +26,23 @@ public class MemberPurger {
 
     private final DeleteMemberPort deleteMemberPort;
     private final DeleteRecordsByMemberPort deleteRecordsByMemberPort;
+    private final SavePushSubscriptionPort savePushSubscriptionPort;
 
     /**
      * 삭제 순서가 곧 정확성이다. 회원 → 태그는 JPA cascade 로 지워지지만
      * 태그 → 기록에는 cascade 가 없어(그래야 기록 단건 삭제가 태그를 건드리지 않는다)
      * 기록을 먼저 지우지 않으면 record.tag_id 외래키 제약으로 삭제 전체가 실패한다.
+     *
+     * <p>푸시 구독은 이미 소프트 삭제 시점에 지워졌으므로 보통은 0건이다. 그래도 여기서
+     * 한 번 더 지우는 이유는 <b>push_subscription.member_id 에 외래키가 없기 때문</b>이다 —
+     * 관리자 조작이나 데이터 보정처럼 {@code deleteMember} 를 거치지 않고 deleted_at 이
+     * 채워지는 경로가 생기면, DB 가 막아주지 않으니 고아 구독이 조용히 남아 지워진 회원에게
+     * 알림을 계속 보내게 된다.
      */
     @Transactional
     public void purgeOne(Long memberId) {
         int records = deleteRecordsByMemberPort.deleteByMemberId(memberId);
+        savePushSubscriptionPort.deleteByMemberId(memberId);
         deleteMemberPort.purgeMember(memberId);
         log.info("purge: memberId={} removed ({} record(s))", memberId, records);
     }

@@ -10,7 +10,7 @@ import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
 // 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
-import { isOnline as getIsOnline, probeNow, subscribeConnectivity } from '@/utils/connectivity'
+import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal } from './todayRecordTotal'
 import { hapticStart, hapticStop } from '@/native/haptics'
@@ -104,17 +104,10 @@ export default function TodayView() {
       fetchTodayTotal()
     })
 
-    // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 크다. 백오프가
-    // 늘어나 있어도 여기서 즉시 확인한다(온라인이면 no-op).
-    const onVisible = () => {
-      if (document.visibilityState === 'visible') probeNow()
-    }
-    document.addEventListener('visibilitychange', onVisible)
-
-    return () => {
-      unsubscribe()
-      document.removeEventListener('visibilitychange', onVisible)
-    }
+    // 포그라운드 복귀 시의 즉시 확인은 ConnectivityWatcher(레이아웃 전역)가 맡는다.
+    // 이 화면에만 두면 다른 화면에서 오프라인이 된 뒤 앱을 껐다 켰을 때 복귀 감지가
+    // 죽은 채로 남는다.
+    return unsubscribe
   }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
 
   const selectTag = useCallback(async (tagId: number) => {

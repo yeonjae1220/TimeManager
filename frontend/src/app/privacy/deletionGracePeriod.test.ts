@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import { dirname, join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
@@ -58,11 +58,60 @@ function readPrivacyPageGraceDays(): number {
   return Number(match![1])
 }
 
+/**
+ * 이 테스트가 대조하는 것은 application.yml 의 <b>기본값</b>이다. 운영이 환경변수로 다른
+ * 값을 주면 실제 집행값이 갈라지는데, 그때도 이 테스트는 초록으로 남아 "확인했다"는
+ * 착각만 남긴다. 그래서 오버라이드가 존재하는지를 함께 확인한다 — 생기면 여기서 막고,
+ * 공개 문구까지 함께 고치도록 강제한다.
+ */
+function findGraceDaysOverrides(): string[] {
+  const searched = [
+    'k8s',
+    '.github/workflows',
+    'backend/src/main/resources',
+  ]
+  const hits: string[] = []
+  const root = findRepoRoot()
+
+  const walk = (relDir: string) => {
+    const absDir = resolve(root, relDir)
+    if (!existsSync(absDir)) return
+    for (const entry of readdirSync(absDir, { withFileTypes: true })) {
+      const rel = join(relDir, entry.name)
+      if (entry.isDirectory()) {
+        walk(rel)
+        continue
+      }
+      if (!/\.(ya?ml|properties|env)$/.test(entry.name)) continue
+      // 정의 자체(application.yml 의 `grace-days: ${...:30}`)는 오버라이드가 아니다.
+      if (rel === 'backend/src/main/resources/application.yml') continue
+      const text = readFileSync(resolve(root, rel), 'utf8')
+      if (/MEMBER_DELETION_GRACE_DAYS|grace-days\s*:/.test(text)) hits.push(rel)
+    }
+  }
+
+  for (const dir of searched) walk(dir)
+  const composeFile = 'docker-compose.yml'
+  if (existsSync(resolve(root, composeFile))
+      && /MEMBER_DELETION_GRACE_DAYS/.test(readRepoFile(composeFile))) {
+    hits.push(composeFile)
+  }
+  return hits
+}
+
 describe('계정 삭제 유예 기간', () => {
   const graceDays = readBackendGraceDays()
 
   it('백엔드 기본값이 양수 일수다', () => {
     expect(graceDays).toBeGreaterThan(0)
+  })
+
+  it('배포 설정이 기본값을 덮어쓰지 않는다 — 덮어쓰면 이 대조가 무의미해진다', () => {
+    expect(
+      findGraceDaysOverrides(),
+      '유예 기간을 덮어쓰는 설정이 생겼습니다. /privacy 와 9개 언어 문구를 그 값으로 '
+        + '함께 고치고, 이 테스트가 실제 집행값을 읽도록 갱신하세요',
+    ).toEqual([])
   })
 
   it('개인정보처리방침의 공개 약속이 실제 집행값과 같다', () => {

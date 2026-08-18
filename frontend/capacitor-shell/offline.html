@@ -105,19 +105,57 @@
     // 허용된 도메인이라 이동이 막히지 않는다.
     var HOME = 'https://timemanager.mungji.com/';
     var done = false;
-    function retry() {
+
+    // ⚠️ 캡티브 포털(카페·호텔의 로그인 페이지)은 어떤 요청에나 200 을 돌려준다.
+    // 아래 probe 는 mode:'no-cors' 라 응답 내용을 읽을 수 없어 그 200 을 "복구"로
+    // 오인하고 HOME 으로 이동하는데, 실제 앱은 여전히 못 뜨니 errorPath 를 타고
+    // 이 화면으로 되돌아온다 — 자동 이동 ↔ 실패가 페이지 로드 단위로 무한 반복된다.
+    // (done 플래그는 한 페이지 안에서만 유효해서 이 루프를 못 막는다.)
+    // 그래서 "짧은 시간 안에 되돌아온 횟수"를 세션에 기록해 두고, 반복되면 자동
+    // 이동을 멈춘다. 수동 버튼은 언제나 동작하므로 사용자가 막히지는 않는다.
+    var BOUNCE_KEY = 'timemgr-offline-bounce';
+    var BOUNCE_WINDOW_MS = 15000;
+    var MAX_BOUNCES = 2;
+
+    function readBounces() {
+      try {
+        var raw = sessionStorage.getItem(BOUNCE_KEY);
+        if (!raw) return { n: 0, at: 0 };
+        var v = JSON.parse(raw);
+        return { n: v.n || 0, at: v.at || 0 };
+      } catch (_) {
+        return { n: 0, at: 0 };
+      }
+    }
+    function writeBounces(v) {
+      try { sessionStorage.setItem(BOUNCE_KEY, JSON.stringify(v)); } catch (_) {}
+    }
+
+    var prev = readBounces();
+    // at 이 최근이면 방금 자동 이동을 했다가 되돌아온 것이다.
+    var bounces = (prev.at && Date.now() - prev.at < BOUNCE_WINDOW_MS) ? prev.n + 1 : 0;
+    writeBounces({ n: bounces, at: 0 });
+    var autoRetryBlocked = bounces >= MAX_BOUNCES;
+
+    function retry(isAuto) {
       if (done) return;
+      // 자동 이동만 막는다. 사용자가 직접 누르는 것은 언제나 통과시키고,
+      // 그 시점에 카운터를 비워 자동 이동을 다시 허용한다.
+      if (isAuto && autoRetryBlocked) return;
       done = true;
+      writeBounces(isAuto ? { n: bounces, at: Date.now() } : { n: 0, at: 0 });
       location.replace(HOME);
     }
 
-    document.getElementById('retry').addEventListener('click', retry);
+    // ⚠️ 리스너에 retry 를 그대로 넘기면 Event 객체가 isAuto 로 들어가 항상 자동으로
+    // 취급된다 — 수동 재시도가 차단될 수 있으니 반드시 감싼다.
+    document.getElementById('retry').addEventListener('click', function () { retry(false); });
 
     // ⚠️ online 이벤트만으로는 안 된다. Android WebView 는 시스템 연결 상태를
     // 추적하지 않아 navigator.onLine 이 기내모드에서도 true 로 고정되고
     // online/offline 이벤트가 아예 발생하지 않는다(에뮬레이터 실측). 이 리스너는
     // iOS·웹 PWA 에서만 의미가 있으므로, 실제 복귀 감지는 아래 probe 가 맡는다.
-    window.addEventListener('online', retry);
+    window.addEventListener('online', function () { retry(true); });
 
     // 원격 오리진에 직접 찔러 본다. no-cors 라 응답 내용은 못 읽지만 성공/실패는
     // 구분되고, 그게 우리가 알아야 하는 전부다.
@@ -142,20 +180,30 @@
       var ctl = new AbortController();
       var kill = setTimeout(function () { ctl.abort(); }, 4000);
       fetch(HOME, { method: 'HEAD', mode: 'no-cors', cache: 'no-store', signal: ctl.signal })
-        .then(function () { clearTimeout(kill); inFlight = false; retry(); })
+        .then(function () { clearTimeout(kill); inFlight = false; retry(true); })
         .catch(function () {
           clearTimeout(kill);
           inFlight = false;
+          // 화면이 보이지 않는 동안에는 멈춘다. 백그라운드에서 복귀를 감지해봐야
+          // 이동할 수도 없고, 오프라인으로 방치된 기기가 무한히 네트워크를 두드리는
+          // 것을 막는다. 다시 보이는 순간 아래 visibilitychange 가 즉시 이어받는다.
+          // (utils/connectivity.ts 와 같은 규칙 — 한쪽만 고치면 나머지가 남는다.)
+          if (document.visibilityState === 'hidden') return;
           // 오래 방치된 기기가 계속 같은 간격으로 두드리지 않도록 서서히 늦춘다.
           delay = Math.min(Math.round(delay * 1.5), MAX_DELAY);
           schedule(delay);
         });
     }
-    schedule(delay);
+
+    // 자동 이동이 막힌 상태에서는 probe 를 돌릴 이유가 없다 — probe 의 유일한 목적이
+    // 자동 이동이라 성공해도 아무 일도 일어나지 않고 배터리만 쓴다. 재시도 버튼은
+    // 그대로 살아 있으므로 사용자는 언제든 직접 복귀할 수 있다.
+    if (!autoRetryBlocked) schedule(delay);
 
     // 앱으로 돌아온 순간이 연결이 회복돼 있을 가능성이 가장 크다.
     // 백오프가 늘어나 있어도 여기서 즉시 확인한다.
     document.addEventListener('visibilitychange', function () {
+      if (autoRetryBlocked) return;
       if (document.visibilityState !== 'visible') return;
       delay = INITIAL_DELAY;
       schedule(0);

@@ -31,9 +31,9 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
 
     Optional<TagJpaEntity> findByTypeAndMember(TagType type, MemberJpaEntity member);
 
-    @Modifying
-    @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0")
-    void resetAllDailyTimes();
+    // 전 회원 일괄 리셋(resetAllDailyTimes)은 제거했다. 호출부가 하나도 없는 채로 남아 있었고,
+    // 회원 필터가 없는 전역 UPDATE 라 누가 "전체 리셋"이 필요해 보이는 자리에 연결하면
+    // 타임존이 제각각인 회원들의 일일 누적을 한꺼번에 날린다. 리셋은 회원 단위가 유일한 단위다.
 
     @Modifying
     @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0 WHERE t.member.id = :memberId")
