@@ -165,16 +165,24 @@ export function useTagTimer() {
         data.latestStopTimeMs
       )
 
+      // 형제 필드들은 전부 `|| 0` 로 받는데 elapsedTime 만 응답을 그대로 썼다. 타입에
+      // number 라고 적혀 있어도 검증되지 않은 응답이라 타입체크가 못 잡고, NaN 하나가
+      // 화면 타이머와 네이티브 알림 기준시각을 동시에 망가뜨린다.
+      const restoredElapsed = useResetMarker
+        ? 0
+        : useLocalState ? saved!.elapsedTime : data.elapsedTime
+      const elapsed = Number.isFinite(restoredElapsed) ? restoredElapsed : 0
+
       const newSw: StopwatchState = {
         isRunning: useResetMarker ? false : useLocalState ? saved!.isRunning : data.state,
         latestStartTime: useResetMarker ? 0 : useLocalState ? (saved!.latestStartTime ?? 0) : (data.latestStartTimeMs ?? 0),
         latestEndTime: useResetMarker ? 0 : useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
-        elapsedTime: useResetMarker ? 0 : useLocalState ? saved!.elapsedTime : data.elapsedTime,
+        elapsedTime: elapsed,
         dailyTotalTime: data.dailyTotalTime || 0,
         dailyGoalTime: data.dailyGoalTime || 0,
         tagTotalTime: data.tagTotalTime || 0,
         totalTime: data.totalTime || 0,
-        elapsedTimeCal: useResetMarker ? 0 : useLocalState ? saved!.elapsedTime : data.elapsedTime,
+        elapsedTimeCal: elapsed,
         dailyTotalTimeCal: data.dailyTotalTime || 0,
         tagTotalTimeCal: data.tagTotalTime || 0,
         totalTimeCal: data.totalTime || 0,

@@ -217,6 +217,9 @@ const ko: Messages = {
   'notif.goalReached.body': '{tag} 이(가) 오늘 목표에 도달했을 시각입니다. 확인해 보세요.',
   'notif.longRun.title': '타이머가 켜져 있습니다',
   'notif.longRun.body': '{tag} 을(를) 시작한 지 {hours}시간 되었습니다. 확인해 보세요.',
+  'notif.ongoing.recording': '기록 중',
+  'notif.ongoing.goalEta': '오늘 목표 달성 예정 {time}',
+  'notif.ongoing.goalDone': '오늘 목표 달성',
 
 }
 

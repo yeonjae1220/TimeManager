@@ -217,6 +217,9 @@ const es: Messages = {
   'notif.goalReached.body': '{tag} debería haber alcanzado el objetivo de hoy. Échale un vistazo.',
   'notif.longRun.title': '¿El temporizador sigue activo?',
   'notif.longRun.body': 'Han pasado {hours} h desde que iniciaste {tag}. Échale un vistazo.',
+  'notif.ongoing.recording': 'Grabando',
+  'notif.ongoing.goalEta': 'Meta de hoy prevista para las {time}',
+  'notif.ongoing.goalDone': 'Meta de hoy alcanzada',
 
 }
 

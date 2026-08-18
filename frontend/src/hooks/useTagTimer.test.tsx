@@ -561,3 +561,26 @@ describe('useTagTimer — 네이티브 표면 동기화', () => {
     expect(get).toHaveBeenCalledTimes(2)
   })
 })
+
+/**
+ * 응답의 숫자 필드는 형제들이 전부 `|| 0` 로 받는데 elapsedTime 만 그대로 쓴다.
+ * 타입에 `number` 라고 적혀 있어도 그건 선언일 뿐이라 타입체크가 잡지 못하고,
+ * NaN 은 화면 타이머와 네이티브 알림 기준시각을 동시에 망가뜨린다.
+ */
+describe('useTagTimer — 응답 숫자가 빠져도 NaN 이 새지 않는다', () => {
+  it('elapsedTime 이 없는 응답을 받아도 경과시간이 수(數) 로 유지된다', async () => {
+    const view = await renderWithTag({ elapsedTime: undefined })
+
+    expect(Number.isFinite(view.result.current.sw.elapsedTime)).toBe(true)
+    expect(Number.isFinite(view.result.current.sw.elapsedTimeCal)).toBe(true)
+    expect(view.result.current.formattedElapsedTime).toBe('00:00:00')
+  })
+
+  it('네이티브 세션에도 NaN 을 넘기지 않는다', async () => {
+    await renderWithTag({ elapsedTime: undefined, state: true, latestStartTimeMs: Date.now() })
+
+    const passed = syncNative.mock.calls.at(-1)?.[0]
+    expect(passed).not.toBeNull()
+    expect(Number.isFinite(passed.baseElapsedSec)).toBe(true)
+  })
+})

@@ -217,6 +217,9 @@ const fr: Messages = {
   'notif.goalReached.body': '{tag} devrait avoir atteint l\'objectif du jour. Jetez-y un œil.',
   'notif.longRun.title': 'Minuteur toujours actif ?',
   'notif.longRun.body': 'Cela fait {hours} h que vous avez lancé {tag}. Jetez-y un œil.',
+  'notif.ongoing.recording': 'Enregistrement en cours',
+  'notif.ongoing.goalEta': 'Objectif du jour prévu à {time}',
+  'notif.ongoing.goalDone': 'Objectif du jour atteint',
 
 }
 

@@ -7,6 +7,7 @@ import {
   type NativeRunningSession,
 } from './runningSession'
 import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
+import { buildTimerNotificationContent, goalReachAtMs } from './timerNotification'
 
 const plugin = vi.hoisted(() => ({
   getPending: vi.fn(),
@@ -17,6 +18,24 @@ const plugin = vi.hoisted(() => ({
 }))
 
 vi.mock('@capacitor/local-notifications', () => ({ LocalNotifications: plugin }))
+
+/**
+ * 실행중 알림(Android 전용 커스텀 플러그인)은 별도 표면이라 따로 세운다.
+ * 래퍼 자체의 동작은 timerNotification.test.ts 가 검증하고, 여기서는 sync 가
+ * 그 표면을 **어떻게 수렴시키는지**만 본다. 문구 생성은 진짜를 쓴다.
+ */
+const surface = vi.hoisted(() => ({
+  supported: vi.fn(),
+  show: vi.fn(),
+  hide: vi.fn(),
+}))
+
+vi.mock('./timerNotification', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./timerNotification')>()),
+  supportsTimerNotification: () => surface.supported(),
+  showTimerNotification: (content: unknown) => surface.show(content),
+  hideTimerNotification: () => surface.hide(),
+}))
 
 const NOW = new Date('2026-08-17T09:00:00.000Z').getTime()
 const HOUR = 60 * 60 * 1000
@@ -64,6 +83,9 @@ describe('runningSession', () => {
     plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
     plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
     plugin.requestPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    surface.supported.mockReset().mockReturnValue(false)
+    surface.show.mockReset().mockResolvedValue(true)
+    surface.hide.mockReset().mockResolvedValue(true)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -290,5 +312,245 @@ describe('runningSession', () => {
       await syncNativeRunningSession(session())
       expect(scheduledIds()).toEqual([90003, 90006, 90012])
     })
+  })
+})
+
+/**
+ * 목표 도달 시각은 **두 표면**에 동시에 나타난다 — 실행중 알림 본문의 "달성 예정
+ * HH:MM" 과 실제로 발화하는 알림(90001). 둘이 어긋나면 사용자는 알림을 받은 뒤에도
+ * 상태표시줄에서 다른 시각을 읽는데, 어느 쪽도 에러를 내지 않아 아무도 모른다.
+ */
+describe('목표 도달 시각은 예약과 문구가 한 곳에서 나온다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === 'LocalNotifications',
+    }
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('예약된 발화 시각이 본문이 말하는 시각과 같다', async () => {
+    const s = session({ dailyGoalSec: 2 * 3600, dailyBaseSec: 1800 })
+
+    await syncNativeRunningSession(s)
+
+    const goal = plugin.schedule.mock.calls
+      .flatMap((call) => (call[0] as { notifications: Array<{ id: number, schedule: { at: Date } }> }).notifications)
+      .find((n) => n.id === 90001)
+
+    expect(goal?.schedule.at.getTime()).toBe(goalReachAtMs(s))
+    expect(buildTimerNotificationContent(s).text).toContain(
+      new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' })
+        .format(new Date(goalReachAtMs(s)!)),
+    )
+  })
+})
+
+describe('실행중 알림 수렴', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    localStorage.clear()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    surface.supported.mockReset().mockReturnValue(true)
+    surface.show.mockReset().mockResolvedValue(true)
+    surface.hide.mockReset().mockResolvedValue(true)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === 'LocalNotifications',
+    }
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    localStorage.clear()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('실행 중이면 문구를 완성해 세운다', async () => {
+    const s = session({ dailyGoalSec: 2 * 3600, dailyBaseSec: 1800 })
+
+    await syncNativeRunningSession(s)
+
+    expect(surface.show).toHaveBeenCalledWith(buildTimerNotificationContent(s))
+    expect(surface.hide).not.toHaveBeenCalled()
+  })
+
+  it('정지하면 내린다', async () => {
+    await syncNativeRunningSession(null)
+
+    expect(surface.hide).toHaveBeenCalledTimes(1)
+    expect(surface.show).not.toHaveBeenCalled()
+  })
+
+  /**
+   * 예약(LocalNotifications)과 실행중 표시는 **다른 표면**이다. 한 쪽 실패가 다른 쪽을
+   * 건너뛰면, 정지했는데 상태표시줄에 타이머가 계속 흐르는 유령이 남는다.
+   */
+  it('예약 경로가 실패해도 실행중 표시는 내린다', async () => {
+    plugin.getPending.mockRejectedValueOnce(new Error('bridge down'))
+
+    await syncNativeRunningSession(null)
+
+    expect(surface.hide).toHaveBeenCalledTimes(1)
+  })
+
+  it('게시에 실패하면 서명을 비워 다음 sync 가 다시 시도한다', async () => {
+    surface.show.mockResolvedValueOnce(false)
+
+    await syncNativeRunningSession(session())
+    await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+  })
+
+  /**
+   * iOS 네이티브·구 바이너리에는 이 플러그인이 없다. "다룰 수 없다" 를 실패로 세면
+   * 매 sync 마다 서명이 리셋돼 예약까지 통째로 다시 도는 무한 재수렴이 된다.
+   */
+  it('플러그인이 없는 바이너리에서는 건드리지도, 재시도하지도 않는다', async () => {
+    surface.supported.mockReturnValue(false)
+
+    await syncNativeRunningSession(session())
+    await syncNativeRunningSession(session())
+
+    expect(surface.show).not.toHaveBeenCalled()
+    expect(plugin.getPending).toHaveBeenCalledTimes(1)
+  })
+
+  /**
+   * 서명은 "예약·문구를 바꾸는 모든 입력" 이어야 한다. 아래 셋은 알림에 그대로
+   * 드러나는데 서명에 없어서, 바뀌어도 옛 내용이 그대로 남아 있었다.
+   */
+  it('태그 이름이 바뀌면 다시 세운다 — 제목이 옛 이름으로 남지 않도록', async () => {
+    await syncNativeRunningSession(session({ tagName: '알고리즘' }))
+    await syncNativeRunningSession(session({ tagName: '자료구조' }))
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+    expect(surface.show.mock.calls.at(-1)?.[0]).toMatchObject({ title: '자료구조' })
+  })
+
+  it('누적 경과시간이 바뀌면 다시 세운다 — 화면과 다른 숫자를 그리지 않도록', async () => {
+    await syncNativeRunningSession(session({ baseElapsedSec: 0 }))
+    await syncNativeRunningSession(session({ baseElapsedSec: 600 }))
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+    expect(surface.show.mock.calls.at(-1)?.[0]).toMatchObject({ whenMs: NOW - 600 * 1000 })
+  })
+
+  it('화면 언어가 바뀌면 다시 세운다 — 알림만 옛 언어로 남지 않도록', async () => {
+    const s = session({ dailyGoalSec: 3600 })
+
+    localStorage.setItem('tm_lang', 'en')
+    await syncNativeRunningSession(s)
+    localStorage.setItem('tm_lang', 'ko')
+    await syncNativeRunningSession(s)
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+    expect(surface.show.mock.calls.at(-1)?.[0].text).toContain('오늘 목표')
+  })
+})
+
+describe('두 표면은 따로 수렴한다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    localStorage.clear()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    surface.supported.mockReset().mockReturnValue(true)
+    surface.show.mockReset().mockResolvedValue(true)
+    surface.hide.mockReset().mockResolvedValue(true)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === 'LocalNotifications',
+    }
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    localStorage.clear()
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  /**
+   * "실행중 타이머" 는 상시 표시라 채널만 꺼두는 사용자가 흔하다. 그때 실행중 표시는
+   * 계속 실패하는데, 두 표면이 서명 하나를 공유하면 **멀쩡히 걸려 있는 리마인더 4개를**
+   * 매 sync 마다 취소하고 다시 건다 — 영구히.
+   */
+  it('실행중 채널만 차단돼도 리마인더는 다시 걸지 않는다', async () => {
+    surface.show.mockResolvedValue(false)
+
+    for (let i = 0; i < 5; i++) await syncNativeRunningSession(session({ dailyGoalSec: 3600 }))
+
+    expect(surface.show, '실행중 표시는 계속 재시도한다 — 사용자가 채널을 다시 켤 수 있다')
+      .toHaveBeenCalledTimes(5)
+    expect(plugin.schedule, '예약은 이미 수렴했으므로 한 번이면 된다').toHaveBeenCalledTimes(1)
+  })
+
+  it('반대로 예약만 실패하면 실행중 표시는 다시 세우지 않는다', async () => {
+    plugin.getPending.mockRejectedValue(new Error('bridge down'))
+
+    for (let i = 0; i < 3; i++) await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(1)
+    expect(plugin.getPending).toHaveBeenCalledTimes(3)
+  })
+
+  /**
+   * 문구 생성은 withPlugin 의 try/catch 밖이라, 여기서 던지면 sync 전체가 reject 한다.
+   * 그 sync 를 await 하는 것이 로그아웃이므로 — 세션 정리도 라우팅도 실행되지 않는다.
+   */
+  it('실행중 표시가 던져도 sync 는 reject 하지 않고 예약은 그대로 걸린다', async () => {
+    surface.show.mockImplementation(() => { throw new Error('boom') })
+
+    await expect(syncNativeRunningSession(session())).resolves.toBeUndefined()
+    expect(scheduledIds()).toEqual([90003, 90006, 90012])
+  })
+
+  /**
+   * 이미 떠 있는 알림은 앱이 다시 손대기 전까지 옛 문구 그대로다. 예정 시각이 지나는
+   * 순간을 서명이 반영하지 않으면, 12시에 "10시 달성 예정" 을 계속 읽게 된다.
+   */
+  it('달성 예정 시각이 지나면 다음 sync 가 문구를 갱신한다', async () => {
+    const s = session({ dailyGoalSec: 3600 })
+
+    await syncNativeRunningSession(s)
+    expect(surface.show.mock.calls.at(-1)?.[0].text).toContain('On track')
+
+    vi.setSystemTime(NOW + 3 * 60 * 60 * 1000)
+    await syncNativeRunningSession(s)
+
+    expect(surface.show).toHaveBeenCalledTimes(2)
+    expect(surface.show.mock.calls.at(-1)?.[0].text).toBe("Today's goal reached")
   })
 })

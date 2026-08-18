@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="timer_ongoing_channel_name">Minuteur en cours</string>
+    <string name="timer_ongoing_channel_description">Affiche le minuteur en cours dans la barre d\'état.</string>
+</resources>

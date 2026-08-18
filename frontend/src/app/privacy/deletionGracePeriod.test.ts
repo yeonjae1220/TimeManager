@@ -1,8 +1,9 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs'
-import { dirname, join, resolve } from 'node:path'
+import { join, resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
 import { messages } from '@/i18n/messages'
+import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
 
 /**
  * 계정 삭제 유예 기간은 **세 곳**에 따로 적혀 있다.
@@ -17,31 +18,6 @@ import { messages } from '@/i18n/messages'
  * 주석으로 "함께 고칠 것"이라고 적어둔 것을 이 테스트가 강제로 바꾼다.
  * 모노repo 라서 프론트 테스트가 백엔드 설정을 직접 읽을 수 있다.
  */
-
-/**
- * 모노repo 루트를 찾는다. cwd 가 `frontend/` 든 레포 루트든 동작해야 하므로 위로 훑는다.
- * `import.meta.url` 기반 경로 계산은 쓰지 않는다 — Vite 가 `new URL(..., import.meta.url)` 을
- * 에셋 참조로 정적 변환해 런타임에 엉뚱한 경로가 된다.
- */
-function findRepoRoot(): string {
-  let dir = process.cwd()
-  for (;;) {
-    if (existsSync(join(dir, 'backend')) && existsSync(join(dir, 'frontend'))) return dir
-    const parent = dirname(dir)
-    if (parent === dir) throw new Error(`모노repo 루트를 찾지 못했습니다 (cwd=${process.cwd()})`)
-    dir = parent
-  }
-}
-
-function readRepoFile(relativeToRepoRoot: string): string {
-  const path = resolve(findRepoRoot(), relativeToRepoRoot)
-  try {
-    return readFileSync(path, 'utf8')
-  } catch (cause) {
-    // 파일을 못 찾으면 조용히 통과시키지 않는다 — 경로가 바뀌었으면 그것부터 고쳐야 한다.
-    throw new Error(`유예 기간 대조에 필요한 파일을 읽지 못했습니다: ${path}`, { cause })
-  }
-}
 
 /** application.yml 의 `grace-days: ${MEMBER_DELETION_GRACE_DAYS:30}` 에서 기본값 30 을 뽑는다. */
 function readBackendGraceDays(): number {

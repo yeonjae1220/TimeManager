@@ -217,6 +217,9 @@ const de: Messages = {
   'notif.goalReached.body': '{tag} sollte das heutige Ziel erreicht haben. Schau mal nach.',
   'notif.longRun.title': 'Timer läuft noch?',
   'notif.longRun.body': 'Seit dem Start von {tag} sind {hours} Std. vergangen. Schau mal nach.',
+  'notif.ongoing.recording': 'Aufzeichnung läuft',
+  'notif.ongoing.goalEta': 'Tagesziel voraussichtlich um {time} erreicht',
+  'notif.ongoing.goalDone': 'Tagesziel erreicht',
 
 }
 

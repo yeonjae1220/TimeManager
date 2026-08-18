@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="timer_ongoing_channel_name">타이머 실행 중</string>
+    <string name="timer_ongoing_channel_description">실행 중인 타이머를 상태표시줄에 표시합니다.</string>
+</resources>

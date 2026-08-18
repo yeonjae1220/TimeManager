@@ -217,6 +217,9 @@ const pt: Messages = {
   'notif.goalReached.body': '{tag} deve ter atingido a meta de hoje. Dê uma olhada.',
   'notif.longRun.title': 'O cronômetro ainda está ativo?',
   'notif.longRun.body': 'Já se passaram {hours} h desde que você iniciou {tag}. Dê uma olhada.',
+  'notif.ongoing.recording': 'Gravando',
+  'notif.ongoing.goalEta': 'Meta de hoje prevista para {time}',
+  'notif.ongoing.goalDone': 'Meta de hoje alcançada',
 
 }
 

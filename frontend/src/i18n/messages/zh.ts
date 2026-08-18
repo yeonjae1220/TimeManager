@@ -217,6 +217,9 @@ const zh: Messages = {
   'notif.goalReached.body': '{tag} 应该已达成今日目标。请查看一下。',
   'notif.longRun.title': '计时器仍在运行？',
   'notif.longRun.body': '{tag} 已开始 {hours} 小时。请查看一下。',
+  'notif.ongoing.recording': '记录中',
+  'notif.ongoing.goalEta': '预计 {time} 达成今日目标',
+  'notif.ongoing.goalDone': '已达成今日目标',
 
 }
 

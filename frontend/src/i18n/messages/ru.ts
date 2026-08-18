@@ -217,6 +217,9 @@ const ru: Messages = {
   'notif.goalReached.body': '{tag} уже должен был достичь сегодняшней цели. Загляните в приложение.',
   'notif.longRun.title': 'Таймер всё ещё идёт?',
   'notif.longRun.body': 'С момента запуска {tag} прошло {hours} ч. Загляните в приложение.',
+  'notif.ongoing.recording': 'Идёт запись',
+  'notif.ongoing.goalEta': 'Цель дня будет достигнута в {time}',
+  'notif.ongoing.goalDone': 'Цель дня достигнута',
 
 }
 

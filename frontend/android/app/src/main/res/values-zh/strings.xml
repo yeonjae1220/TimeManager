@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="timer_ongoing_channel_name">计时进行中</string>
+    <string name="timer_ongoing_channel_description">在状态栏中显示正在运行的计时器。</string>
+</resources>

@@ -1,0 +1,5 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="timer_ongoing_channel_name">タイマー実行中</string>
+    <string name="timer_ongoing_channel_description">実行中のタイマーをステータスバーに表示します。</string>
+</resources>

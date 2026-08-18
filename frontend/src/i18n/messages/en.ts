@@ -233,6 +233,9 @@ const en = {
   'notif.goalReached.body': '{tag} should have reached today\'s goal. Take a look.',
   'notif.longRun.title': 'Timer still running?',
   'notif.longRun.body': 'It\'s been {hours}h since you started {tag}. Take a look.',
+  'notif.ongoing.recording': 'Recording',
+  'notif.ongoing.goalEta': 'On track to reach today\'s goal at {time}',
+  'notif.ongoing.goalDone': 'Today\'s goal reached',
 
 } as const
 
