@@ -42,14 +42,17 @@ const content = { title: '알고리즘', text: '실행 중', whenMs: NOW }
 
 describe('timerNotification', () => {
   beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
     __resetNativeBridgeWarnings()
-    plugin.show.mockReset().mockResolvedValue(undefined)
+    plugin.show.mockReset().mockResolvedValue({ shown: true })
     plugin.hide.mockReset().mockResolvedValue(undefined)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
   afterEach(() => {
     delete window.Capacitor
+    vi.useRealTimers()
     vi.restoreAllMocks()
   })
 
@@ -70,6 +73,36 @@ describe('timerNotification', () => {
     it('초 단위 누적을 밀리초로 환산한다 — 1000배 어긋나면 표시가 무의미해진다', () => {
       expect(chronometerBaseMs(session({ baseElapsedSec: 1 }))).toBe(NOW - 1000)
     })
+
+    /**
+     * startedAtMs 는 서버가 준 시각이라 기기 시계가 뒤처지면 미래가 될 수 있다.
+     * 그대로 넘기면 Chronometer 가 음수를 센다. 웹은 이 경우를 이미 막고 있다
+     * (useTagTimer.ts 의 `if (delta < 0) return prev`) — 알림도 같아야 한다.
+     */
+    it('시작 시각이 미래면 지금으로 클램프한다 — 음수를 세면 안 된다', () => {
+      const future = session({ startedAtMs: NOW + 5000, baseElapsedSec: 0 })
+
+      expect(chronometerBaseMs(future)).toBe(NOW)
+    })
+
+    it('미래 시작이어도 이미 쌓인 누적은 유지한다', () => {
+      const future = session({ startedAtMs: NOW + 5000, baseElapsedSec: 60 })
+
+      expect(chronometerBaseMs(future)).toBe(NOW - 60 * 1000)
+    })
+
+    /**
+     * Capacitor 의 PluginCall.getLong 은 `instanceof Long` 이 아니면 그냥 null 을 준다
+     * (변환하지 않는다). 소수점이 섞이면 org.json 이 Double 로 파싱해 값이 통째로
+     * 사라지고, 알림은 console.warn 한 줄만 남기고 안 뜬다.
+     */
+    it('정수 밀리초를 돌려준다 — 소수점이 섞이면 네이티브가 값을 못 읽는다', () => {
+      // 0.4ms 는 밀리초로 표현할 수 없다 — 반올림하지 않으면 소수점이 그대로 남는다.
+      const fractional = session({ baseElapsedSec: 0.0004 })
+
+      expect(Number.isInteger(chronometerBaseMs(fractional))).toBe(true)
+      expect(chronometerBaseMs(fractional)).toBe(NOW)
+    })
   })
 
   describe('showTimerNotification', () => {
@@ -81,9 +114,26 @@ describe('timerNotification', () => {
       expect(plugin.show).toHaveBeenCalledWith(content)
     })
 
-    it('웹에서는 아무것도 호출하지 않는다', async () => {
-      await showTimerNotification(content)
+    it('실제로 게시되면 true 를 돌려준다', async () => {
+      enableNative()
 
+      await expect(showTimerNotification(content)).resolves.toBe(true)
+    })
+
+    /**
+     * API 33+ 에서 알림 권한이 없으면 시스템이 조용히 버린다 — 호출은 성공한다.
+     * 이걸 성공으로 보고하면 나중에 권한을 허용한 사용자가 다음 상태 변화 전까지
+     * 알림을 못 본다. 재수렴이 가능하려면 "안 떴다"가 호출부까지 올라와야 한다.
+     */
+    it('권한이 없어 게시되지 않으면 false 를 돌려준다', async () => {
+      enableNative()
+      plugin.show.mockResolvedValue({ shown: false })
+
+      await expect(showTimerNotification(content)).resolves.toBe(false)
+    })
+
+    it('웹에서는 아무것도 호출하지 않고 false 다', async () => {
+      await expect(showTimerNotification(content)).resolves.toBe(false)
       expect(plugin.show).not.toHaveBeenCalled()
     })
 
@@ -91,41 +141,57 @@ describe('timerNotification', () => {
      * 원격 로드 하이브리드라 웹은 매일 배포되는데 앱 바이너리는 몇 주에 한 번 나간다.
      * 새 웹 코드가 구 바이너리에 없는 플러그인을 부르면 예외가 난다.
      */
-    it('구 바이너리(플러그인 없음)에서는 조용히 건너뛴다', async () => {
+    it('구 바이너리(플러그인 없음)에서는 조용히 건너뛰고 false 다', async () => {
       enableNative([])
 
-      await expect(showTimerNotification(content)).resolves.toBeUndefined()
+      await expect(showTimerNotification(content)).resolves.toBe(false)
       expect(plugin.show).not.toHaveBeenCalled()
     })
 
-    it('네이티브 호출이 실패해도 예외를 밖으로 던지지 않는다 — 타이머 조작이 깨지면 안 된다', async () => {
+    it('네이티브 호출이 실패해도 던지지 않고 false 다 — 타이머 조작이 깨지면 안 된다', async () => {
       enableNative()
       plugin.show.mockRejectedValue(new Error('boom'))
 
-      await expect(showTimerNotification(content)).resolves.toBeUndefined()
+      await expect(showTimerNotification(content)).resolves.toBe(false)
+    })
+
+    it('구 바이너리가 shown 을 안 돌려줘도 false 로 떨어진다', async () => {
+      enableNative()
+      plugin.show.mockResolvedValue(undefined)
+
+      await expect(showTimerNotification(content)).resolves.toBe(false)
     })
   })
 
   describe('hideTimerNotification', () => {
-    it('네이티브에서 hide 를 호출한다', async () => {
+    it('네이티브에서 hide 를 호출하고 true 를 돌려준다', async () => {
       enableNative()
 
-      await hideTimerNotification()
-
+      await expect(hideTimerNotification()).resolves.toBe(true)
       expect(plugin.hide).toHaveBeenCalledTimes(1)
     })
 
-    it('웹에서는 아무것도 호출하지 않는다', async () => {
-      await hideTimerNotification()
-
+    /**
+     * 웹·구 바이너리에는 애초에 띄운 알림이 없다. "정리할 것이 없다"는 정리된 것과
+     * 같으므로 true 다 — 여기서 false 를 주면 호출부가 영원히 재시도한다.
+     */
+    it('웹에서는 호출 없이 true (띄운 적이 없으므로 정리할 것도 없다)', async () => {
+      await expect(hideTimerNotification()).resolves.toBe(true)
       expect(plugin.hide).not.toHaveBeenCalled()
     })
 
-    it('구 바이너리에서도 던지지 않는다 — 정지 경로가 막히면 유령 알림이 남는다', async () => {
+    it('구 바이너리에서도 호출 없이 true', async () => {
       enableNative([])
 
-      await expect(hideTimerNotification()).resolves.toBeUndefined()
+      await expect(hideTimerNotification()).resolves.toBe(true)
       expect(plugin.hide).not.toHaveBeenCalled()
+    })
+
+    it('네이티브 호출이 실패하면 false — 유령 알림이 남았을 수 있다', async () => {
+      enableNative()
+      plugin.hide.mockRejectedValue(new Error('boom'))
+
+      await expect(hideTimerNotification()).resolves.toBe(false)
     })
   })
 })
