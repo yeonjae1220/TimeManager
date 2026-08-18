@@ -11,12 +11,16 @@ import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
+import project.TimeManager.domain.port.out.member.DailyResetTarget;
 import project.TimeManager.domain.port.out.member.DeleteMemberPort;
+import project.TimeManager.domain.port.out.member.LoadDailyResetTargetsPort;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
+import project.TimeManager.domain.port.out.member.MarkDailyResetPort;
 import project.TimeManager.domain.port.out.member.SaveMemberPort;
 import project.TimeManager.domain.port.out.member.UpdateMemberPort;
 import project.TimeManager.domain.exception.DomainException;
 
+import java.time.Instant;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Optional;
@@ -24,7 +28,8 @@ import java.util.stream.Collectors;
 
 @Component
 @RequiredArgsConstructor
-public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort, LoadMemberCredentialsPort, UpdateMemberPort, DeleteMemberPort {
+public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort, LoadMemberCredentialsPort,
+        UpdateMemberPort, DeleteMemberPort, LoadDailyResetTargetsPort, MarkDailyResetPort {
 
     /** member.email 컬럼 길이(기본 VARCHAR(255))와 같아야 한다. */
     private static final int MAX_EMAIL_LENGTH = 255;
@@ -133,6 +138,24 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
         return memberJpaRepository.findAllActive().stream()
                 .map(memberMapper::toDomain)
                 .collect(Collectors.toList());
+    }
+
+    /**
+     * 리셋 배치용 읽기. 별도 프로젝션 쿼리를 두지 않고 활성 회원 엔티티를 그대로 읽어
+     * 필요한 네 필드만 추린다 — 대상이 "전 회원"이라 어차피 같은 행을 훑고, 쿼리를
+     * 하나 더 두면 삭제 필터(deleted_at IS NULL)를 빠뜨릴 자리가 하나 늘어난다.
+     */
+    @Override
+    public List<DailyResetTarget> loadDailyResetTargets() {
+        return memberJpaRepository.findAllActive().stream()
+                .map(e -> new DailyResetTarget(
+                        e.getId(), e.getTimezone(), e.getDailyResetHour(), e.getLastResetBoundaryAt()))
+                .collect(Collectors.toList());
+    }
+
+    @Override
+    public void markDailyReset(Long memberId, Instant boundary) {
+        memberJpaRepository.updateLastResetBoundary(memberId, boundary);
     }
 
 }

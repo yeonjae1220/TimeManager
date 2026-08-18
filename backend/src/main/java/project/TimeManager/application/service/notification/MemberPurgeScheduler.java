@@ -23,11 +23,13 @@ public class MemberPurgeScheduler {
     public void purgeExpiredMembers() {
         try {
             int purged = purgeDeletedMembersUseCase.purgeExpired();
-            if (purged > 0) log.info("MemberPurgeScheduler: purged {} member(s)", purged);
+            // 0명이어도 남긴다 — 대부분의 날은 지울 게 없는데 그때 로그가 비면
+            // "대상이 없었다"와 "배치가 안 돌았다"가 구분되지 않는다.
+            log.info("[Member Purge] 유예 만료 회원 {}명 삭제", purged);
         } catch (Exception e) {
             // 배치가 죽어도 다음 실행에서 다시 시도한다. 여기서 예외를 밖으로
             // 던지면 스케줄러 스레드가 멈춰 이후 실행이 통째로 사라진다.
-            log.error("MemberPurgeScheduler: purge failed", e);
+            log.error("[Member Purge] 삭제 실패 — 다음 실행에서 재시도된다", e);
         }
     }
 }
