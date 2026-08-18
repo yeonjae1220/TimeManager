@@ -8,7 +8,9 @@ import type { NativeRunningSession } from './runningSession'
  * Android 실행중 표시 — 지속 알림 + Chronometer.
  *
  * Foreground Service 를 쓰지 않는다. `setUsesChronometer(true)` 는 **알림의 기능**이라
- * 서비스와 무관하고, 게시된 알림은 앱 프로세스가 죽어도 재부팅 전까지 살아서 계속 흐른다.
+ * 서비스와 무관하고, 게시된 알림은 앱 프로세스가 죽어도 살아서 계속 흐른다
+ * (API 35 실측). 재부팅과 설정의 "강제 중지"에서만 사라지는데, 후자는 FGS 를 썼어도
+ * 똑같이 사라지므로 두 방식의 차이가 아니다.
  * 이 앱은 경과시간이 델타 재계산이라 백그라운드에서 셀 것도 0이다. FGS 를 빼면
  * Play 콘솔 `specialUse` 정당화 서류와 Android 14+ 백그라운드 시작 제한이 둘 다 사라진다.
  * → TM-ADR-011
