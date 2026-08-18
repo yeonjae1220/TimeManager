@@ -6,6 +6,7 @@ import {
   goalReachAtMs,
   hideTimerNotification,
   showTimerNotification,
+  supportsTimerNotification,
   TIMER_NOTIFICATION_PLUGIN,
 } from './timerNotification'
 import { LANG_KEY, SUPPORTED_UI_LANGUAGES } from '@/i18n/messages'
@@ -294,5 +295,38 @@ describe('실행중 알림 문구', () => {
       expect(text).toContain(clockOf(lang, NOW + 5400 * 1000))
       expect(title).toBeTruthy()
     })
+  })
+})
+
+/**
+ * "이 표면을 다룰 수 있는가" 는 "이 표면이 수렴했는가" 와 다르다. 이 플러그인은
+ * android/ 프로젝트 안에만 있어서 **웹에도 iOS 에도 없다**. 다룰 수 없는 곳에서
+ * 실패로 세면 호출부가 매번 재수렴을 시도하며 영원히 돌게 된다.
+ */
+describe('supportsTimerNotification', () => {
+  afterEach(() => {
+    delete window.Capacitor
+  })
+
+  it('웹에서는 false', () => {
+    expect(supportsTimerNotification()).toBe(false)
+  })
+
+  it('플러그인이 없는 네이티브 바이너리(iOS·구버전)에서는 false', () => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'ios',
+      isPluginAvailable: () => false,
+    }
+    expect(supportsTimerNotification()).toBe(false)
+  })
+
+  it('플러그인이 있는 네이티브에서만 true', () => {
+    window.Capacitor = {
+      isNativePlatform: () => true,
+      getPlatform: () => 'android',
+      isPluginAvailable: (name: string) => name === TIMER_NOTIFICATION_PLUGIN,
+    }
+    expect(supportsTimerNotification()).toBe(true)
   })
 })

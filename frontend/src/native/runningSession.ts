@@ -5,7 +5,13 @@ import { isNativeApp } from '@/utils/platform'
 import { readUiLangFromClient, translate } from '@/i18n/messages/index'
 import type { TimerState } from '@/utils/timerPersistence'
 import { checkNotificationPermission, NOTIFICATION_PLUGIN } from './notificationPermission'
-import { goalReachAtMs } from './timerNotification'
+import {
+  buildTimerNotificationContent,
+  goalReachAtMs,
+  hideTimerNotification,
+  showTimerNotification,
+  supportsTimerNotification,
+} from './timerNotification'
 
 /**
  * 네이티브 표면(로컬 알림, 나중에 Live Activity·Foreground Service)을 실행 중인 세션에
@@ -73,13 +79,27 @@ let lastSession: NativeRunningSession | null = null
 let queue: Promise<void> = Promise.resolve()
 
 /**
- * 예약 내용을 바꾸는 모든 입력이 서명에 들어가야 한다.
+ * 예약·문구를 바꾸는 모든 입력이 서명에 들어가야 한다.
  * tagId·startedAtMs 만 넣으면 "실행 중에 목표를 새로 설정" 하는 흔한 흐름에서
  * 서명이 그대로라 조기 return 에 걸려 목표 알림이 영영 안 걸린다(회귀 테스트 있음).
+ *
+ * 알림에 그대로 드러나는 값은 전부 여기 있어야 한다 — tagName(제목·본문),
+ * baseElapsedSec(Chronometer 기준시각), 언어. 빠지면 바뀌어도 옛 내용이 그대로 남는데,
+ * 실패가 아니라 **정상 동작으로 보이는** 종류의 어긋남이라 아무도 눈치채지 못한다.
  */
 function signatureOf(session: NativeRunningSession | null): string {
   if (!session) return 'none'
-  return `${session.tagId}:${session.startedAtMs}:${session.dailyGoalSec}:${session.dailyBaseSec}`
+  // \u0000 으로 잇는다 — 태그 이름에 구분자가 들어가도 서로 다른 세션이 같은 서명을
+  // 가질 수 없게.
+  return [
+    session.tagId,
+    session.startedAtMs,
+    session.baseElapsedSec,
+    session.dailyGoalSec,
+    session.dailyBaseSec,
+    session.tagName,
+    readUiLangFromClient(),
+  ].join('\u0000')
 }
 
 /** 로컬 타이머 스냅샷을 네이티브 세션으로. 실행 중이 아니면 null(= 네이티브 표면 없음). */
@@ -133,6 +153,20 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
 }
 
 /**
+ * Android 실행중 표시를 세션에 맞춘다.
+ *
+ * @returns 이 표면이 수렴했는지. 플러그인이 없는 바이너리(웹·iOS·구버전)는 **true** 다 —
+ *   다룰 수 없는 것을 실패로 세면 매 sync 마다 서명이 리셋돼 예약까지 통째로 다시 도는
+ *   무한 재수렴이 된다.
+ */
+async function convergeOngoingSurface(session: NativeRunningSession | null): Promise<boolean> {
+  if (!supportsTimerNotification()) return true
+  return session
+    ? showTimerNotification(buildTimerNotificationContent(session))
+    : hideTimerNotification()
+}
+
+/**
  * 네이티브 표면을 인자에 맞춰 재수렴시킨다.
  *
  * @param session 실행 중인 세션, 또는 실행 중이 아니면 null
@@ -146,6 +180,11 @@ export async function syncNativeRunningSession(
   lastSignature = signature
 
   const run = queue.then(async () => {
+    // 실행중 표시는 예약과 **다른 표면**이다. 아래 withPlugin 클로저 안에 넣으면
+    // 예약 쪽이 실패했을 때 hide 가 통째로 건너뛰어져, 정지했는데도 상태표시줄에
+    // 타이머가 계속 흐르는 유령이 남는다. 사용자 눈에 먼저 보이는 쪽이라 순서도 먼저다.
+    const ongoingConverged = await convergeOngoingSurface(session)
+
     const outcome = await withPlugin(
       NOTIFICATION_PLUGIN,
       () => import('@capacitor/local-notifications'),
@@ -200,7 +239,7 @@ export async function syncNativeRunningSession(
     // 'ok' 가 아니면 — 호출 실패(undefined)든 권한 미허용이든 — 아직 수렴하지 못한
     // 것이므로 서명을 지워 다음 sync 가 다시 시도하게 한다. 권한을 나중에 허용한
     // 사용자가 포그라운드 복귀만으로 자가 치유되는 경로이기도 하다.
-    if (outcome !== 'ok' && lastSignature === signature && isNativeApp()) {
+    if ((outcome !== 'ok' || !ongoingConverged) && lastSignature === signature && isNativeApp()) {
       lastSignature = null
     }
   })

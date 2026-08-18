@@ -134,6 +134,17 @@ async function loadPlugin(): Promise<TimerNotificationPlugin> {
 }
 
 /**
+ * 이 기기에서 실행중 알림을 다룰 수 있는지. 플러그인이 android/ 프로젝트 안에만
+ * 있으므로 웹은 물론 **iOS 네이티브에서도 false** 다.
+ *
+ * "다룰 수 없다" 를 "수렴에 실패했다" 와 섞으면 안 된다 — 섞으면 iOS 에서 매 sync 마다
+ * 서명이 리셋돼 무한 재수렴한다.
+ */
+export function supportsTimerNotification(): boolean {
+  return isNativeApp() && hasCapability(TIMER_NOTIFICATION_PLUGIN)
+}
+
+/**
  * 실행중 알림을 세운다. 이미 떠 있으면 같은 id 로 덮어써 갱신된다.
  *
  * @returns 표면이 요청대로 수렴했는지 — **실제로 게시됐을 때만** true.
@@ -156,7 +167,7 @@ export async function showTimerNotification(content: TimerNotificationContent): 
  *   false 이며, 그때는 유령 알림이 남아 있을 수 있다.
  */
 export async function hideTimerNotification(): Promise<boolean> {
-  if (!isNativeApp() || !hasCapability(TIMER_NOTIFICATION_PLUGIN)) return true
+  if (!supportsTimerNotification()) return true
 
   const cleared = await withPlugin(TIMER_NOTIFICATION_PLUGIN, loadPlugin, async (plugin) => {
     await plugin.hide()
