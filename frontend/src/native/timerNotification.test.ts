@@ -6,6 +6,7 @@ import {
   goalReachAtMs,
   hideTimerNotification,
   showTimerNotification,
+  __resetTimerNotificationPlugin,
   supportsTimerNotification,
   TIMER_NOTIFICATION_PLUGIN,
 } from './timerNotification'
@@ -18,7 +19,10 @@ const plugin = vi.hoisted(() => ({
   hide: vi.fn(),
 }))
 
-vi.mock('@capacitor/core', () => ({ registerPlugin: () => plugin }))
+/** registerPlugin 이 무엇을 돌려줄지 테스트가 갈아끼우는 슬롯(기본은 평범한 목). */
+const registered = vi.hoisted(() => ({ current: null as unknown }))
+
+vi.mock('@capacitor/core', () => ({ registerPlugin: () => registered.current ?? plugin }))
 
 const NOW = new Date('2026-08-18T09:00:00.000Z').getTime()
 
@@ -427,5 +431,68 @@ describe('달성 예정 시각이 지나면', () => {
     vi.setSystemTime(NOW + 3 * 60 * 60 * 1000)
 
     expect(goalReachAtMs(s)).toBe(before)
+  })
+})
+
+/**
+ * registerPlugin 이 돌려주는 것은 **모든 속성 접근을 네이티브 호출로 바꾸는 Proxy** 다.
+ * 그 프록시를 async 함수에서 그대로 `return` 하면 Promise 해소 절차가 값을 thenable 로
+ * 보고 `.then` 을 읽어 **네이티브 메서드 "then" 을 호출**한다. 네이티브는 그런 메서드가
+ * 없다며 자기 promise 를 reject 할 뿐 우리가 넘긴 resolve/reject 를 부르지 않으므로,
+ * `await` 가 영원히 멈춘다.
+ *
+ * 예외가 아니라 **정지**라서 withPlugin 의 try/catch 가 못 잡고, 같은 큐에 줄 선 작업
+ * (리마인더 예약, 로그아웃의 세션 정리)까지 통째로 막힌다 — 2026-08-19 에뮬레이터에서
+ * 로그아웃이 무한 스피너가 되는 것으로 실측됐다.
+ *
+ * 평범한 목(`{show, hide}`)은 `.then` 이 undefined 라 이 결함을 **그대로 통과시킨다.**
+ * 그래서 여기서는 등록되지 않은 이름도 함수로 내주는, 진짜 프록시와 같은 모양을 물린다.
+ */
+describe('registerPlugin 프록시를 물려도 호출이 끝난다', () => {
+  function capacitorLikeProxy(impl: Record<string, unknown>): unknown {
+    return new Proxy(impl, {
+      get: (target, prop: string) =>
+        prop in target
+          ? target[prop]
+          : // 프록시는 모르는 이름도 함수로 내준다. `.then` 이 정확히 여기 걸린다.
+            () =>
+              Promise.reject(
+                new Error(`"${TIMER_NOTIFICATION_PLUGIN}.${prop}()" is not implemented on android`),
+              ),
+    })
+  }
+
+  /** 유한 시간 안에 끝나는지만 본다 — 값이 아니라 '끝남' 자체가 회귀 대상이다. */
+  async function settlesWithin<T>(work: Promise<T>, ms: number): Promise<'settled' | 'hung'> {
+    return Promise.race([
+      work.then(() => 'settled' as const),
+      new Promise<'hung'>((resolve) => setTimeout(() => resolve('hung'), ms)),
+    ])
+  }
+
+  beforeEach(() => {
+    __resetTimerNotificationPlugin()
+    __resetNativeBridgeWarnings()
+    registered.current = capacitorLikeProxy({
+      show: vi.fn().mockResolvedValue({ shown: true }),
+      hide: vi.fn().mockResolvedValue(undefined),
+    })
+    enableNative()
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    registered.current = null
+    __resetTimerNotificationPlugin()
+    delete window.Capacitor
+    vi.restoreAllMocks()
+  })
+
+  it('show 가 멈추지 않는다', async () => {
+    await expect(settlesWithin(showTimerNotification(content), 200)).resolves.toBe('settled')
+  })
+
+  it('hide 가 멈추지 않는다', async () => {
+    await expect(settlesWithin(hideTimerNotification(), 200)).resolves.toBe('settled')
   })
 })
