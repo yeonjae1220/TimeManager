@@ -154,14 +154,32 @@ export function buildTimerNotificationContent(
   }
 }
 
+/** registerPlugin 은 같은 이름으로 두 번 부르면 경고를 찍으므로 한 번만 부른다. */
+let pluginRef: Promise<{ plugin: TimerNotificationPlugin }> | null = null
+
 /**
  * `@capacitor/core` 를 정적 import 하지 않는다 — 웹 번들 오염 방지(platform.ts 와 같은 이유).
  * 이 플러그인은 npm 패키지가 아니라 android/ 프로젝트 안에만 있으므로 `registerPlugin` 으로
  * 프록시를 만든다. 바이너리에 없으면 withPlugin 이 호출 전에 걸러낸다.
+ *
+ * 🔴 프록시를 **반드시 객체로 감싸서** 돌려준다. registerPlugin 이 주는 것은 모든 속성
+ *    접근을 네이티브 호출로 바꾸는 Proxy 라, async 함수에서 `return proxy` 하면 Promise
+ *    해소 절차가 그 값을 thenable 로 보고 `.then` 을 읽어 **네이티브 메서드 "then" 을
+ *    호출**한다. 그 호출은 우리가 넘긴 resolve/reject 를 부르지 않으므로 await 가 영원히
+ *    멈춘다 — 예외가 아니라 정지라서 withPlugin 의 try/catch 도 못 잡고, sync 큐에 줄 선
+ *    작업(리마인더 예약·로그아웃의 세션 정리)까지 통째로 막힌다. 실측으로 로그아웃이
+ *    무한 스피너가 됐다. 같은 이유로 이 함수는 async 로 두지 않는다.
  */
-async function loadPlugin(): Promise<TimerNotificationPlugin> {
-  const { registerPlugin } = await import('@capacitor/core')
-  return registerPlugin<TimerNotificationPlugin>(TIMER_NOTIFICATION_PLUGIN)
+function loadPlugin(): Promise<{ plugin: TimerNotificationPlugin }> {
+  pluginRef ??= import('@capacitor/core').then(({ registerPlugin }) => ({
+    plugin: registerPlugin<TimerNotificationPlugin>(TIMER_NOTIFICATION_PLUGIN),
+  }))
+  return pluginRef
+}
+
+/** 테스트 전용 — 메모된 플러그인 프록시를 버린다. */
+export function __resetTimerNotificationPlugin(): void {
+  pluginRef = null
 }
 
 /**
@@ -184,7 +202,7 @@ export function supportsTimerNotification(): boolean {
  *   `isNativeApp()` 으로 감싸고 있어야 한다.
  */
 export async function showTimerNotification(content: TimerNotificationContent): Promise<boolean> {
-  const result = await withPlugin(TIMER_NOTIFICATION_PLUGIN, loadPlugin, (plugin) =>
+  const result = await withPlugin(TIMER_NOTIFICATION_PLUGIN, loadPlugin, ({ plugin }) =>
     plugin.show(content),
   )
   return result?.shown === true
@@ -200,7 +218,7 @@ export async function showTimerNotification(content: TimerNotificationContent): 
 export async function hideTimerNotification(): Promise<boolean> {
   if (!supportsTimerNotification()) return true
 
-  const cleared = await withPlugin(TIMER_NOTIFICATION_PLUGIN, loadPlugin, async (plugin) => {
+  const cleared = await withPlugin(TIMER_NOTIFICATION_PLUGIN, loadPlugin, async ({ plugin }) => {
     await plugin.hide()
     return true
   })
