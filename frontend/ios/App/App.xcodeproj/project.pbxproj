@@ -19,6 +19,9 @@
 		CFA7FA9F30359EDD00F10989 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFA7FA9E30359EDD00F10989 /* WidgetKit.framework */; };
 		CFA7FAA130359EDD00F10989 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = CFA7FAA030359EDD00F10989 /* SwiftUI.framework */; };
 		CFA7FAB030359EDF00F10989 /* TimerLiveActivityExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = CFA7FA9C30359EDD00F10989 /* TimerLiveActivityExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
+		CFA7FAB73039FAE200F10989 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */; };
+		CFA7FAB83039FC1500F10989 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */; };
+		FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -50,6 +53,7 @@
 		50379B222058CBB4000EE86E /* capacitor.config.json */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = text.json; path = capacitor.config.json; sourceTree = "<group>"; };
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
+		C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -60,6 +64,7 @@
 		CFA7FA9C30359EDD00F10989 /* TimerLiveActivityExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = TimerLiveActivityExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		CFA7FA9E30359EDD00F10989 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		CFA7FAA030359EDD00F10989 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityAttributes.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -100,6 +105,7 @@
 		504EC2FB1FED79650016851F = {
 			isa = PBXGroup;
 			children = (
+				CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */,
 				958DCC722DB07C7200EA8C5F /* debug.xcconfig */,
 				504EC3061FED79650016851F /* App */,
 				CFA7FAA230359EDD00F10989 /* TimerLiveActivity */,
@@ -123,6 +129,7 @@
 				9582B6822FE993A50072D4E8 /* SceneDelegate.swift */,
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
+				C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -259,6 +266,8 @@
 			buildActionMask = 2147483647;
 			files = (
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
+				CFA7FAB83039FC1500F10989 /* TimerActivityAttributes.swift in Sources */,
+				FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -267,6 +276,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				CFA7FAB73039FAE200F10989 /* TimerActivityAttributes.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -472,7 +482,7 @@
 				INFOPLIST_FILE = TimerLiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TimerLiveActivity;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -514,7 +524,7 @@
 				INFOPLIST_FILE = TimerLiveActivity/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = TimerLiveActivity;
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 16.1;
+				IPHONEOS_DEPLOYMENT_TARGET = 16.2;
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
