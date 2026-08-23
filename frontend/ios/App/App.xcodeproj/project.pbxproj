@@ -22,6 +22,7 @@
 		CFA7FAB73039FAE200F10989 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */; };
 		CFA7FAB83039FC1500F10989 /* TimerActivityAttributes.swift in Sources */ = {isa = PBXBuildFile; fileRef = CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */; };
 		FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */; };
+		A1D3A2EA0DE4DA0846BBEC67 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F545B03C5530C90E7FDDF6 /* MainViewController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -54,6 +55,7 @@
 		504EC3041FED79650016851F /* App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = App.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		504EC3071FED79650016851F /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveActivityPlugin.swift; sourceTree = "<group>"; };
+		31F545B03C5530C90E7FDDF6 /* MainViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainViewController.swift; sourceTree = "<group>"; };
 		504EC30C1FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/Main.storyboard; sourceTree = "<group>"; };
 		504EC30E1FED79650016851F /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		504EC3111FED79650016851F /* Base */ = {isa = PBXFileReference; lastKnownFileType = file.storyboard; name = Base; path = Base.lproj/LaunchScreen.storyboard; sourceTree = "<group>"; };
@@ -130,6 +132,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */,
+				31F545B03C5530C90E7FDDF6 /* MainViewController.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
 				504EC3101FED79650016851F /* LaunchScreen.storyboard */,
@@ -268,6 +271,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				CFA7FAB83039FC1500F10989 /* TimerActivityAttributes.swift in Sources */,
 				FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */,
+				A1D3A2EA0DE4DA0846BBEC67 /* MainViewController.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
