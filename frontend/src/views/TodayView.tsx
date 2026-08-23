@@ -12,17 +12,14 @@ import apiClient from '@/utils/apiClient'
 // 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
 import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
-import { computeTodayRecordTotal } from './todayRecordTotal'
+import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
+import { useDailyResetHour } from '@/hooks/useDailyResetHour'
 import { hapticStart, hapticStop } from '@/native/haptics'
 import { ensureNotificationPermission } from '@/native/notificationPermission'
 import { resyncNativeRunningSession } from '@/native/runningSession'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
-}
-
-function toLocalDate(d: Date): string {
-  return d.toLocaleDateString('sv-SE')
 }
 
 const TODAY_RECENT_TAG_LIMIT = 6
@@ -61,15 +58,22 @@ export default function TodayView() {
   const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
   const didAutoLoad = useRef(false)
 
+  // "오늘"의 경계는 자정이 아니라 이 값(dailyResetHour) — resolveTodaySummaryDateParam 참조.
+  // 최초 조회가 실패하면 자동 재시도가 없으므로, reload를 재접속 시점에 함께 불러야 한다
+  // (안 하면 일시적 네트워크 오류 한 번으로 "오늘 기록시간"이 세션 내내 멈춘다).
+  const { resetHour: dailyResetHour, reload: reloadDailyResetHour } = useDailyResetHour(memberId || null)
+
   const fetchTodayTotal = useCallback(async () => {
-    const ds = toLocalDate(new Date())
+    const ds = resolveTodaySummaryDateParam(new Date(), dailyResetHour)
+    if (ds === null) return // 경계를 아직 몰라 조회를 미룬다 — 잘못된 날짜로 0을 받는 것보다 낫다
     try {
       const res = await apiClient.get<{ totalSeconds: number }>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
       setTodayTotalSeconds(res.data.totalSeconds || 0)
-    } catch {
+    } catch (e) {
       // Keep the current on-screen value; the selected tag timer still gives useful feedback.
+      console.error('Failed to fetch today total:', e instanceof Error ? e.message : String(e))
     }
-  }, [])
+  }, [dailyResetHour])
 
   useEffect(() => {
     if (!memberId) return
@@ -101,6 +105,7 @@ export default function TodayView() {
       setIsOnline(online)
       if (!online) return
       handleOnline()
+      reloadDailyResetHour()
       fetchTodayTotal()
     })
 
@@ -108,7 +113,7 @@ export default function TodayView() {
     // 이 화면에만 두면 다른 화면에서 오프라인이 된 뒤 앱을 껐다 켰을 때 복귀 감지가
     // 죽은 채로 남는다.
     return unsubscribe
-  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
+  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal, reloadDailyResetHour])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return

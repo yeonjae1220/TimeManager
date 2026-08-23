@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { computeTodayRecordTotal } from './todayRecordTotal'
+import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
 
 describe('computeTodayRecordTotal — 오늘 기록시간 no-drop 불변식', () => {
   // 다른 태그가 오늘 이미 1시간(3600s) 기록된 상태에서 현재 태그를 5분(300s) 실행.
@@ -30,5 +30,27 @@ describe('computeTodayRecordTotal — 오늘 기록시간 no-drop 불변식', ()
   it('summary가 현재 태그보다 작아도 하한(dailyTotalTimeCal)이 값을 지킨다', () => {
     // 서버 summary가 아직 0(미로드)인데 현재 태그는 이미 500s 누적된 경우
     expect(computeTodayRecordTotal(0, 0, 500)).toBe(500)
+  })
+})
+
+describe('resolveTodaySummaryDateParam — "오늘 기록시간" 조회에 쓸 날짜(resetHour 경계)', () => {
+  it('resetHour를 아직 모르면 조회 자체를 미룬다(null)', () => {
+    const now = new Date(2026, 7, 23, 14, 0, 0)
+    expect(resolveTodaySummaryDateParam(now, null)).toBeNull()
+  })
+
+  it('resetHour 이후 시각이면 오늘 날짜를 그대로 쓴다', () => {
+    const now = new Date(2026, 7, 23, 14, 0, 0) // 14:00, resetHour=5
+    expect(resolveTodaySummaryDateParam(now, 5)).toBe('2026-08-23')
+  })
+
+  it('[회귀] 자정~resetHour 사이엔 어제 날짜를 쓴다 — 자정 기준이면 여기서 값이 어긋난다', () => {
+    const now = new Date(2026, 7, 23, 2, 0, 0) // 02:00, resetHour=5 → 아직 8/22
+    expect(resolveTodaySummaryDateParam(now, 5)).toBe('2026-08-22')
+  })
+
+  it('resetHour가 0이면 자정 기준과 동일하다', () => {
+    const now = new Date(2026, 7, 23, 0, 30, 0)
+    expect(resolveTodaySummaryDateParam(now, 0)).toBe('2026-08-23')
   })
 })
