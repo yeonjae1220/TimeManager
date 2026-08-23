@@ -64,6 +64,9 @@ export function useTagTimer() {
   const [isWakeLockActive, setIsWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const isRunningRef = useRef(false)
+  // 실행 중인 1초 인터벌의 id. 포그라운드 복귀 시 죽어 있을 수 있는 인터벌을
+  // 재무장(armTicker)하기 위해 effect 밖에서도 정리할 수 있게 ref로 든다.
+  const tickerIdRef = useRef<ReturnType<typeof setInterval> | null>(null)
   // 포그라운드 복귀 재조회용 — 마지막으로 loadTag 에 넘어온 인자와 마지막 재조회 시각.
   const lastLoadArgsRef = useRef<{ tagId: number; memberId: number } | null>(null)
   const lastForegroundRefreshRef = useRef(0)
@@ -117,8 +120,9 @@ export function useTagTimer() {
   const tick = useCallback(() => {
     setSw((prev) => {
       if (!prev.isRunning || prev.latestStartTime <= 0) return prev
-      const delta = Math.floor((Date.now() - prev.latestStartTime) / 1000)
-      if (delta < 0) return prev
+      // 시계 역행(NTP 보정 등)으로 델타가 음수가 되어도 화면을 얼리지 않는다 — 0으로
+      // 클램프하고 시계가 다시 앞으로 가면 자연히 정상 진행한다.
+      const delta = Math.max(0, Math.floor((Date.now() - prev.latestStartTime) / 1000))
       return {
         ...prev,
         elapsedTimeCal: delta + prev.elapsedTime,
@@ -129,13 +133,30 @@ export function useTagTimer() {
     })
   }, [])
 
+  // 인터벌을 (재)무장한다. 기존 인터벌이 있으면 먼저 정리해 중복으로 쌓이지 않게 한다.
+  // 브라우저가 백그라운드 전환 중 인터벌을 얼리거나 완전히 멈춰도(모바일 WebView에서
+  // 흔함), 포그라운드 복귀 시 이 함수를 다시 부르면 화면이 스스로 회복한다 — 지금까지는
+  // 죽은 인터벌을 되살릴 방법이 없어 앱을 완전히 재시작해야만 했다.
+  const armTicker = useCallback(() => {
+    if (tickerIdRef.current !== null) {
+      clearInterval(tickerIdRef.current)
+      tickerIdRef.current = null
+    }
+    if (!isRunningRef.current) return
+    tick() // 즉시 1회 실행 — 얼어 있던 동안의 경과를 복귀와 동시에 반영
+    tickerIdRef.current = setInterval(tick, 1000)
+  }, [tick])
+
   // 1초 인터벌 — RAF 60fps 대비 배터리/CPU 60배 절감
   useEffect(() => {
-    if (!sw.isRunning) return
-    tick() // 즉시 1회 실행 (시작 시 0초 표시 방지)
-    const id = setInterval(tick, 1000)
-    return () => clearInterval(id)
-  }, [sw.isRunning, tick])
+    armTicker()
+    return () => {
+      if (tickerIdRef.current !== null) {
+        clearInterval(tickerIdRef.current)
+        tickerIdRef.current = null
+      }
+    }
+  }, [sw.isRunning, armTicker])
 
   const loadTag = useCallback(async (tagId: number, memberId: number) => {
     lastLoadArgsRef.current = { tagId, memberId }
@@ -173,19 +194,40 @@ export function useTagTimer() {
         : useLocalState ? saved!.elapsedTime : data.elapsedTime
       const elapsed = Number.isFinite(restoredElapsed) ? restoredElapsed : 0
 
+      // 서버가 RUNNING인데 시작시각이 EPOCH(0) 등 무효면 신뢰하지 않는다 — 그대로
+      // isRunning=true 로 받아들이면 tick()이 매번 무효 앵커를 만나 영구히 동결되고,
+      // 다음 loadTag(포그라운드 복귀마다)도 같은 응답을 받아 다시 동결된다(재시작으로도
+      // 안 풀림). 경계에서 걸러 화면이 조용히 멈추는 대신 정지 상태로 안전하게 강등한다.
+      const rawStartMs = useLocalState ? saved!.latestStartTime : data.latestStartTimeMs
+      const hasValidStart = Number.isFinite(rawStartMs) && (rawStartMs ?? 0) > 0
+      const serverRunning = useLocalState ? saved!.isRunning : data.state
+      if (!useResetMarker && serverRunning && !hasValidStart) {
+        console.error('Tag reported RUNNING without a valid start time — treating as stopped:', tagId)
+      }
+      const isRunning = useResetMarker ? false : serverRunning && hasValidStart
+      const latestStartTime = useResetMarker || !isRunning ? 0 : (rawStartMs ?? 0)
+
+      // 실행 중이면 로드 시점까지의 경과를 즉시 반영한다(base로 되돌리지 않는다).
+      // 안 그러면 재조회가 성공해도 다음 tick이 돌 때까지 화면이 base에 멈춰 보인다
+      // — 인터벌이 죽어 있었다면 그 상태가 영구화된다.
+      const liveDelta = isRunning ? Math.max(0, Math.floor((Date.now() - latestStartTime) / 1000)) : 0
+      const dailyTotalTime = data.dailyTotalTime || 0
+      const tagTotalTime = data.tagTotalTime || 0
+      const totalTime = data.totalTime || 0
+
       const newSw: StopwatchState = {
-        isRunning: useResetMarker ? false : useLocalState ? saved!.isRunning : data.state,
-        latestStartTime: useResetMarker ? 0 : useLocalState ? (saved!.latestStartTime ?? 0) : (data.latestStartTimeMs ?? 0),
+        isRunning,
+        latestStartTime,
         latestEndTime: useResetMarker ? 0 : useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
         elapsedTime: elapsed,
-        dailyTotalTime: data.dailyTotalTime || 0,
+        dailyTotalTime,
         dailyGoalTime: data.dailyGoalTime || 0,
-        tagTotalTime: data.tagTotalTime || 0,
-        totalTime: data.totalTime || 0,
-        elapsedTimeCal: elapsed,
-        dailyTotalTimeCal: data.dailyTotalTime || 0,
-        tagTotalTimeCal: data.tagTotalTime || 0,
-        totalTimeCal: data.totalTime || 0,
+        tagTotalTime,
+        totalTime,
+        elapsedTimeCal: elapsed + liveDelta,
+        dailyTotalTimeCal: dailyTotalTime + liveDelta,
+        tagTotalTimeCal: tagTotalTime + liveDelta,
+        totalTimeCal: totalTime + liveDelta,
       }
       setSw(newSw)
       if (newSw.isRunning) requestWakeLock()
@@ -211,9 +253,12 @@ export function useTagTimer() {
     }
   }, [requestWakeLock])
 
-  // 포그라운드 복귀 처리. 두 가지를 한다:
+  // 포그라운드 복귀 처리. 세 가지를 한다:
   //  1) 실행 중이면 Wake Lock 재취득 — OS 가 백그라운드 전환 시 자동 해제한다.
-  //  2) loadTag 재조회 — "다른 기기에서 정지"로 생긴 유령 알림/유령 Live Activity 를
+  //  2) 인터벌 재무장 — 백그라운드 전환 중 브라우저/WebView 가 인터벌을 얼리거나
+  //     완전히 멈출 수 있다(모바일에서 흔함). 네트워크와 무관하게 즉시 동작해야
+  //     하므로 loadTag 와 분리한다 — 오프라인이어도 화면 시계는 바로 회복해야 한다.
+  //  3) loadTag 재조회 — "다른 기기에서 정지"로 생긴 유령 알림/유령 Live Activity 를
   //     죽이는 유일한 실효 수단이다. 재조회 결과가 loadTag 안에서 그대로
   //     syncNativeRunningSession 으로 흘러가므로 여기에 별도 sync 를 두지 않는다.
   // Capacitor WebView 는 앱 전환에도 visibilitychange 를 발화하므로 appStateChange
@@ -221,7 +266,10 @@ export function useTagTimer() {
   useEffect(() => {
     const handleVisibilityChange = () => {
       if (document.visibilityState !== 'visible') return
-      if (isRunningRef.current) requestWakeLock()
+      if (isRunningRef.current) {
+        requestWakeLock()
+        armTicker()
+      }
 
       const args = lastLoadArgsRef.current
       if (!args) return
@@ -232,7 +280,7 @@ export function useTagTimer() {
     }
     document.addEventListener('visibilitychange', handleVisibilityChange)
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
-  }, [requestWakeLock, loadTag])
+  }, [requestWakeLock, armTicker, loadTag])
 
   const startStopwatch = useCallback(async () => {
     if (!tag || sw.isRunning) return
