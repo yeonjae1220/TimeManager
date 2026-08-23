@@ -61,11 +61,22 @@ export default function TodayView() {
   // "오늘"의 경계는 자정이 아니라 이 값(dailyResetHour) — resolveTodaySummaryDateParam 참조.
   // 최초 조회가 실패하면 자동 재시도가 없으므로, reload를 재접속 시점에 함께 불러야 한다
   // (안 하면 일시적 네트워크 오류 한 번으로 "오늘 기록시간"이 세션 내내 멈춘다).
-  const { resetHour: dailyResetHour, reload: reloadDailyResetHour } = useDailyResetHour(memberId || null)
+  const {
+    resetHour: dailyResetHour,
+    failed: dailyResetHourFailed,
+    reload: reloadDailyResetHour,
+  } = useDailyResetHour(memberId || null)
 
   const fetchTodayTotal = useCallback(async () => {
     const ds = resolveTodaySummaryDateParam(new Date(), dailyResetHour)
-    if (ds === null) return // 경계를 아직 몰라 조회를 미룬다 — 잘못된 날짜로 0을 받는 것보다 낫다
+    if (ds === null) {
+      // 로딩 중(failed===false)이면 곧 스스로 풀리니 그냥 기다린다. 확정 실패
+      // (4xx/5xx)면 connectivity 신호가 안 오는 경우가 많아 — apiClient 인터셉터는
+      // 응답이 있는 실패를 "연결됨"으로 본다 — 여기서도 재시도해야 세션 내내
+      // 멈춘 채로 남지 않는다.
+      if (dailyResetHourFailed) reloadDailyResetHour()
+      return
+    }
     try {
       const res = await apiClient.get<{ totalSeconds: number }>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
       setTodayTotalSeconds(res.data.totalSeconds || 0)
@@ -73,7 +84,7 @@ export default function TodayView() {
       // Keep the current on-screen value; the selected tag timer still gives useful feedback.
       console.error('Failed to fetch today total:', e instanceof Error ? e.message : String(e))
     }
-  }, [dailyResetHour])
+  }, [dailyResetHour, dailyResetHourFailed, reloadDailyResetHour])
 
   useEffect(() => {
     if (!memberId) return
@@ -105,7 +116,9 @@ export default function TodayView() {
       setIsOnline(online)
       if (!online) return
       handleOnline()
-      reloadDailyResetHour()
+      // fetchTodayTotal 자체가 확정 실패(dailyResetHourFailed) 시 reloadDailyResetHour를
+      // 함께 호출하므로 여기서 따로 부를 필요는 없다 — mount·재접속·정지 등 모든
+      // 호출부를 한곳(fetchTodayTotal)에서 일관되게 복구시킨다.
       fetchTodayTotal()
     })
 
@@ -113,7 +126,7 @@ export default function TodayView() {
     // 이 화면에만 두면 다른 화면에서 오프라인이 된 뒤 앱을 껐다 켰을 때 복귀 감지가
     // 죽은 채로 남는다.
     return unsubscribe
-  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal, reloadDailyResetHour])
+  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return

@@ -24,6 +24,14 @@ export function invalidateDailyResetHour(memberId: number): void {
 
 export interface DailyResetHourState {
   resetHour: number | null
+  /**
+   * 확정 실패 여부. "로딩 중"(resetHour===null && failed===false)과 구분해야 한다 —
+   * 구분 못 하면 로딩 중에도 reload()를 걸어 마운트마다 요청이 중복되거나, 반대로
+   * 확정 실패를 로딩 중으로 오인해 재시도를 놓친다. 호출부(TodayView)는 이 값으로
+   * connectivity 신호(온라인 전환)와 무관하게 재시도할지 판단한다 — 그 신호는 응답이
+   * 있는 4xx/5xx 실패에는 오지 않는다(apiClient 인터셉터가 reportReachable()을 부름).
+   */
+  failed: boolean
   /** 최초 조회가 실패했을 때 재시도한다. 실패 후 자동 재시도는 없으므로 호출부가 명시적으로 불러야 한다. */
   reload: () => void
 }
@@ -48,6 +56,6 @@ export function useDailyResetHour(memberId: number | null): DailyResetHourState 
       })
   }, [memberId])
 
-  const { data, reload } = useAsyncData(memberId != null ? loader : null)
-  return { resetHour: data, reload }
+  const { data, failed, reload } = useAsyncData(memberId != null ? loader : null)
+  return { resetHour: data, failed, reload }
 }
