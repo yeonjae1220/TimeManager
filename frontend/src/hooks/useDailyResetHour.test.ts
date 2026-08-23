@@ -69,6 +69,48 @@ describe('useDailyResetHour — "오늘" 경계 계산에 필요한 회원 설�
     errSpy.mockRestore()
   })
 
+  // ── [회귀] "로딩 중" 과 "확정 실패" 를 구분할 수 있어야 한다 ────────────────────
+  // 호출부가 이 둘을 구분 못 하면 로딩 중에도 reload()를 걸어 매 마운트마다
+  // 요청이 중복되거나(로딩 중을 실패로 오인), 응답이 5xx로 왔을 때(네트워크 단절이
+  // 아니라 connectivity 신호가 안 뜨는 경우) 영영 재시도를 안 거는 결함이 생긴다.
+
+  it('[회귀] 로딩 중에는 failed가 false다(아직 실패로 판정하면 안 된다)', () => {
+    get.mockReturnValue(new Promise(() => {})) // 영원히 대기
+    const { result } = renderHook(() => useDailyResetHour(7))
+
+    expect(result.current.resetHour).toBeNull()
+    expect(result.current.failed).toBe(false)
+  })
+
+  it('[회귀] 실패하면 failed가 true다 — connectivity 신호(온라인 전환)와 무관하게 호출부가 재시도 여부를 판단할 수 있어야 한다', async () => {
+    get.mockRejectedValue({ response: { status: 500 } }) // apiClient 인터셉터라면 reportReachable()을 부를 종류의 에러
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useDailyResetHour(7))
+    await waitFor(() => expect(result.current.failed).toBe(true))
+    expect(result.current.resetHour).toBeNull()
+
+    errSpy.mockRestore()
+  })
+
+  it('[회귀] reload()가 성공하면 failed가 다시 false로 풀린다', async () => {
+    get.mockRejectedValueOnce(new Error('network'))
+    const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})
+
+    const { result } = renderHook(() => useDailyResetHour(7))
+    await waitFor(() => expect(result.current.failed).toBe(true))
+
+    get.mockResolvedValueOnce({ data: { dailyResetHour: 5 } })
+    await act(async () => {
+      result.current.reload()
+      await Promise.resolve()
+    })
+
+    await waitFor(() => expect(result.current.failed).toBe(false))
+    expect(result.current.resetHour).toBe(5)
+    errSpy.mockRestore()
+  })
+
   // ── [회귀] 캐시가 프로필 변경 후에도 낡은 값을 영구히 돌려주면 안 된다 ──────────
   // Fix B가 없애려던 "오늘 경계 불일치"를 캐시 stale로 재도입하는 회귀를 막는다.
 
