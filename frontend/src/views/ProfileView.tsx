@@ -8,6 +8,7 @@ import { useAuthStore } from '@/store/authStore'
 import { useAuth } from '@/hooks/useAuth'
 import { memberApi } from '@/api/member'
 import apiClient from '@/utils/apiClient'
+import { invalidateDailyResetHour } from '@/hooks/useDailyResetHour'
 import { useTheme } from '@/theme/ThemeProvider'
 import { useI18n } from '@/i18n/I18nProvider'
 import { SUPPORTED_UI_LANGUAGES, LANGUAGE_LABELS } from '@/i18n/messages/index'
@@ -66,12 +67,17 @@ export default function ProfileView() {
     setSaveError('')
     setSaveSuccess(false)
     try {
+      const resetHourChanged = dailyResetHour !== profile?.dailyResetHour
       await apiClient.put(`/api/v1/members/${memberId}`, {
         name: name !== profile?.name ? name : undefined,
-        dailyResetHour: dailyResetHour !== profile?.dailyResetHour ? dailyResetHour : undefined,
+        dailyResetHour: resetHourChanged ? dailyResetHour : undefined,
         currentPassword: newPassword ? currentPassword : undefined,
         newPassword: newPassword || undefined,
       })
+      // "오늘"의 경계 계산에 쓰이는 값이 바뀌었으면 useDailyResetHour의 세션 캐시를
+      // 무효화한다 — 안 하면 재방문한 화면이 낡은 경계로 "오늘"을 계산해, 이 값을
+      // 위해 만든 훅이 오히려 그 불일치를 캐시로 재도입하게 된다.
+      if (resetHourChanged) invalidateDailyResetHour(memberId)
       setProfile((prev) => prev ? { ...prev, name, dailyResetHour } : prev)
       setCurrentPassword('')
       setNewPassword('')
