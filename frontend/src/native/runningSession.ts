@@ -4,15 +4,10 @@ import { withPlugin } from '@/utils/nativeBridge'
 import { isNativeApp } from '@/utils/platform'
 import { readUiLangFromClient, translate } from '@/i18n/messages/index'
 import type { TimerState } from '@/utils/timerPersistence'
+import { hideLiveActivity, showLiveActivity, supportsLiveActivity } from './liveActivity'
 import { checkNotificationPermission, NOTIFICATION_PLUGIN } from './notificationPermission'
-import {
-  buildTimerNotificationContent,
-  goalReachAtMs,
-  hideTimerNotification,
-  isGoalReached,
-  showTimerNotification,
-  supportsTimerNotification,
-} from './timerNotification'
+import { buildOngoingContent, goalReachAtMs, isGoalReached } from './ongoingContent'
+import { hideTimerNotification, showTimerNotification, supportsTimerNotification } from './timerNotification'
 
 /**
  * 네이티브 표면(로컬 알림, 나중에 Live Activity·Foreground Service)을 실행 중인 세션에
@@ -171,25 +166,62 @@ function buildNotifications(session: NativeRunningSession, nowMs: number): Sched
 }
 
 /**
- * Android 실행중 표시를 세션에 맞춘다.
+ * Android 지속 알림을 세션에 맞춘다.
  *
  * @returns 이 표면이 수렴했는지. 플러그인이 없는 바이너리(웹·iOS·구버전)는 **true** 다 —
  *   다룰 수 없는 것을 실패로 세면 매 sync 마다 서명이 리셋돼 예약까지 통째로 다시 도는
  *   무한 재수렴이 된다.
  */
-async function convergeOngoingSurface(session: NativeRunningSession | null): Promise<boolean> {
+async function convergeAndroidNotification(session: NativeRunningSession | null): Promise<boolean> {
   if (!supportsTimerNotification()) return true
   try {
     return session
-      ? await showTimerNotification(buildTimerNotificationContent(session))
+      ? await showTimerNotification(buildOngoingContent(session))
       : await hideTimerNotification()
   } catch (error) {
     // 이 호출은 withPlugin 의 try/catch **밖**이라, 여기서 새어 나가면 sync 전체가
     // reject 한다. 그 sync 를 await 하는 것이 로그아웃이므로 — 알림 문구 하나가
     // 세션 정리와 라우팅을 막는다. 표면 하나의 실패는 표면 하나에서 끝나야 한다.
-    console.warn('[runningSession] 실행중 표시 수렴 실패', error)
+    console.warn('[runningSession] Android 지속 알림 수렴 실패', error)
     return false
   }
+}
+
+/**
+ * iOS Live Activity 를 세션에 맞춘다. Android 쪽과 대칭이다 — 동작·주석은
+ * `convergeAndroidNotification` 참조.
+ */
+async function convergeLiveActivity(session: NativeRunningSession | null): Promise<boolean> {
+  if (!supportsLiveActivity()) return true
+  try {
+    return session
+      ? await showLiveActivity(buildOngoingContent(session))
+      : await hideLiveActivity()
+  } catch (error) {
+    console.warn('[runningSession] iOS Live Activity 수렴 실패', error)
+    return false
+  }
+}
+
+/**
+ * 실행중 표시를 세션에 맞춘다 — Android 지속 알림과 iOS Live Activity 둘 다.
+ *
+ * rev-007 M1 은 "표면이 둘이면 수렴 기록도 둘" 이라 했지만, 그 근거는 실패 이유가
+ * 다르다는 것이었다. 이 둘은 **같은 기기에 동시에 존재할 수 없다** — 한쪽은 항상
+ * `supports*() === false` 라 즉시 true(다룰 수 없음 = 실패 아님)를 돌려주므로,
+ * 서명(`lastOngoingSignature`) 하나를 공유해도 안전하다(TM-ADR-012 C4).
+ *
+ * @returns 두 표면 모두 수렴했는지. 플러그인이 없는 쪽은 항상 true 이므로, 실제로는
+ *   "이 기기가 다룰 수 있는 표면이 수렴했는지" 와 같다.
+ */
+async function convergeOngoingSurface(session: NativeRunningSession | null): Promise<boolean> {
+  // ⚠️ && 로 이으면 단축평가로 뒤쪽이 실행되지 않는다. 정지 시 한쪽 표면만 내려가고
+  //    다른 쪽에 유령이 남는다. 반드시 둘 다 실행한 뒤 결과를 합친다.
+  const results = await Promise.all([
+    convergeAndroidNotification(session),
+    convergeLiveActivity(session),
+  ])
+  return results.every(Boolean)
 }
 
 /**

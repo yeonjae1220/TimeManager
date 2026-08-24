@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { LIVE_ACTIVITY_PLUGIN } from './liveActivity'
 import { TIMER_NOTIFICATION_PLUGIN } from './timerNotification'
 import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
 import { messages } from '@/i18n/messages'
@@ -17,6 +18,11 @@ import { messages } from '@/i18n/messages'
 
 const PLUGIN_JAVA = 'frontend/android/app/src/main/java/com/mungji/timemanager/TimerNotificationPlugin.java'
 const RES_DIR = 'frontend/android/app/src/main/res'
+
+const PLUGIN_SWIFT = 'frontend/ios/App/App/LiveActivityPlugin.swift'
+const CONTENT_STATE_SWIFT = 'frontend/ios/App/TimerActivityAttributes.swift'
+const APP_INFO_PLIST = 'frontend/ios/App/App/Info.plist'
+const ONGOING_CONTENT_TS = 'frontend/src/native/ongoingContent.ts'
 
 describe('네이티브 계약', () => {
   it('플러그인 이름이 TS 상수와 Java 애너테이션에서 같다', () => {
@@ -69,5 +75,48 @@ describe('네이티브 계약', () => {
 
       expect(dirs.sort()).toEqual(locales.filter((l) => l !== 'en').sort())
     })
+  })
+})
+
+/**
+ * iOS 축(TM-ADR-012 C6). 아래 항목들은 전부 **"틀려도 에러가 안 나는"** 종류다 —
+ * 브리지는 이름으로 디코드하므로 한쪽만 바뀌면 빌드·타입체크·기존 테스트가 전부
+ * 통과한 채 값만 조용히 사라지고, Info.plist 누락은 아예 무증상 무동작이다.
+ */
+describe('네이티브 계약 (iOS)', () => {
+  it('플러그인 이름이 TS 상수와 Swift jsName 에서 같다', () => {
+    const swift = readRepoFile(PLUGIN_SWIFT)
+    const match = swift.match(/jsName\s*=\s*"([^"]+)"/)
+
+    expect(match, `${PLUGIN_SWIFT} 에서 jsName = "..." 을 찾지 못했습니다`).not.toBeNull()
+    expect(match![1]).toBe(LIVE_ACTIVITY_PLUGIN)
+  })
+
+  /**
+   * 단위 테스트가 registerPlugin 을 목으로 갈아끼우는 한 필드 이름 오타는 원리적으로
+   * 못 잡는다 — Swift ContentState 와 TS OngoingContent 가 같은 필드 집합을 선언하는지
+   * 소스 대 소스로 대조한다.
+   */
+  it('Live Activity ContentState 필드가 TS OngoingContent 키와 같다', () => {
+    const swift = readRepoFile(CONTENT_STATE_SWIFT)
+    const stateBlock = swift.match(/struct ContentState[^{]*\{([\s\S]*?)\n\s*\}/)
+    expect(stateBlock, `${CONTENT_STATE_SWIFT} 에서 ContentState 블록을 찾지 못했습니다`).not.toBeNull()
+    const swiftFields = [...stateBlock![1].matchAll(/var\s+(\w+):/g)].map((m) => m[1]).sort()
+
+    const ts = readRepoFile(ONGOING_CONTENT_TS)
+    const interfaceBlock = ts.match(/interface OngoingContent\s*\{([\s\S]*?)\n\}/)
+    expect(interfaceBlock, `${ONGOING_CONTENT_TS} 에서 OngoingContent 인터페이스를 찾지 못했습니다`).not.toBeNull()
+    const tsFields = [...interfaceBlock![1].matchAll(/^\s*(\w+):/gm)].map((m) => m[1]).sort()
+
+    expect(swiftFields.length, 'Swift ContentState 에서 필드를 하나도 못 찾았습니다').toBeGreaterThan(0)
+    expect(swiftFields).toEqual(tsFields)
+  })
+
+  it('App Info.plist 에 NSSupportsLiveActivities 가 켜져 있다 — 없으면 조용히 무동작한다', () => {
+    const plist = readRepoFile(APP_INFO_PLIST)
+    const match = plist.match(/<key>NSSupportsLiveActivities<\/key>\s*<(\w+)\/>/)
+
+    expect(match, `${APP_INFO_PLIST} 에서 NSSupportsLiveActivities 키를 찾지 못했습니다`).not.toBeNull()
+    expect(match![1]).toBe('true')
   })
 })

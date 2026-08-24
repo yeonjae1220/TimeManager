@@ -7,7 +7,7 @@ import {
   type NativeRunningSession,
 } from './runningSession'
 import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
-import { buildTimerNotificationContent, goalReachAtMs } from './timerNotification'
+import { buildOngoingContent, goalReachAtMs } from './ongoingContent'
 
 const plugin = vi.hoisted(() => ({
   getPending: vi.fn(),
@@ -35,6 +35,24 @@ vi.mock('./timerNotification', async (importOriginal) => ({
   supportsTimerNotification: () => surface.supported(),
   showTimerNotification: (content: unknown) => surface.show(content),
   hideTimerNotification: () => surface.hide(),
+}))
+
+/**
+ * iOS Live Activity — 이 파일의 기존 테스트는 전부 Android 기기를 가정하므로
+ * 기본값은 "다룰 수 없음"(true 즉시 반환, no-op)이다. 두 표면이 실제로 독립
+ * 수렴하는지는 "두 표면은 각자 독립 수렴한다" describe 에서 따로 켜서 확인한다.
+ */
+const liveActivitySurface = vi.hoisted(() => ({
+  supported: vi.fn(),
+  show: vi.fn(),
+  hide: vi.fn(),
+}))
+
+vi.mock('./liveActivity', async (importOriginal) => ({
+  ...(await importOriginal<typeof import('./liveActivity')>()),
+  supportsLiveActivity: () => liveActivitySurface.supported(),
+  showLiveActivity: (content: unknown) => liveActivitySurface.show(content),
+  hideLiveActivity: () => liveActivitySurface.hide(),
 }))
 
 const NOW = new Date('2026-08-17T09:00:00.000Z').getTime()
@@ -86,6 +104,9 @@ describe('runningSession', () => {
     surface.supported.mockReset().mockReturnValue(false)
     surface.show.mockReset().mockResolvedValue(true)
     surface.hide.mockReset().mockResolvedValue(true)
+    liveActivitySurface.supported.mockReset().mockReturnValue(false)
+    liveActivitySurface.show.mockReset().mockResolvedValue(true)
+    liveActivitySurface.hide.mockReset().mockResolvedValue(true)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
   })
 
@@ -353,7 +374,7 @@ describe('목표 도달 시각은 예약과 문구가 한 곳에서 나온다', 
       .find((n) => n.id === 90001)
 
     expect(goal?.schedule.at.getTime()).toBe(goalReachAtMs(s))
-    expect(buildTimerNotificationContent(s).text).toContain(
+    expect(buildOngoingContent(s).text).toContain(
       new Intl.DateTimeFormat('en', { hour: '2-digit', minute: '2-digit' })
         .format(new Date(goalReachAtMs(s)!)),
     )
@@ -374,6 +395,9 @@ describe('실행중 알림 수렴', () => {
     surface.supported.mockReset().mockReturnValue(true)
     surface.show.mockReset().mockResolvedValue(true)
     surface.hide.mockReset().mockResolvedValue(true)
+    liveActivitySurface.supported.mockReset().mockReturnValue(false)
+    liveActivitySurface.show.mockReset().mockResolvedValue(true)
+    liveActivitySurface.hide.mockReset().mockResolvedValue(true)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     window.Capacitor = {
       isNativePlatform: () => true,
@@ -394,7 +418,7 @@ describe('실행중 알림 수렴', () => {
 
     await syncNativeRunningSession(s)
 
-    expect(surface.show).toHaveBeenCalledWith(buildTimerNotificationContent(s))
+    expect(surface.show).toHaveBeenCalledWith(buildOngoingContent(s))
     expect(surface.hide).not.toHaveBeenCalled()
   })
 
@@ -487,6 +511,9 @@ describe('두 표면은 따로 수렴한다', () => {
     surface.supported.mockReset().mockReturnValue(true)
     surface.show.mockReset().mockResolvedValue(true)
     surface.hide.mockReset().mockResolvedValue(true)
+    liveActivitySurface.supported.mockReset().mockReturnValue(false)
+    liveActivitySurface.show.mockReset().mockResolvedValue(true)
+    liveActivitySurface.hide.mockReset().mockResolvedValue(true)
     vi.spyOn(console, 'warn').mockImplementation(() => {})
     window.Capacitor = {
       isNativePlatform: () => true,
@@ -552,5 +579,80 @@ describe('두 표면은 따로 수렴한다', () => {
 
     expect(surface.show).toHaveBeenCalledTimes(2)
     expect(surface.show.mock.calls.at(-1)?.[0].text).toBe("Today's goal reached")
+  })
+})
+
+/**
+ * Android 지속 알림과 iOS Live Activity 는 같은 기기에 동시에 존재할 수 없지만,
+ * 테스트에서는 두 표면을 동시에 "다룰 수 있음" 으로 켜서 `Promise.all` 구현 자체가
+ * 옳은지 확인한다 — `&&` 로 이었다면 첫 표면이 실패할 때 둘째 표면이 아예 호출되지
+ * 않는데, 그 결함은 한 표면만 켜진 실기기 테스트로는 재현되지 않는다(TM-ADR-012 C4).
+ */
+describe('두 표면(Android/iOS)은 단축평가 없이 둘 다 수렴한다', () => {
+  beforeEach(() => {
+    vi.useFakeTimers()
+    vi.setSystemTime(NOW)
+    __resetNativeRunningSession()
+    __resetNativeBridgeWarnings()
+    plugin.getPending.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.cancel.mockReset().mockResolvedValue(undefined)
+    plugin.schedule.mockReset().mockResolvedValue({ notifications: [] })
+    plugin.checkPermissions.mockReset().mockResolvedValue({ display: 'granted' })
+    surface.supported.mockReset().mockReturnValue(true)
+    surface.show.mockReset().mockResolvedValue(true)
+    surface.hide.mockReset().mockResolvedValue(true)
+    liveActivitySurface.supported.mockReset().mockReturnValue(true)
+    liveActivitySurface.show.mockReset().mockResolvedValue(true)
+    liveActivitySurface.hide.mockReset().mockResolvedValue(true)
+    vi.spyOn(console, 'warn').mockImplementation(() => {})
+  })
+
+  afterEach(() => {
+    delete window.Capacitor
+    vi.useRealTimers()
+    vi.restoreAllMocks()
+  })
+
+  it('시작하면 두 표면 모두 게시를 시도한다', async () => {
+    await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(1)
+    expect(liveActivitySurface.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('정지하면 두 표면 모두 내린다', async () => {
+    await syncNativeRunningSession(session())
+    await syncNativeRunningSession(null)
+
+    expect(surface.hide).toHaveBeenCalledTimes(1)
+    expect(liveActivitySurface.hide).toHaveBeenCalledTimes(1)
+  })
+
+  it('Android 쪽이 실패해도 iOS 쪽 호출은 단축평가로 건너뛰지 않는다', async () => {
+    surface.show.mockResolvedValue(false)
+
+    await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(1)
+    expect(liveActivitySurface.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('iOS 쪽이 실패해도 Android 쪽 호출은 단축평가로 건너뛰지 않는다', async () => {
+    liveActivitySurface.show.mockResolvedValue(false)
+
+    await syncNativeRunningSession(session())
+
+    expect(surface.show).toHaveBeenCalledTimes(1)
+    expect(liveActivitySurface.show).toHaveBeenCalledTimes(1)
+  })
+
+  it('한쪽이 예외를 던져도 다른 쪽은 정지 시 정상적으로 내려간다', async () => {
+    await syncNativeRunningSession(session())
+    liveActivitySurface.hide.mockImplementation(() => {
+      throw new Error('boom')
+    })
+
+    await expect(syncNativeRunningSession(null)).resolves.toBeUndefined()
+    expect(surface.hide).toHaveBeenCalledTimes(1)
   })
 })

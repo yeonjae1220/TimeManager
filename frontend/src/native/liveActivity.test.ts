@@ -1,12 +1,12 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 import {
-  hideTimerNotification,
-  showTimerNotification,
-  __resetTimerNotificationPlugin,
-  supportsTimerNotification,
-  TIMER_NOTIFICATION_PLUGIN,
-} from './timerNotification'
+  hideLiveActivity,
+  LIVE_ACTIVITY_PLUGIN,
+  showLiveActivity,
+  __resetLiveActivityPlugin,
+  supportsLiveActivity,
+} from './liveActivity'
 import { __resetNativeBridgeWarnings } from '@/utils/nativeBridge'
 
 const plugin = vi.hoisted(() => ({
@@ -19,17 +19,17 @@ const registered = vi.hoisted(() => ({ current: null as unknown }))
 
 vi.mock('@capacitor/core', () => ({ registerPlugin: () => registered.current ?? plugin }))
 
-const content = { title: '알고리즘', text: '실행 중', whenMs: Date.now() }
+const content = { title: '알고리즘', text: '기록 중', whenMs: Date.now() }
 
-function enableNative(available: string[] = [TIMER_NOTIFICATION_PLUGIN]) {
+function enableNative(available: string[] = [LIVE_ACTIVITY_PLUGIN]) {
   window.Capacitor = {
     isNativePlatform: () => true,
-    getPlatform: () => 'android',
+    getPlatform: () => 'ios',
     isPluginAvailable: (name: string) => available.includes(name),
   }
 }
 
-describe('timerNotification', () => {
+describe('liveActivity', () => {
   beforeEach(() => {
     __resetNativeBridgeWarnings()
     plugin.show.mockReset().mockResolvedValue({ shown: true })
@@ -41,35 +41,35 @@ describe('timerNotification', () => {
     vi.restoreAllMocks()
   })
 
-  describe('showTimerNotification', () => {
+  describe('showLiveActivity', () => {
     it('네이티브에서 내용을 그대로 네이티브에 넘긴다', async () => {
       enableNative()
 
-      await showTimerNotification(content)
+      await showLiveActivity(content)
 
       expect(plugin.show).toHaveBeenCalledWith(content)
     })
 
-    it('실제로 게시되면 true 를 돌려준다', async () => {
+    it('실제로 시작/갱신되면 true 를 돌려준다', async () => {
       enableNative()
 
-      await expect(showTimerNotification(content)).resolves.toBe(true)
+      await expect(showLiveActivity(content)).resolves.toBe(true)
     })
 
     /**
-     * API 33+ 에서 알림 권한이 없으면 시스템이 조용히 버린다 — 호출은 성공한다.
-     * 이걸 성공으로 보고하면 나중에 권한을 허용한 사용자가 다음 상태 변화 전까지
-     * 알림을 못 본다. 재수렴이 가능하려면 "안 떴다"가 호출부까지 올라와야 한다.
+     * ActivityKit 은 포그라운드에서만 액티비티를 시작할 수 있다. 백그라운드에서
+     * 부르면 `Activity.request()` 가 throw 하고, Swift 쪽은 이를 shown:false 로
+     * 옮겨 담는다(TM-ADR-012 C5) — 여기서는 그 결과를 그대로 전달만 확인한다.
      */
-    it('권한이 없어 게시되지 않으면 false 를 돌려준다', async () => {
+    it('시작하지 못하면(iOS 미만·설정 차단·백그라운드) false 를 돌려준다', async () => {
       enableNative()
       plugin.show.mockResolvedValue({ shown: false })
 
-      await expect(showTimerNotification(content)).resolves.toBe(false)
+      await expect(showLiveActivity(content)).resolves.toBe(false)
     })
 
     it('웹에서는 아무것도 호출하지 않고 false 다', async () => {
-      await expect(showTimerNotification(content)).resolves.toBe(false)
+      await expect(showLiveActivity(content)).resolves.toBe(false)
       expect(plugin.show).not.toHaveBeenCalled()
     })
 
@@ -80,7 +80,7 @@ describe('timerNotification', () => {
     it('구 바이너리(플러그인 없음)에서는 조용히 건너뛰고 false 다', async () => {
       enableNative([])
 
-      await expect(showTimerNotification(content)).resolves.toBe(false)
+      await expect(showLiveActivity(content)).resolves.toBe(false)
       expect(plugin.show).not.toHaveBeenCalled()
     })
 
@@ -88,96 +88,93 @@ describe('timerNotification', () => {
       enableNative()
       plugin.show.mockRejectedValue(new Error('boom'))
 
-      await expect(showTimerNotification(content)).resolves.toBe(false)
+      await expect(showLiveActivity(content)).resolves.toBe(false)
     })
 
     it('구 바이너리가 shown 을 안 돌려줘도 false 로 떨어진다', async () => {
       enableNative()
       plugin.show.mockResolvedValue(undefined)
 
-      await expect(showTimerNotification(content)).resolves.toBe(false)
+      await expect(showLiveActivity(content)).resolves.toBe(false)
     })
   })
 
-  describe('hideTimerNotification', () => {
+  describe('hideLiveActivity', () => {
     it('네이티브에서 hide 를 호출하고 true 를 돌려준다', async () => {
       enableNative()
 
-      await expect(hideTimerNotification()).resolves.toBe(true)
+      await expect(hideLiveActivity()).resolves.toBe(true)
       expect(plugin.hide).toHaveBeenCalledTimes(1)
     })
 
     /**
-     * 웹·구 바이너리에는 애초에 띄운 알림이 없다. "정리할 것이 없다"는 정리된 것과
-     * 같으므로 true 다 — 여기서 false 를 주면 호출부가 영원히 재시도한다.
+     * 웹·구 바이너리·Android 에는 애초에 시작한 액티비티가 없다. "정리할 것이 없다"는
+     * 정리된 것과 같으므로 true 다 — 여기서 false 를 주면 호출부가 영원히 재시도한다.
      */
     it('웹에서는 호출 없이 true (띄운 적이 없으므로 정리할 것도 없다)', async () => {
-      await expect(hideTimerNotification()).resolves.toBe(true)
+      await expect(hideLiveActivity()).resolves.toBe(true)
       expect(plugin.hide).not.toHaveBeenCalled()
     })
 
     it('구 바이너리에서도 호출 없이 true', async () => {
       enableNative([])
 
-      await expect(hideTimerNotification()).resolves.toBe(true)
+      await expect(hideLiveActivity()).resolves.toBe(true)
       expect(plugin.hide).not.toHaveBeenCalled()
     })
 
-    it('네이티브 호출이 실패하면 false — 유령 알림이 남았을 수 있다', async () => {
+    it('네이티브 호출이 실패하면 false — 유령 액티비티가 남았을 수 있다', async () => {
       enableNative()
       plugin.hide.mockRejectedValue(new Error('boom'))
 
-      await expect(hideTimerNotification()).resolves.toBe(false)
+      await expect(hideLiveActivity()).resolves.toBe(false)
     })
   })
 })
 
 /**
  * "이 표면을 다룰 수 있는가" 는 "이 표면이 수렴했는가" 와 다르다. 이 플러그인은
- * android/ 프로젝트 안에만 있어서 **웹에도 iOS 에도 없다**. 다룰 수 없는 곳에서
+ * ios/App 프로젝트 안에만 있어서 **웹에도 Android 에도 없다**. 다룰 수 없는 곳에서
  * 실패로 세면 호출부가 매번 재수렴을 시도하며 영원히 돌게 된다.
  */
-describe('supportsTimerNotification', () => {
+describe('supportsLiveActivity', () => {
   afterEach(() => {
     delete window.Capacitor
   })
 
   it('웹에서는 false', () => {
-    expect(supportsTimerNotification()).toBe(false)
+    expect(supportsLiveActivity()).toBe(false)
   })
 
-  it('플러그인이 없는 네이티브 바이너리(iOS·구버전)에서는 false', () => {
+  it('플러그인이 없는 네이티브 바이너리(Android·구버전)에서는 false', () => {
     window.Capacitor = {
       isNativePlatform: () => true,
-      getPlatform: () => 'ios',
+      getPlatform: () => 'android',
       isPluginAvailable: () => false,
     }
-    expect(supportsTimerNotification()).toBe(false)
+    expect(supportsLiveActivity()).toBe(false)
   })
 
   it('플러그인이 있는 네이티브에서만 true', () => {
     window.Capacitor = {
       isNativePlatform: () => true,
-      getPlatform: () => 'android',
-      isPluginAvailable: (name: string) => name === TIMER_NOTIFICATION_PLUGIN,
+      getPlatform: () => 'ios',
+      isPluginAvailable: (name: string) => name === LIVE_ACTIVITY_PLUGIN,
     }
-    expect(supportsTimerNotification()).toBe(true)
+    expect(supportsLiveActivity()).toBe(true)
   })
 })
 
 /**
- * registerPlugin 이 돌려주는 것은 **모든 속성 접근을 네이티브 호출로 바꾸는 Proxy** 다.
- * 그 프록시를 async 함수에서 그대로 `return` 하면 Promise 해소 절차가 값을 thenable 로
- * 보고 `.then` 을 읽어 **네이티브 메서드 "then" 을 호출**한다. 네이티브는 그런 메서드가
- * 없다며 자기 promise 를 reject 할 뿐 우리가 넘긴 resolve/reject 를 부르지 않으므로,
- * `await` 가 영원히 멈춘다.
+ * `timerNotification` 과 같은 결함이 iOS 경로에도 성립한다 — registerPlugin 이 돌려주는
+ * 것은 **모든 속성 접근을 네이티브 호출로 바꾸는 Proxy** 라, async 함수에서 그대로
+ * `return` 하면 Promise 해소 절차가 값을 thenable 로 보고 `.then` 을 읽어 네이티브 메서드
+ * "then" 을 호출한다. 네이티브는 그런 메서드가 없다며 자기 promise 를 reject 할 뿐
+ * 우리가 넘긴 resolve/reject 를 부르지 않으므로 `await` 가 영원히 멈춘다.
  *
- * 예외가 아니라 **정지**라서 withPlugin 의 try/catch 가 못 잡고, 같은 큐에 줄 선 작업
- * (리마인더 예약, 로그아웃의 세션 정리)까지 통째로 막힌다 — 2026-08-19 에뮬레이터에서
- * 로그아웃이 무한 스피너가 되는 것으로 실측됐다.
- *
- * 평범한 목(`{show, hide}`)은 `.then` 이 undefined 라 이 결함을 **그대로 통과시킨다.**
- * 그래서 여기서는 등록되지 않은 이름도 함수로 내주는, 진짜 프록시와 같은 모양을 물린다.
+ * 예외가 아니라 **정지**라서 withPlugin 의 try/catch 가 못 잡고, 같은 큐에 줄 선 작업까지
+ * 통째로 막힌다. 평범한 목(`{show, hide}`)은 `.then` 이 undefined 라 이 결함을 **그대로
+ * 통과시키므로**, 등록되지 않은 이름도 함수로 내주는 진짜 프록시 모양을 물린다.
  */
 describe('registerPlugin 프록시를 물려도 호출이 끝난다', () => {
   function capacitorLikeProxy(impl: Record<string, unknown>): unknown {
@@ -188,7 +185,7 @@ describe('registerPlugin 프록시를 물려도 호출이 끝난다', () => {
           : // 프록시는 모르는 이름도 함수로 내준다. `.then` 이 정확히 여기 걸린다.
             () =>
               Promise.reject(
-                new Error(`"${TIMER_NOTIFICATION_PLUGIN}.${prop}()" is not implemented on android`),
+                new Error(`"${LIVE_ACTIVITY_PLUGIN}.${prop}()" is not implemented on ios`),
               ),
     })
   }
@@ -202,7 +199,7 @@ describe('registerPlugin 프록시를 물려도 호출이 끝난다', () => {
   }
 
   beforeEach(() => {
-    __resetTimerNotificationPlugin()
+    __resetLiveActivityPlugin()
     __resetNativeBridgeWarnings()
     registered.current = capacitorLikeProxy({
       show: vi.fn().mockResolvedValue({ shown: true }),
@@ -214,16 +211,16 @@ describe('registerPlugin 프록시를 물려도 호출이 끝난다', () => {
 
   afterEach(() => {
     registered.current = null
-    __resetTimerNotificationPlugin()
+    __resetLiveActivityPlugin()
     delete window.Capacitor
     vi.restoreAllMocks()
   })
 
   it('show 가 멈추지 않는다', async () => {
-    await expect(settlesWithin(showTimerNotification(content), 200)).resolves.toBe('settled')
+    await expect(settlesWithin(showLiveActivity(content), 200)).resolves.toBe('settled')
   })
 
   it('hide 가 멈추지 않는다', async () => {
-    await expect(settlesWithin(hideTimerNotification(), 200)).resolves.toBe('settled')
+    await expect(settlesWithin(hideLiveActivity(), 200)).resolves.toBe('settled')
   })
 })
