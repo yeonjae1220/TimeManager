@@ -562,6 +562,104 @@ describe('useTagTimer — 네이티브 표면 동기화', () => {
   })
 })
 
+describe('useTagTimer — 인터벌 자가치유 (실행 중 화면이 얼지 않는다)', () => {
+  afterEach(() => {
+    vi.useRealTimers()
+  })
+
+  it('[인터벌사망] 얼어 있던 동안의 경과를 포그라운드 복귀 즉시 반영한다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-23T00:00:00.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    // 인터벌이 죽었다고 가정 — advanceTimersByTime을 호출하지 않고 시계만 이동시킨다.
+    vi.setSystemTime(new Date('2026-08-23T00:01:05.000Z')) // +65초
+    expect(result.current.sw.elapsedTimeCal).toBe(0) // 전제 확인: 죽은 인터벌은 반영 안 됨
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    expect(result.current.sw.elapsedTimeCal).toBeGreaterThanOrEqual(65)
+  })
+
+  it('[인터벌재무장] 복귀 후에는 인터벌이 다시 정상적으로 흐른다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-23T00:00:00.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    vi.setSystemTime(new Date('2026-08-23T00:01:00.000Z'))
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+    const afterRestore = result.current.sw.elapsedTimeCal
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    expect(result.current.sw.elapsedTimeCal).toBe(afterRestore + 1)
+  })
+
+  it('[인터벌중복방지] 반복 전환해도 인터벌이 중복으로 쌓이지 않는다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-23T00:00:00.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    await act(async () => {
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+      document.dispatchEvent(new Event('visibilitychange'))
+    })
+
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+
+    // 인터벌이 중복으로 쌓였다면 3배(또는 그 이상)로 증가했을 것이다.
+    expect(result.current.sw.elapsedTimeCal).toBe(1)
+  })
+
+  it('[시계역행] 델타가 음수여도 화면이 얼지 않고 0으로 클램프된 뒤 다시 정상 진행한다', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-23T00:00:10.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+
+    vi.setSystemTime(new Date('2026-08-23T00:00:00.000Z')) // 10초 역행
+    await act(async () => {
+      vi.advanceTimersByTime(1000)
+    })
+    expect(result.current.sw.elapsedTimeCal).toBe(0)
+
+    vi.setSystemTime(new Date('2026-08-23T00:00:14.000Z'))
+    await act(async () => {
+      vi.advanceTimersByTime(1000) // 00:00:15 도달 — 시작시각 기준 +5초
+    })
+    expect(result.current.sw.elapsedTimeCal).toBe(5)
+  })
+})
+
+describe('useTagTimer — 서버가 RUNNING + 유효하지 않은 시작시각을 보내도 영구 동결되지 않는다', () => {
+  it('[유령RUNNING] latestStartTimeMs가 0(EPOCH)이면 로컬에서 실행중으로 취급하지 않는다', async () => {
+    const { result } = await renderWithTag({ state: true, latestStartTimeMs: 0, elapsedTime: 42 })
+
+    expect(result.current.sw.isRunning).toBe(false)
+    expect(result.current.sw.elapsedTimeCal).toBe(42)
+  })
+})
+
 /**
  * 응답의 숫자 필드는 형제들이 전부 `|| 0` 로 받는데 elapsedTime 만 그대로 쓴다.
  * 타입에 `number` 라고 적혀 있어도 그건 선언일 뿐이라 타입체크가 잡지 못하고,

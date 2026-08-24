@@ -12,17 +12,14 @@ import apiClient from '@/utils/apiClient'
 // 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
 import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
-import { computeTodayRecordTotal } from './todayRecordTotal'
+import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
+import { useDailyResetHour } from '@/hooks/useDailyResetHour'
 import { hapticStart, hapticStop } from '@/native/haptics'
 import { ensureNotificationPermission } from '@/native/notificationPermission'
 import { resyncNativeRunningSession } from '@/native/runningSession'
 
 function todayLabel(locale: string): string {
   return new Date().toLocaleDateString(locale, { weekday: 'long', month: 'short', day: 'numeric' })
-}
-
-function toLocalDate(d: Date): string {
-  return d.toLocaleDateString('sv-SE')
 }
 
 const TODAY_RECENT_TAG_LIMIT = 6
@@ -61,15 +58,33 @@ export default function TodayView() {
   const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
   const didAutoLoad = useRef(false)
 
+  // "오늘"의 경계는 자정이 아니라 이 값(dailyResetHour) — resolveTodaySummaryDateParam 참조.
+  // 최초 조회가 실패하면 자동 재시도가 없으므로, reload를 재접속 시점에 함께 불러야 한다
+  // (안 하면 일시적 네트워크 오류 한 번으로 "오늘 기록시간"이 세션 내내 멈춘다).
+  const {
+    resetHour: dailyResetHour,
+    failed: dailyResetHourFailed,
+    reload: reloadDailyResetHour,
+  } = useDailyResetHour(memberId || null)
+
   const fetchTodayTotal = useCallback(async () => {
-    const ds = toLocalDate(new Date())
+    const ds = resolveTodaySummaryDateParam(new Date(), dailyResetHour)
+    if (ds === null) {
+      // 로딩 중(failed===false)이면 곧 스스로 풀리니 그냥 기다린다. 확정 실패
+      // (4xx/5xx)면 connectivity 신호가 안 오는 경우가 많아 — apiClient 인터셉터는
+      // 응답이 있는 실패를 "연결됨"으로 본다 — 여기서도 재시도해야 세션 내내
+      // 멈춘 채로 남지 않는다.
+      if (dailyResetHourFailed) reloadDailyResetHour()
+      return
+    }
     try {
       const res = await apiClient.get<{ totalSeconds: number }>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
       setTodayTotalSeconds(res.data.totalSeconds || 0)
-    } catch {
+    } catch (e) {
       // Keep the current on-screen value; the selected tag timer still gives useful feedback.
+      console.error('Failed to fetch today total:', e instanceof Error ? e.message : String(e))
     }
-  }, [])
+  }, [dailyResetHour, dailyResetHourFailed, reloadDailyResetHour])
 
   useEffect(() => {
     if (!memberId) return
@@ -101,6 +116,9 @@ export default function TodayView() {
       setIsOnline(online)
       if (!online) return
       handleOnline()
+      // fetchTodayTotal 자체가 확정 실패(dailyResetHourFailed) 시 reloadDailyResetHour를
+      // 함께 호출하므로 여기서 따로 부를 필요는 없다 — mount·재접속·정지 등 모든
+      // 호출부를 한곳(fetchTodayTotal)에서 일관되게 복구시킨다.
       fetchTodayTotal()
     })
 

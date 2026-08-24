@@ -5,7 +5,8 @@
       "namespace": "android_app",
       "package_name": "com.mungji.timemanager",
       "sha256_cert_fingerprints": [
-        "EB:86:51:6C:AC:F8:80:96:83:E7:3B:BF:7D:1C:DB:9B:C3:C0:92:26:E8:90:AA:59:84:2E:BD:EC:1E:C8:72:29"
+        "EB:86:51:6C:AC:F8:80:96:83:E7:3B:BF:7D:1C:DB:9B:C3:C0:92:26:E8:90:AA:59:84:2E:BD:EC:1E:C8:72:29",
+        "FB:B1:F2:6E:77:00:7F:46:AF:F4:83:60:C4:A7:D5:46:9A:88:69:C1:0D:B2:4B:9C:D2:0C:90:28:2A:CB:69:04"
       ]
     }
   }
