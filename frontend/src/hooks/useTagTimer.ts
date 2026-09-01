@@ -241,6 +241,11 @@ export function useTagTimer() {
     // 서버 응답으로 화해). 같은 태그를 다시 불러올 때(포그라운드 복귀 재조회 등)는
     // 건너뛴다 — 안 그러면 라이브로 흐르던 화면이 매번 캐시 스냅샷으로 되튄다.
     // 네이티브 알림은 이 잠정 값으로 건드리지 않는다 — 권위는 항상 네트워크 응답이다.
+    // TODO: 이 캐시가 "실행중"으로 stale 하면(다른 기기에서 정지된 뒤 이 기기의
+    // 태그 트리 캐시가 아직 안 따라잡은 경우) 네트워크 왕복 1회 동안 잘못된
+    // 경과시간이 화면에 잠깐 보일 수 있다(자가 치유됨, 화면 잠금·네이티브 알림
+    // 같은 부작용은 없음 — 각각 별도로 해제/차단됨). 필요해지면
+    // useTagStore.getState().lastFetchedAt 신선도로 이 분기 자체를 게이팅할 것.
     if (hydratedTagIdRef.current !== tagId) {
       const cached = useTagStore.getState().findById(tagId)
       if (cached) {
