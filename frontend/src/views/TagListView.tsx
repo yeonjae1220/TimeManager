@@ -3,7 +3,9 @@
 import { useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
+import AddTagForm from '@/components/AddTagForm'
 import { useTagStore, selectTagList, type Tag } from '@/store/tagStore'
+import { getParentId, getSiblingNames } from '@/utils/tagTree'
 import { useI18n } from '@/i18n/I18nProvider'
 
 // ────────────────────────────────────────────────────────────
@@ -18,37 +20,6 @@ function findDiscardedId(tagTree: Tag[]): number | null {
     }
   }
   return null
-}
-
-function getSiblingNames(tagTree: Tag[], parentId: number | null, excludeId?: number): string[] {
-  const search = (nodes: Tag[]): string[] => {
-    for (const n of nodes) {
-      if (n.id === parentId) {
-        return n.children
-          .filter((c) => c.type !== 'DISCARDED' && c.id !== excludeId)
-          .map((c) => c.name.toLowerCase())
-      }
-      const found = search(n.children)
-      if (found.length > 0 || n.id === parentId) return found
-    }
-    return []
-  }
-  if (parentId === null) return []
-  return search(tagTree)
-}
-
-function getParentId(tagTree: Tag[], tagId: number): number | null {
-  const search = (nodes: Tag[], parent: Tag | null): number | null => {
-    for (const n of nodes) {
-      if (n.id === tagId) return parent?.id ?? null
-      const found = search(n.children, n)
-      if (found !== undefined && found !== null) return found
-      // check if direct child matched
-      if (n.children.some((c) => c.id === tagId)) return n.id
-    }
-    return null
-  }
-  return search(tagTree, null)
 }
 
 // ────────────────────────────────────────────────────────────
@@ -185,58 +156,6 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
 }
 
 // ────────────────────────────────────────────────────────────
-// Add Tag inline form
-// ────────────────────────────────────────────────────────────
-
-interface AddTagFormProps {
-  parentId: number
-  siblingNames: string[]
-  onAdd: (name: string) => Promise<void>
-  onCancel: () => void
-}
-
-function AddTagForm({ parentId: _parentId, siblingNames, onAdd, onCancel }: AddTagFormProps) {
-  const { t } = useI18n()
-  const [name, setName] = useState('')
-  const [saving, setSaving] = useState(false)
-  const isDuplicate = name.trim() !== '' && siblingNames.includes(name.trim().toLowerCase())
-  const inputRef = useRef<HTMLInputElement>(null)
-
-  useEffect(() => { inputRef.current?.focus() }, [])
-
-  async function handleSubmit(e: React.FormEvent) {
-    e.preventDefault()
-    const trimmed = name.trim()
-    if (!trimmed) return
-    setSaving(true)
-    try {
-      await onAdd(trimmed)
-    } finally {
-      setSaving(false)
-    }
-  }
-
-  return (
-    <form onSubmit={handleSubmit} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0 8px 20px' }}>
-      <input
-        ref={inputRef}
-        value={name}
-        onChange={(e) => setName(e.target.value)}
-        placeholder={t('tags.namePlaceholder')}
-        style={{ flex: 1, background: 'var(--input-bg)', border: `1px solid ${isDuplicate ? 'var(--warning, #f59e0b)' : 'var(--border)'}`, borderRadius: 'var(--radius)', padding: '6px 10px', color: 'var(--text)', fontSize: 12, fontFamily: 'inherit', outline: 'none' }}
-      />
-      {isDuplicate && <span className="mono" style={{ fontSize: 9, color: 'var(--warning, #f59e0b)', whiteSpace: 'nowrap' }}>{t('tags.dupShort')}</span>}
-      <button type="submit" disabled={saving || !name.trim()} style={{ padding: '6px 12px', background: 'var(--accent)', border: 'none', borderRadius: 'var(--radius)', color: 'var(--bg)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: saving || !name.trim() ? 0.4 : 1 }}>
-        {saving ? '...' : t('common.add')}
-      </button>
-      <button type="button" onClick={onCancel} style={{ padding: '6px 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-3)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}>
-        ✕
-      </button>
-    </form>
-  )
-}
-
-// ────────────────────────────────────────────────────────────
 // Tag row
 // ────────────────────────────────────────────────────────────
 
@@ -277,9 +196,17 @@ function TagRow({
   const visibleChildren = tag.children.filter((c) => c.type !== 'DISCARDED')
   const isLeaf = visibleChildren.length === 0
 
-  function handleClick() {
+  function goToTag() {
     if (isLeaf) {
       router.push(`/members/${memberId}/today?tagId=${tag.id}`)
+    }
+  }
+
+  // 시작 버튼은 이동만 하지 않고 오늘 화면에 도착하자마자 타이머를 시작한다.
+  // 이름 클릭(goToTag)과 분리해둬야 "그냥 보러 가기"와 "바로 시작"이 헷갈리지 않는다.
+  function goToTagAndStart() {
+    if (isLeaf) {
+      router.push(`/members/${memberId}/today?tagId=${tag.id}&autostart=1`)
     }
   }
 
@@ -321,9 +248,9 @@ function TagRow({
         {/* Status dot */}
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: isRunning ? 'var(--running)' : 'var(--border)', flexShrink: 0, boxShadow: isRunning ? '0 0 6px var(--running)' : undefined }} />
 
-        {/* Name — leaf tags navigate to Today */}
+        {/* Name — leaf tags navigate to Today (시작하지 않고 보러만 간다) */}
         <span
-          onClick={handleClick}
+          onClick={goToTag}
           style={{ flex: 1, fontSize: 13, color: 'var(--text)', cursor: isLeaf ? 'pointer' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
           {tag.name}
@@ -341,7 +268,7 @@ function TagRow({
 
         {isLeaf && (
           <button
-            onClick={handleClick}
+            onClick={goToTagAndStart}
             title={t('tags.startTimer')}
             style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 34, padding: '0 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
           >
@@ -522,9 +449,8 @@ export default function TagListView() {
           )}
 
           {addingChildOf === rootTag?.id && (
-            <div style={{ marginBottom: 14, borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)' }}>
+            <div style={{ marginBottom: 14, borderTop: '1px solid var(--border-subtle)', borderBottom: '1px solid var(--border-subtle)', padding: '8px 0 8px 20px' }}>
               <AddTagForm
-                parentId={rootTag.id}
                 siblingNames={addingChildSiblings}
                 onAdd={handleAddChild}
                 onCancel={() => setAddingChildOf(null)}
@@ -569,12 +495,13 @@ export default function TagListView() {
                     onDiscard={handleDiscard}
                   />
                   {addingChildOf === tag.id && (
-                    <AddTagForm
-                      parentId={tag.id}
-                      siblingNames={addingChildSiblings}
-                      onAdd={handleAddChild}
-                      onCancel={() => setAddingChildOf(null)}
-                    />
+                    <div style={{ padding: '8px 0 8px 20px' }}>
+                      <AddTagForm
+                        siblingNames={addingChildSiblings}
+                        onAdd={handleAddChild}
+                        onCancel={() => setAddingChildOf(null)}
+                      />
+                    </div>
                   )}
                 </div>
               ))}

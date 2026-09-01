@@ -125,6 +125,7 @@ const en = {
   'tagPicker.recent': 'recent',
   'tagPicker.noResults': 'No matching tags',
   'tagPicker.selectThis': 'Select',
+  'tagPicker.createNew': 'Create new tag',
 
   // logs
   'logs.eyebrow': 'logs',
@@ -141,8 +142,7 @@ const en = {
   'logs.dailyAvg': 'DAILY AVG',
   'logs.monthTotal': 'MONTH TOTAL',
   'logs.tagTotal': 'TOTAL',
-  'logs.selectTag': 'Select a tag',
-  'logs.selectTagStats': 'Select a tag to see statistics',
+  'logs.allTags': 'All tags',
   'logs.noRecordsPeriod': 'No records in this period',
   'logs.periodWeek': 'This week',
   'logs.periodMonth': 'This month',

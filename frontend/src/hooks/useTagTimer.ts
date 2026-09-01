@@ -131,6 +131,10 @@ function computeStopwatchState(tagId: number, data: Tag): StopwatchState {
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
+  // 네트워크 응답으로 확정된 tag id. loadTag의 캐시 시드 단계에서는 갱신하지
+  // 않는다 — 호출부(TodayView의 autostart 등)가 "지금 보이는 tag/sw가 stale
+  // 캐시가 아니라 서버가 확정한 값"임을 구분해야 할 때 이 값과 tag.id를 비교한다.
+  const [confirmedTagId, setConfirmedTagId] = useState<number | null>(null)
   const [isWakeLockActive, setIsWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const isRunningRef = useRef(false)
@@ -272,6 +276,7 @@ export function useTagTimer() {
       const data = response.data
       hydratedTagIdRef.current = tagId
       setTag(data)
+      setConfirmedTagId(tagId)
 
       const newSw = computeStopwatchState(tagId, data)
       setSw(newSw)
@@ -493,6 +498,7 @@ export function useTagTimer() {
   return {
     tag,
     sw,
+    confirmedTagId,
     isWakeLockActive,
     loadTag,
     startStopwatch,

@@ -114,6 +114,7 @@ const pt: Messages = {
   'tagPicker.recent': 'recentes',
   'tagPicker.noResults': 'Nenhuma tag correspondente',
   'tagPicker.selectThis': 'Selecionar',
+  'tagPicker.createNew': 'Criar nova tag',
 
   'logs.eyebrow': 'registros',
   'logs.tabDaily': 'Diário',
@@ -129,8 +130,7 @@ const pt: Messages = {
   'logs.dailyAvg': 'MÉDIA DIÁRIA',
   'logs.monthTotal': 'TOTAL DO MÊS',
   'logs.tagTotal': 'TOTAL',
-  'logs.selectTag': 'Selecione uma tag',
-  'logs.selectTagStats': 'Selecione uma tag para ver estatísticas',
+  'logs.allTags': 'Todas as tags',
   'logs.noRecordsPeriod': 'Nenhum registro neste período',
   'logs.periodWeek': 'Esta semana',
   'logs.periodMonth': 'Este mês',

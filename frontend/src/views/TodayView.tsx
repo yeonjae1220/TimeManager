@@ -40,6 +40,7 @@ export default function TodayView() {
   const {
     tag,
     sw,
+    confirmedTagId,
     isWakeLockActive,
     loadTag,
     startStopwatch,
@@ -57,6 +58,12 @@ export default function TodayView() {
   const [isOnline, setIsOnline] = useState(true)
   const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
   const didAutoLoad = useRef(false)
+  // 태그 탭의 "시작" 버튼(?autostart=1)으로 도착했을 때, 목표 태그가 실제로
+  // 로드될 때까지 자동 시작을 미뤄둔다. loadTag() 직후 곧바로 startStopwatch()를
+  // 부르면 useTagTimer 훅의 tag/sw가 아직 이전 렌더 값이라(state 갱신은
+  // 비동기) 조용히 no-op한다 — 아래 별도 effect가 tag state 갱신을 보고 트리거해야
+  // 이 문제가 안 생긴다.
+  const pendingAutoStartRef = useRef<number | null>(null)
 
   // "오늘"의 경계는 자정이 아니라 이 값(dailyResetHour) — resolveTodaySummaryDateParam 참조.
   // 최초 조회가 실패하면 자동 재시도가 없으므로, reload를 재접속 시점에 함께 불러야 한다
@@ -94,7 +101,15 @@ export default function TodayView() {
       const tagIdParam = searchParams?.get('tagId')
       if (tagIdParam) {
         const tagId = Number(tagIdParam)
-        if (tagId) loadTag(tagId, memberId).then(() => addRecentTag(tagId)).catch(() => {})
+        if (tagId) {
+          if (searchParams?.get('autostart') === '1') {
+            pendingAutoStartRef.current = tagId
+            // 소비 즉시 URL에서 지운다 — 남겨두면 새로고침이나 재진입 시
+            // 이미 정지한 세션을 다시 자동 시작시킬 수 있다.
+            router.replace(`/members/${memberId}/today?tagId=${tagId}`)
+          }
+          loadTag(tagId, memberId).then(() => addRecentTag(tagId)).catch(() => {})
+        }
       } else {
         const saved = peekTimerState()
         const recentIds = useTagStore.getState().recentTagIds
@@ -142,6 +157,23 @@ export default function TodayView() {
     router.push(`/records/${tag.id}`)
   }
 
+  // 수동 시작(handlePrimaryAction)과 태그 탭에서의 자동 시작(아래 autostart
+  // effect)이 공유하는 시작 절차. 둘 다 거쳐야 하니 한 곳에 모아둔다 — 안 그러면
+  // 자동 시작 경로만 알림 권한 요청·네이티브 재수렴을 빠뜨리기 쉽다.
+  const startTimerFlow = useCallback(async () => {
+    hapticStart()
+    await startStopwatch()
+    // 타이머를 시작한 직후가 알림 권한을 묻기에 자연스러운 두 번째 순간이다(첫 번째는
+    // 목표 설정). 이미 결정된 상태면 ensure 가 아무것도 하지 않으므로 매 시작마다
+    // 물어보는 일은 없다.
+    //
+    // 허용됐으면 반드시 재수렴시킨다 — startStopwatch 안의 sync 는 권한을 묻기 전에
+    // 이미 지나갔으므로, 이게 없으면 방금 시작한 세션만 알림 없이 흘러간다.
+    void ensureNotificationPermission().then((granted) => {
+      if (granted) void resyncNativeRunningSession()
+    })
+  }, [startStopwatch])
+
   const handlePrimaryAction = useCallback(async () => {
     if (isSwitching) return
     if (!tag) {
@@ -158,18 +190,26 @@ export default function TodayView() {
       fetchTodayTotal()
       return
     }
-    hapticStart()
-    await startStopwatch()
-    // 타이머를 시작한 직후가 알림 권한을 묻기에 자연스러운 두 번째 순간이다(첫 번째는
-    // 목표 설정). 이미 결정된 상태면 ensure 가 아무것도 하지 않으므로 매 시작마다
-    // 물어보는 일은 없다.
-    //
-    // 허용됐으면 반드시 재수렴시킨다 — startStopwatch 안의 sync 는 권한을 묻기 전에
-    // 이미 지나갔으므로, 이게 없으면 방금 시작한 세션만 알림 없이 흘러간다.
-    void ensureNotificationPermission().then((granted) => {
-      if (granted) void resyncNativeRunningSession()
-    })
-  }, [fetchTodayTotal, isSwitching, startStopwatch, stopStopwatch, sw.isRunning, tag])
+    await startTimerFlow()
+  }, [fetchTodayTotal, isSwitching, startTimerFlow, stopStopwatch, sw.isRunning, tag])
+
+  // 태그 탭 "시작" 버튼(?autostart=1)으로 도착했을 때만 발화한다.
+  //
+  // confirmedTagId가 목표 id와 일치할 때까지 기다린다 — loadTag는 네트워크 응답
+  // 전에 IndexedDB 캐시로 tag/sw를 먼저 그리는데(useTagTimer 참조), 그 캐시
+  // 렌더에서 바로 판단하면 두 가지 문제가 생긴다: ①시작 기준 elapsed/daily 값이
+  // 아직 서버 확정값이 아닌 stale 캐시일 수 있고, ②캐시가 우연히 "실행 중"으로
+  // 보이면 실제로는 정지 상태인데도 자동 시작이 조용히 영구 취소된다. 네트워크
+  // 확정을 기다리면 두 문제 모두 없어진다 — 대신 오프라인이면 autostart는
+  // 그냥 안 일어난다(수동으로 한 번 눌러야 함, 기존 오프라인 동작과 동일).
+  useEffect(() => {
+    if (pendingAutoStartRef.current === null) return
+    if (!tag || tag.id !== pendingAutoStartRef.current) return
+    if (confirmedTagId !== pendingAutoStartRef.current) return
+    pendingAutoStartRef.current = null
+    if (sw.isRunning) return
+    void startTimerFlow()
+  }, [tag, sw.isRunning, confirmedTagId, startTimerFlow])
 
   const recentTags = recentTagIds
     .map((id) => findById(id))
@@ -438,6 +478,7 @@ export default function TodayView() {
           currentTagId={tag?.id ?? null}
           onSelect={selectTag}
           onClose={() => setShowTagPicker(false)}
+          allowCreate
         />
       )}
     </AppShell>

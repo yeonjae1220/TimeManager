@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback, useMemo } from 'react'
 import { type Tag } from '@/store/tagStore'
 import { useTagStore } from '@/store/tagStore'
+import { findTagNode } from '@/utils/tagTree'
+import AddTagForm from '@/components/AddTagForm'
 import { useI18n } from '@/i18n/I18nProvider'
 
 interface TagPickerModalProps {
@@ -10,21 +12,14 @@ interface TagPickerModalProps {
   currentTagId: number | null
   onSelect: (tagId: number) => void
   onClose: () => void
+  /** 오늘 탭처럼 태그 선택 도중 새 태그를 만들 수 있어야 하는 화면에서만 켠다. */
+  allowCreate?: boolean
 }
 
 function getVisibleChildren(tagTree: Tag[]): Tag[] {
   const root = tagTree.find((t) => t.type === 'ROOT')
   if (!root) return []
   return root.children.filter((t) => t.type !== 'DISCARDED')
-}
-
-function findNode(nodes: Tag[], id: number): Tag | null {
-  for (const n of nodes) {
-    if (n.id === id) return n
-    const found = findNode(n.children, id)
-    if (found) return found
-  }
-  return null
 }
 
 function flattenTags(nodes: Tag[], path: string[] = []): { tag: Tag; path: string }[] {
@@ -40,24 +35,41 @@ function flattenTags(nodes: Tag[], path: string[] = []): { tag: Tag; path: strin
 
 const PICKER_RECENT_TAG_LIMIT = 10
 
-export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClose }: TagPickerModalProps) {
+export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClose, allowCreate = false }: TagPickerModalProps) {
   const { t: tr } = useI18n()
   const [pathIds, setPathIds] = useState<number[]>([])
   const [query, setQuery] = useState('')
+  const [showCreateForm, setShowCreateForm] = useState(false)
   const recentTagIds = useTagStore((s) => s.recentTagIds)
   const findById = useTagStore((s) => s.findById)
+  const createTag = useTagStore((s) => s.createTag)
 
   useEffect(() => {
     document.body.style.overflow = 'hidden'
     return () => { document.body.style.overflow = '' }
   }, [])
 
+  // 탐색 중인 레벨을 벗어나면 그 레벨에서 열어둔 생성 폼은 닫는다.
+  useEffect(() => { setShowCreateForm(false) }, [pathIds.join(',')])
+
   const currentChildren: Tag[] = pathIds.length === 0
     ? getVisibleChildren(tagTree)
     : (() => {
-        const node = findNode(tagTree, pathIds[pathIds.length - 1])
+        const node = findTagNode(tagTree, pathIds[pathIds.length - 1])
         return node?.children.filter((t) => t.type !== 'DISCARDED') ?? []
       })()
+
+  // 새 태그의 부모 — 지금 보고 있는 레벨(중첩 중이면 그 노드, 아니면 루트).
+  const currentParentId: number | null = pathIds.length > 0
+    ? pathIds[pathIds.length - 1]
+    : (tagTree.find((t) => t.type === 'ROOT')?.id ?? null)
+
+  async function handleCreateTag(name: string) {
+    if (currentParentId === null) return
+    const newId = await createTag(name, currentParentId)
+    setShowCreateForm(false)
+    onSelect(newId)
+  }
 
   const navigateInto = useCallback((tag: Tag) => {
     const hasChildren = tag.children.filter((t) => t.type !== 'DISCARDED').length > 0
@@ -76,7 +88,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
     setPathIds((prev) => prev.slice(0, -1))
   }, [])
 
-  const breadcrumb: Tag[] = pathIds.map((id) => findNode(tagTree, id)).filter(Boolean) as Tag[]
+  const breadcrumb: Tag[] = pathIds.map((id) => findTagNode(tagTree, id)).filter(Boolean) as Tag[]
   const flattenedTags = useMemo(() => flattenTags(getVisibleChildren(tagTree)), [tagTree])
   const normalizedQuery = query.trim().toLowerCase()
   const searchResults = normalizedQuery
@@ -313,6 +325,29 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
             </div>
           )
         })}
+
+        {!normalizedQuery && allowCreate && currentParentId !== null && (
+          <div style={{ padding: '6px 16px 10px' }}>
+            {showCreateForm ? (
+              <AddTagForm
+                siblingNames={currentChildren.map((c) => c.name.toLowerCase())}
+                onAdd={handleCreateTag}
+                onCancel={() => setShowCreateForm(false)}
+              />
+            ) : (
+              <button
+                onClick={() => setShowCreateForm(true)}
+                className="mono"
+                style={{ display: 'flex', alignItems: 'center', gap: 6, width: '100%', minHeight: 44, padding: '10px 4px', background: 'none', border: 'none', color: 'var(--accent)', fontSize: 12, cursor: 'pointer' }}
+              >
+                <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
+                  <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
+                </svg>
+                {tr('tagPicker.createNew')}
+              </button>
+            )}
+          </div>
+        )}
       </div>
     </div>
     </div>

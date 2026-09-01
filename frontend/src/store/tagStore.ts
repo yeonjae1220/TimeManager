@@ -116,7 +116,7 @@ interface TagStoreState {
   findById: (id: number) => Tag | null
   addRecentTag: (tagId: number) => void
 
-  createTag: (name: string, parentTagId: number) => Promise<void>
+  createTag: (name: string, parentTagId: number) => Promise<number>
   renameTag: (tagId: number, name: string) => Promise<void>
   moveTag: (tagId: number, newParentTagId: number) => Promise<void>
   reorderTags: (parentTagId: number, orderedTagIds: number[]) => Promise<void>
@@ -153,9 +153,10 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async createTag(name, parentTagId) {
-    await apiClient.post('/api/v1/tags', { tagName: name, parentTagId })
+    const res = await apiClient.post<number>('/api/v1/tags', { tagName: name, parentTagId })
     const mid = get()._activeMemberId
     if (mid) await get()._doRefreshTags(mid)
+    return res.data
   },
 
   async renameTag(tagId, name) {

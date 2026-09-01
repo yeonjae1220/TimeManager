@@ -114,6 +114,7 @@ const zh: Messages = {
   'tagPicker.recent': '最近',
   'tagPicker.noResults': '没有匹配的标签',
   'tagPicker.selectThis': '选择',
+  'tagPicker.createNew': '新建标签',
 
   'logs.eyebrow': '记录',
   'logs.tabDaily': '每日',
@@ -129,8 +130,7 @@ const zh: Messages = {
   'logs.dailyAvg': '日均',
   'logs.monthTotal': '本月合计',
   'logs.tagTotal': '合计',
-  'logs.selectTag': '选择标签',
-  'logs.selectTagStats': '选择标签后将显示统计',
+  'logs.allTags': '全部标签',
   'logs.noRecordsPeriod': '该时间段内没有记录',
   'logs.periodWeek': '本周',
   'logs.periodMonth': '本月',
