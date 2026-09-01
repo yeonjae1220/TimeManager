@@ -84,3 +84,58 @@ describe('ProtectedLayout — 오프라인 접근 게이트', () => {
     await waitFor(() => expect(screen.getByTestId('app-content')).toBeDefined())
   })
 })
+
+describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복을 기다리지 않는다)', () => {
+  function deferredRefresh() {
+    let resolve!: (value: Awaited<ReturnType<typeof refreshAuth>>) => void
+    mockRefresh.mockImplementation(() => new Promise((res) => { resolve = res }))
+    return { resolve: (v: Awaited<ReturnType<typeof refreshAuth>>) => resolve(v) }
+  }
+
+  it('[신규] memberId 흔적이 있으면 refresh 가 끝나기 전에도 즉시 앱 본체를 연다', () => {
+    // 콜드 스타트에서 스켈레톤이 화면 전체(타이머 시작 버튼 포함)를 막던 것을 제거한다.
+    useAuthStore.setState({ memberId: 7 })
+    deferredRefresh()
+
+    renderLayout()
+
+    // waitFor 없이 첫 렌더에서 바로 통과해야 한다 — refresh는 아직 pending 이다.
+    expect(screen.getByTestId('app-content')).toBeDefined()
+  })
+
+  it('[신규] 세션 흔적이 전혀 없으면 refresh 가 끝날 때까지는 그대로 스켈레톤이다', () => {
+    // 보여줄 로컬 데이터가 없는 경우까지 낙관적으로 열면 안 된다 — UC4 와 동일한 경계.
+    deferredRefresh()
+
+    renderLayout()
+
+    expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+
+  it('[신규] 낙관적으로 연 뒤 unauthenticated 로 판명되면 화면을 다시 닫고 로그인으로 보낸다', async () => {
+    useAuthStore.setState({ memberId: 7 })
+    const gate = deferredRefresh()
+
+    renderLayout()
+    expect(screen.getByTestId('app-content')).toBeDefined() // 낙관적으로 이미 열려 있다
+
+    gate.resolve({ status: 'unauthenticated' })
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+    expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+
+  it('[신규] 낙관적으로 연 뒤 offline 로 판명되어도(memberId 보존) 화면은 계속 열려 있다', async () => {
+    useAuthStore.setState({ memberId: 7 })
+    const gate = deferredRefresh()
+
+    renderLayout()
+    expect(screen.getByTestId('app-content')).toBeDefined()
+
+    gate.resolve({ status: 'offline' })
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+    expect(screen.getByTestId('app-content')).toBeDefined()
+    expect(replace).not.toHaveBeenCalled()
+  })
+})
