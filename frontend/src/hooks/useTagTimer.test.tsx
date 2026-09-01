@@ -653,6 +653,49 @@ describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 �
     })
     expect(result.current.tag?.name).toBe('Updated')
   })
+
+  it('[캐시 시드] stale 캐시가 running 이어도 네트워크가 정지로 화해하면 wake lock 을 해제한다', async () => {
+    // 캐시가 "실행중"으로 남아 있으면(다른 기기에서 정지된 뒤 이 기기의 캐시가
+    // 아직 안 따라잡은 경우) 잠정 렌더가 화면 잠금을 먼저 취득할 수 있다. 서버가
+    // 정지로 화해하면 시작 버튼이 이미 "시작"으로 바뀌어 사용자가 stopStopwatch로
+    // 해제할 방법이 없으므로, loadTag 자신이 반드시 해제해야 한다.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const release = vi.fn().mockResolvedValue(undefined)
+    const sentinel = { release, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    const request = vi.fn().mockResolvedValue(sentinel)
+    ;(navigator as unknown as { wakeLock: unknown }).wakeLock = { request }
+
+    useTagStore.setState({
+      tagTree: [tagPayload({
+        id: 1, name: 'Stale', state: true,
+        latestStartTimeMs: Date.now() - 5000, latestStopTimeMs: null,
+      })] as Tag[],
+    })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+
+    const { result } = renderHook(() => useTagTimer())
+    let loadPromise!: Promise<void>
+    await act(async () => {
+      loadPromise = result.current.loadTag(1, 7)
+      // requestWakeLock() 은 loadTag 안에서 await 되지 않으므로(fire-and-forget),
+      // 내부의 navigator.wakeLock.request() 마이크로태스크가 정리될 틱을 준다.
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(request).toHaveBeenCalledWith('screen')
+    expect(result.current.isWakeLockActive).toBe(true)
+
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ id: 1, name: 'Stale', state: false, latestStartTimeMs: null, latestStopTimeMs: Date.now() }) })
+      await loadPromise
+    })
+
+    expect(result.current.isWakeLockActive).toBe(false)
+    expect(release).toHaveBeenCalled()
+
+    delete (navigator as unknown as { wakeLock?: unknown }).wakeLock
+  })
 })
 
 describe('useTagTimer — 인터벌 자가치유 (실행 중 화면이 얼지 않는다)', () => {

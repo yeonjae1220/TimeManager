@@ -64,6 +64,11 @@ const FOREGROUND_REFRESH_THROTTLE_MS = 5_000
  * 응답이든 IndexedDB 캐시든 동일하게 적용된다. loadTag 가 콜드 스타트에서 네트워크
  * 왕복 전에 캐시로 먼저 그리고(stale-while-revalidate), 응답이 오면 같은 함수로
  * 다시 계산해 항상 서버값이 이기게 한다.
+ *
+ * data 타입을 Tag(옵셔널 필드)로 느슨하게 받는 것은 의도적이다 — 캐시 경로(태그
+ * 트리)는 이 필드들이 비어 있을 수 있고, 네트워크 응답 경로는 항상 채워져 있다.
+ * 아래 계산은 이미 전부 `|| 0`/`Number.isFinite` 로 방어돼 있으므로 두 입력을
+ * 같은 함수로 처리해도 안전하다.
  */
 function computeStopwatchState(tagId: number, data: Tag): StopwatchState {
   const saved = peekTimerState()
@@ -244,6 +249,7 @@ export function useTagTimer() {
         const cachedSw = computeStopwatchState(tagId, cached)
         setSw(cachedSw)
         if (cachedSw.isRunning) requestWakeLock()
+        else releaseWakeLock()
       }
     }
 
@@ -264,7 +270,12 @@ export function useTagTimer() {
 
       const newSw = computeStopwatchState(tagId, data)
       setSw(newSw)
+      // 캐시 시드가 (stale 데이터로) 잠금을 먼저 취득했을 수 있으므로, 서버가
+      // 정지로 화해하면 여기서 반드시 해제한다 — 안 그러면 시작 버튼이 이미
+      // "시작"으로 바뀌어 있어 사용자가 stopStopwatch를 통해 해제할 방법이 없고
+      // 화면이 언마운트될 때까지 잠금이 조용히 남는다.
       if (newSw.isRunning) requestWakeLock()
+      else releaseWakeLock()
 
       // 네이티브 표면의 기준점. 이 API 는 서버에서 reconcileRunningTimersQuietly() 를 먼저
       // 돌리고, newSw 는 그 결과를 로컬 스냅샷·리셋 마커와 화해시킨 값이다. 즉 여기가
@@ -285,7 +296,7 @@ export function useTagTimer() {
     } catch (e) {
       console.error('Failed to load tag:', e instanceof Error ? e.message : String(e))
     }
-  }, [requestWakeLock])
+  }, [requestWakeLock, releaseWakeLock])
 
   // 포그라운드 복귀 처리. 세 가지를 한다:
   //  1) 실행 중이면 Wake Lock 재취득 — OS 가 백그라운드 전환 시 자동 해제한다.
