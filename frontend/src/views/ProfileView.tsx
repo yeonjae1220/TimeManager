@@ -53,6 +53,7 @@ export default function ProfileView() {
       setProfile(res.data)
       setName(res.data.name)
       setDailyResetHour(res.data.dailyResetHour)
+      setLoadError('')
     } catch {
       setLoadError(t('profile.loadFail'))
     }
