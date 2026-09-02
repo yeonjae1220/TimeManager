@@ -1,11 +1,13 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import Link from 'next/link'
+import { useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
+import { collectDescendantIds } from '@/utils/tagTree'
 import apiClient from '@/utils/apiClient'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { useI18n } from '@/i18n/I18nProvider'
@@ -62,6 +64,26 @@ function getTopTag(data: SummaryData): TagSummary | null {
 
 function toLocalDate(d: Date): string {
   return d.toLocaleDateString('sv-SE') // YYYY-MM-DD
+}
+
+/**
+ * "YYYY-MM-DD" 문자열을 로컬 자정 Date로 되돌린다. `new Date(str)`는 UTC 자정으로
+ * 해석해 음수 UTC 오프셋 지역에서 하루가 밀린다 — 반드시 연/월/일을 분해해 로컬
+ * 컴포넌트로 생성한다.
+ */
+function parseLocalDate(s: string): Date | null {
+  const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(s)
+  if (!m) return null
+  const year = Number(m[1])
+  const month = Number(m[2])
+  const day = Number(m[3])
+  const parsed = new Date(year, month - 1, day)
+  // new Date(y, m, d)는 범위를 벗어난 값(월 13, 일 45 등)을 던지지 않고 다음 달/해로
+  // 조용히 굴려 넘긴다(예: 2024-13-01 → 2025-01-01). URL을 직접 편집한 경우에만
+  // 닿는 경로지만, 굴러간 날짜로 조용히 진행하는 대신 무효 입력으로 취급한다.
+  const isValid =
+    parsed.getFullYear() === year && parsed.getMonth() === month - 1 && parsed.getDate() === day
+  return isValid ? parsed : null
 }
 
 function startOfWeek(d: Date): Date {
@@ -183,9 +205,17 @@ function getSummary(start: Date, end: Date): Promise<SummaryData> {
 // Daily tab
 // ────────────────────────────────────────────────────────────
 
-function DailyTab({ memberId }: { memberId: number }) {
+interface DailyTabProps {
+  memberId: number
+  /** 주별/월별 탭에서 특정 날짜를 드릴다운했을 때의 시작 날짜. 없으면 오늘. */
+  initialDate?: Date
+  /** 드릴다운으로 들어왔을 때만 채워지는 뒤로가기 대상. */
+  backTo?: { label: string; onBack: () => void }
+}
+
+function DailyTab({ memberId, initialDate, backTo }: DailyTabProps) {
   const { t: tr, language } = useI18n()
-  const [date, setDate] = useState(new Date())
+  const [date, setDate] = useState(initialDate ?? new Date())
 
   const load = useCallback(() => getSummary(date, date), [date])
   const { data, loading, failed, reload } = useAsyncData(load)
@@ -194,6 +224,20 @@ function DailyTab({ memberId }: { memberId: number }) {
 
   return (
     <div>
+      {backTo && (
+        <button
+          onClick={backTo.onBack}
+          // 시각적으로는 짧게 기간 이름만 보여주되, 접근성 이름은 탭 바의 동명
+          // 버튼("주별"/"월별")과 겹치지 않게 "뒤로 · 주별"처럼 구분한다 — 안 그러면
+          // 스크린리더 사용자가 똑같은 이름의 버튼 두 개(동작이 다름)를 구분할 수 없다.
+          aria-label={`${tr('common.back')} · ${backTo.label}`}
+          className="mono"
+          style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 14, padding: 0, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-2)', fontSize: 11 }}
+        >
+          <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M7.5 2L3 6l4.5 4" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round" strokeLinejoin="round"/></svg>
+          {backTo.label}
+        </button>
+      )}
       <NavArrows
         label={label}
         onPrev={() => setDate((d) => addDays(d, -1))}
@@ -259,7 +303,7 @@ function DailyTab({ memberId }: { memberId: number }) {
 // Weekly tab
 // ────────────────────────────────────────────────────────────
 
-function WeeklyTab({ memberId }: { memberId: number }) {
+function WeeklyTab({ memberId, onDayClick }: { memberId: number; onDayClick: (date: Date) => void }) {
   const { t: tr, language } = useI18n()
   const [monday, setMonday] = useState(() => startOfWeek(new Date()))
 
@@ -302,12 +346,18 @@ function WeeklyTab({ memberId }: { memberId: number }) {
           const secs = dailyTotals[i] ?? 0
           const isToday = isSameDay(dayDate, today)
           return (
-            <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4 }}>
+            <button
+              key={i}
+              type="button"
+              onClick={() => onDayClick(dayDate)}
+              aria-label={dayDate.toLocaleDateString(language, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}
+              style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 4, background: 'none', border: 'none', padding: 0, cursor: 'pointer' }}
+            >
               <div style={{ width: '100%', display: 'flex', alignItems: 'flex-end', height: 60 }}>
                 <div style={{ width: '100%', height: `${(secs / maxDay) * 100}%`, minHeight: secs > 0 ? 3 : 0, background: isToday ? 'var(--accent)' : 'var(--border)', borderRadius: 2, transition: 'height 0.3s' }} />
               </div>
               <span className="mono" style={{ fontSize: 9, color: isToday ? 'var(--accent)' : 'var(--text-3)' }}>{dayLabel}</span>
-            </div>
+            </button>
           )
         })}
       </div>
@@ -352,7 +402,7 @@ function WeeklyTab({ memberId }: { memberId: number }) {
 // Monthly tab
 // ────────────────────────────────────────────────────────────
 
-function MonthlyTab({ memberId }: { memberId: number }) {
+function MonthlyTab({ memberId, onDayClick }: { memberId: number; onDayClick: (date: Date) => void }) {
   const { t: tr, language } = useI18n()
   const [refDate, setRefDate] = useState(new Date())
 
@@ -440,9 +490,12 @@ function MonthlyTab({ memberId }: { memberId: number }) {
             const intensity = secs / maxVal
             const isToday = isSameDay(d, today)
             return (
-              <div
+              <button
                 key={i}
+                type="button"
+                onClick={() => onDayClick(d)}
                 title={tr('logs.dayTooltip', { day: d.getDate(), dur: fmtDuration(secs) })}
+                aria-label={`${d.toLocaleDateString(language, { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })}: ${fmtDuration(secs)}`}
                 style={{
                   aspectRatio: '1',
                   borderRadius: 3,
@@ -454,10 +507,13 @@ function MonthlyTab({ memberId }: { memberId: number }) {
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
+                  border: 'none',
+                  padding: 0,
+                  cursor: 'pointer',
                 }}
               >
                 <span className="mono" style={{ fontSize: 8, color: secs > 0 ? 'var(--bg)' : 'var(--text-3)', opacity: 0.8 }}>{d.getDate()}</span>
-              </div>
+              </button>
             )
           })}
         </div>
@@ -532,31 +588,40 @@ function TagTab({ memberId }: { memberId: number }) {
   }
 
   // getRange/getPrevRange 는 매 렌더 재정의되는 지역 함수라 deps 에 넣을 수 없다.
-  // 실제 입력은 아래 네 값이 전부다.
+  // 실제 입력은 기간 세 값뿐이다 — 조회 자체는 항상 전체 태그를 가져오고,
+  // selectedTagId 는 filterForTag 에서 클라이언트 사이드로만 골라낸다. 그래서
+  // 태그를 바꿔도 재조회가 필요 없다(스피너 없이 즉시 필터링).
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const loadRanges = useCallback(() => {
     const [start, end] = getRange()
     const [pStart, pEnd] = getPrevRange(start, end)
     return Promise.all([getSummary(start, end), getSummary(pStart, pEnd)])
       .then(([cur, pr]) => ({ current: cur, prev: pr }))
-  }, [selectedTagId, period, customStart, customEnd])
+  }, [period, customStart, customEnd])
 
-  // 태그를 고르기 전에는 조회하지 않는다 → loader 를 null 로 넘긴다.
-  const { data: ranges, loading, failed, reload } = useAsyncData(selectedTagId ? loadRanges : null)
+  // 태그 미선택 시에도 조회한다 — 예전엔 여기서 loader 를 null 로 넘겨 태그를
+  // 고르기 전까지 빈 화면만 보여줬다. "전체 태그" 기본 데이터를 먼저 보여주는
+  // 편이 더 유용하다.
+  const { data: ranges, loading, failed, reload } = useAsyncData(loadRanges)
   const current = ranges?.current ?? null
   const prev = ranges?.prev ?? null
 
   const selectedTag = selectedTagId ? findById(selectedTagId) : null
 
+  // 태그 미선택("전체 태그") 시엔 필터링 없이 전체를 쓴다. 선택했으면 그 태그
+  // 자신 + 하위 태그의 id 집합으로 거른다.
+  //
+  // 예전엔 TagSummary.parentTagName(문자열)과 선택한 태그의 이름을 비교했다 —
+  // 서로 다른 가지에 동명 태그가 있으면 엉뚱한 기록이 섞여 들어가는 결함이었다.
+  // 트리를 id로 타고 내려가면 이름 충돌과 무관하게 정확하다.
+  const descendantIds = useMemo(
+    () => (selectedTagId ? collectDescendantIds(tagTree, selectedTagId) : null),
+    [tagTree, selectedTagId],
+  )
+
   function filterForTag(data: SummaryData): TagSummary[] {
-    if (!selectedTagId) return []
-    return data.tagSummaries.filter((t) => {
-      if (t.tagId === selectedTagId) return true
-      const tag = findById(t.tagId)
-      if (!tag) return false
-      // check if parent chain includes selectedTagId
-      return t.parentTagName === selectedTag?.name
-    })
+    if (!descendantIds) return data.tagSummaries
+    return data.tagSummaries.filter((t) => descendantIds.has(t.tagId))
   }
 
   const currentFiltered = current ? filterForTag(current) : []
@@ -573,7 +638,7 @@ function TagTab({ memberId }: { memberId: number }) {
         style={{ display: 'flex', alignItems: 'center', gap: 10, width: '100%', padding: '10px 14px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', cursor: 'pointer', color: 'var(--text)', marginBottom: 20 }}
       >
         <span style={{ width: 7, height: 7, borderRadius: '50%', background: 'var(--text-3)', flexShrink: 0 }} />
-        <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{selectedTag?.name ?? tr('logs.selectTag')}</span>
+        <span style={{ flex: 1, textAlign: 'left', fontSize: 13 }}>{selectedTag?.name ?? tr('logs.allTags')}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none"><path d="M3 4.5l3 3 3-3" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round"/></svg>
       </button>
 
@@ -598,10 +663,6 @@ function TagTab({ memberId }: { memberId: number }) {
         </div>
       )}
 
-      {!selectedTagId && (
-        <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center', marginTop: 40 }}>{tr('logs.selectTagStats')}</p>
-      )}
-
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
       {!loading && failed && <LoadError onRetry={reload} />}
       {/* !failed 가 필수다. 빼면 조회 실패가 "해당 기간에 기록이 없습니다" + 기록
@@ -609,7 +670,7 @@ function TagTab({ memberId }: { memberId: number }) {
           "이 기간엔 안 했구나"로 확신하고 넘어간다. 아래 통계 블록은 지금은
           length > 0 게이트에 막히지만, 게이트가 바뀌어도 실패 시엔 안 나오도록
           여기서도 !failed 를 건다. */}
-      {!loading && !failed && selectedTagId && currentFiltered.length === 0 && (
+      {!loading && !failed && currentFiltered.length === 0 && (
         <div style={{ display: 'grid', justifyItems: 'center', gap: 12, marginTop: 40 }}>
           <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecordsPeriod')}</p>
           <Link href={`/members/${memberId}/today${selectedTagId ? `?tagId=${selectedTagId}` : ''}`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
@@ -663,10 +724,35 @@ const TABS: { key: TabKey; labelKey: MessageKey }[] = [
   { key: 'tag', labelKey: 'logs.tabTag' },
 ]
 
+/** period 탭에서 날짜를 클릭해 들어온 일별 상세로 되돌아갈 대상. */
+const DRILLDOWN_SOURCES = ['weekly', 'monthly'] as const
+type DrilldownSource = (typeof DRILLDOWN_SOURCES)[number]
+
 export default function LogsView() {
   const { t } = useI18n()
   const memberId = useAuthStore((s) => s.memberId)
-  const [activeTab, setActiveTab] = useState<TabKey>('daily')
+  const router = useRouter()
+  const searchParams = useSearchParams()
+
+  const tabParam = searchParams?.get('tab')
+  const activeTab: TabKey = TABS.some((tb) => tb.key === tabParam) ? (tabParam as TabKey) : 'daily'
+  const dateParam = searchParams?.get('date')
+  const drillDate = dateParam ? parseLocalDate(dateParam) : null
+  const fromParam = searchParams?.get('from')
+  const fromTab: DrilldownSource | null =
+    (DRILLDOWN_SOURCES as readonly string[]).includes(fromParam ?? '') ? (fromParam as DrilldownSource) : null
+
+  // 탭 전환은 브라우저 히스토리를 늘리지 않는다(기존 로컬 state와 동일한 UX) —
+  // 매 탭 클릭이 "뒤로가기" 대상으로 쌓이면 하드웨어 뒤로가기가 성가셔진다.
+  function goToTab(key: TabKey) {
+    router.replace(`/logs?tab=${key}`)
+  }
+
+  // 날짜를 드릴다운할 때만 히스토리에 실제로 쌓는다 — NativeShell의 하드웨어
+  // 뒤로가기(history.back())가 여기서 자연히 period 탭으로 돌아가게 만든다.
+  function drillIntoDay(date: Date, from: DrilldownSource) {
+    router.push(`/logs?tab=daily&date=${toLocalDate(date)}&from=${from}`)
+  }
 
   return (
     <AppShell>
@@ -685,7 +771,7 @@ export default function LogsView() {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => goToTab(tab.key)}
                 className="mono"
                 style={{ flex: 1, padding: '6px 0', background: activeTab === tab.key ? 'var(--surface)' : 'transparent', border: 'none', borderRadius: 'calc(var(--radius) - 2px)', color: activeTab === tab.key ? 'var(--text)' : 'var(--text-3)', fontSize: 11, cursor: 'pointer', transition: 'all 0.15s', boxShadow: activeTab === tab.key ? 'var(--shadow-active)' : undefined }}
               >
@@ -694,9 +780,20 @@ export default function LogsView() {
             ))}
           </div>
 
-          {memberId && activeTab === 'daily' && <DailyTab memberId={memberId} />}
-          {memberId && activeTab === 'weekly' && <WeeklyTab memberId={memberId} />}
-          {memberId && activeTab === 'monthly' && <MonthlyTab memberId={memberId} />}
+          {memberId && activeTab === 'daily' && (
+            <DailyTab
+              key={dateParam ?? 'today'}
+              memberId={memberId}
+              initialDate={drillDate ?? undefined}
+              backTo={fromTab ? { label: t(fromTab === 'weekly' ? 'logs.tabWeekly' : 'logs.tabMonthly'), onBack: () => router.back() } : undefined}
+            />
+          )}
+          {memberId && activeTab === 'weekly' && (
+            <WeeklyTab memberId={memberId} onDayClick={(date) => drillIntoDay(date, 'weekly')} />
+          )}
+          {memberId && activeTab === 'monthly' && (
+            <MonthlyTab memberId={memberId} onDayClick={(date) => drillIntoDay(date, 'monthly')} />
+          )}
           {memberId && activeTab === 'tag' && <TagTab memberId={memberId} />}
         </div>
       </div>

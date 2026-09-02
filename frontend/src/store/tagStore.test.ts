@@ -471,3 +471,36 @@ describe('tagStore.retryPendingTimerOp — 재생 후 네이티브 표면 재수
     expect(lastSyncedSession()).toMatchObject({ tagId: 1, tagName: '알고리즘' })
   })
 })
+
+// ── createTag 반환값 ────────────────────────────────────────────────────
+//
+// TagPickerModal(오늘 탭 태그 생성 모달)이 생성 직후 그 태그를 바로 선택하려면
+// 새 태그 id가 필요하다. 백엔드는 POST 응답 본문에 id(Long)를 그대로 준다
+// (TagApiController#createTag) — 예전엔 그 값을 버리고 Promise<void>였다.
+describe('tagStore.createTag — 생성된 태그 id 반환', () => {
+  const getFn = () => apiClient.get as unknown as ReturnType<typeof vi.fn>
+
+  beforeEach(() => {
+    getFn().mockReset()
+    getFn().mockResolvedValue({ data: [] })
+    post.mockReset()
+    useTagStore.setState({ _activeMemberId: 7, isRefreshing: false, _pendingRefreshMemberId: null })
+  })
+
+  it('[회귀] POST 응답 본문(id)을 그대로 돌려준다', async () => {
+    post.mockResolvedValue({ data: 42 })
+
+    const newId = await useTagStore.getState().createTag('운동', 1)
+
+    expect(newId).toBe(42)
+    expect(post).toHaveBeenCalledWith('/api/v1/tags', { tagName: '운동', parentTagId: 1 })
+  })
+
+  it('생성 후 태그 트리를 갱신한다(id를 돌려주는 것과 별개로 부작용은 유지)', async () => {
+    post.mockResolvedValue({ data: 42 })
+
+    await useTagStore.getState().createTag('운동', 1)
+
+    expect(getFn()).toHaveBeenCalled()
+  })
+})

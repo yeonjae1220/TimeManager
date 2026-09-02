@@ -50,7 +50,17 @@ function ReconnectScreen({ onRetry, retrying }: { onRetry: () => void; retrying:
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
   const { memberId, clearAuth } = useAuthStore()
   const router = useRouter()
-  const [phase, setPhase] = useState<AuthPhase>('restoring')
+  // accessToken이 있으면(인앱 네비게이션) 물론이고, memberId만 남아 있어도(콜드
+  // 스타트, 이 기기의 이전 세션 흔적) 낙관적으로 즉시 통과시킨다 — refresh 왕복이
+  // 끝날 때까지 스켈레톤으로 화면 전체를 막으면 그 뒤 타이머 화면(태그 로드·시작
+  // 버튼)까지 통째로 지연된다. restore()는 그대로 아래 effect에서 백그라운드로
+  // 돌고, unauthenticated로 판명되면 clearAuth()가 memberId를 지워 아래
+  // `!memberId` 가드가 화면을 안전하게 닫는다(오프라인 재전송 큐와 같은 원칙:
+  // 먼저 낙관적으로 반영 → 서버 응답으로 화해).
+  const [phase, setPhase] = useState<AuthPhase>(() => {
+    const state = useAuthStore.getState()
+    return state.accessToken || state.memberId ? 'ready' : 'restoring'
+  })
   const [retrying, setRetrying] = useState(false)
   const inFlight = useRef(false)
 

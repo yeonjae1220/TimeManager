@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 // 이 테스트의 주인공은 "조회 실패를 사용자에게 알리는가" 하나다. 그래서 화면 껍데기
 // (AppShell·Link)와 인증 상태는 통과용으로만 대체하고, 데이터 경로(apiClient)와
@@ -14,6 +14,35 @@ vi.mock('@/store/authStore', () => ({
 vi.mock('next/link', () => ({
   default: ({ children, href }: { children: React.ReactNode; href: string }) => <a href={href}>{children}</a>,
 }))
+
+// LogsView는 탭·드릴다운 상태를 URL 쿼리에서 읽는다. push/replace가 실제로
+// 쿼리를 바꾸고 그걸 useSearchParams가 다시 읽어야(리액티브) "탭을 클릭하면
+// 그 탭 내용이 보인다" 류의 기존 테스트가 그대로 성립한다. useSyncExternalStore로
+// 최소한의 진짜 라우터 흉내를 낸다(history.back()과 동일하게 back()은 스택을 pop).
+vi.mock('next/navigation', async () => {
+  const { useSyncExternalStore } = await import('react')
+  let query = ''
+  const historyStack: string[] = []
+  const listeners = new Set<() => void>()
+  function emit() { listeners.forEach((l) => l()) }
+  function toQuery(url: string) {
+    const i = url.indexOf('?')
+    return i >= 0 ? url.slice(i + 1) : ''
+  }
+  return {
+    useRouter: () => ({
+      push: (url: string) => { historyStack.push(query); query = toQuery(url); emit() },
+      replace: (url: string) => { query = toQuery(url); emit() },
+      back: () => { query = historyStack.pop() ?? ''; emit() },
+    }),
+    useSearchParams: () => new URLSearchParams(useSyncExternalStore(
+      (cb: () => void) => { listeners.add(cb); return () => listeners.delete(cb) },
+      () => query,
+    )),
+    __resetNav: () => { query = ''; historyStack.length = 0 },
+    __setQuery: (q: string) => { query = q; historyStack.length = 0; emit() },
+  }
+})
 
 // TagTab 용. 태그 트리 로딩과 피커 UI 자체는 검증 대상이 아니라 "태그를 고른 뒤
 // 조회가 실패하면 어떻게 보이는가"에 도달하기 위한 통로다.
@@ -33,11 +62,14 @@ vi.mock('@/components/TagPickerModal', () => ({
 }))
 
 import apiClient from '@/utils/apiClient'
+import * as nextNavigation from 'next/navigation'
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { LANG_KEY } from '@/i18n/messages/index'
 import LogsView from './LogsView'
 
 const get = apiClient.get as unknown as ReturnType<typeof vi.fn>
+const resetNav = (nextNavigation as unknown as { __resetNav: () => void }).__resetNav
+const setNavQuery = (nextNavigation as unknown as { __setQuery: (q: string) => void }).__setQuery
 
 const EMPTY_SUMMARY = { data: { totalSeconds: 0, tagSummaries: [] } }
 
@@ -53,6 +85,7 @@ beforeEach(() => {
   vi.spyOn(console, 'error').mockImplementation(() => {})
   localStorage.setItem(LANG_KEY, 'ko')
   get.mockReset()
+  resetNav()
 })
 
 afterEach(() => {
@@ -208,25 +241,46 @@ describe('LogsView — 보조 차트의 부분 실패', () => {
   })
 })
 
-describe('LogsView — 태그별 탭', () => {
-  /** 태그별 탭으로 이동해 태그 하나를 고른다. 이걸 해야 조회가 시작된다. */
-  function selectTag() {
-    fireEvent.click(screen.getByRole('button', { name: '태그별' }))
-    fireEvent.click(screen.getByRole('button', { name: /태그를 선택하세요/ }))
-    fireEvent.click(screen.getByRole('button', { name: '피커에서 태그 고르기' }))
-  }
-
-  it('태그를 고르기 전에는 조회하지 않고 스피너도 돌지 않는다', () => {
-    get.mockResolvedValue(EMPTY_SUMMARY)
+describe('LogsView — 태그별 탭 기본 데이터', () => {
+  /**
+   * 예전엔 태그를 고르기 전까지 조회 자체를 안 했다(loader=null). 태그를 고르지
+   * 않고도 "전체 태그" 합계를 먼저 보여주도록 바꿨다 — 빈 화면보다 유용하다.
+   */
+  it('[회귀] 태그를 고르기 전에도 전체 태그 기본 데이터를 조회해 보여준다', async () => {
+    get.mockResolvedValue({
+      data: {
+        totalSeconds: 3600,
+        tagSummaries: [{ tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 3600, sessionCount: 1, sessions: [] }],
+      },
+    })
 
     renderLogs()
     fireEvent.click(screen.getByRole('button', { name: '태그별' }))
 
-    // loader 가 null 인 구간. loading 이 true 로 남으면 아무것도 안 골랐는데
-    // 스피너가 영원히 도는 화면이 된다.
-    expect(screen.getByText('태그를 선택하면 통계가 표시됩니다')).toBeTruthy()
-    expect(document.querySelector('.spinner')).toBeNull()
+    expect(screen.getByRole('button', { name: '전체 태그' })).toBeTruthy()
+    await waitFor(() => expect(screen.getAllByText('01:00:00').length).toBeGreaterThan(0))
+    // 태그를 고르지 않고도 태그별 막대까지 보인다.
+    expect(screen.getByText('공부')).toBeTruthy()
   })
+
+  it('[회귀] 태그를 고르기 전 조회 실패도 오류로 알린다(빈 화면으로 위장하지 않는다)', async () => {
+    get.mockRejectedValue(new Error('tag summary failed'))
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '태그별' }))
+
+    await waitFor(() => expect(screen.getByText('불러오지 못했습니다.')).toBeTruthy())
+    expect(screen.queryByText('해당 기간에 기록이 없습니다')).toBeNull()
+  })
+})
+
+describe('LogsView — 태그별 탭에서 특정 태그 선택', () => {
+  /** 태그별 탭으로 이동해 태그 하나를 고른다. */
+  function selectTag() {
+    fireEvent.click(screen.getByRole('button', { name: '태그별' }))
+    fireEvent.click(screen.getByRole('button', { name: '전체 태그' }))
+    fireEvent.click(screen.getByRole('button', { name: '피커에서 태그 고르기' }))
+  }
 
   it('[회귀] 조회 실패를 "해당 기간에 기록이 없습니다"로 위장하지 않는다', async () => {
     // 이전 코드: .catch(() => { setCurrent(null); setPrev(null) }) 로 삼키면
@@ -267,5 +321,96 @@ describe('LogsView — 태그별 탭', () => {
 
     await waitFor(() => expect(screen.getByText('해당 기간에 기록이 없습니다')).toBeTruthy())
     expect(screen.queryByText('불러오지 못했습니다.')).toBeNull()
+  })
+
+  it('[회귀] 태그를 바꿔 골라도 같은 기간이면 재조회 없이 즉시 필터링한다', async () => {
+    get.mockResolvedValue({
+      data: {
+        totalSeconds: 3600,
+        tagSummaries: [{ tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 3600, sessionCount: 1, sessions: [] }],
+      },
+    })
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '태그별' }))
+    await waitFor(() => expect(screen.getByRole('button', { name: '전체 태그' })).toBeTruthy())
+
+    const callsBeforeSelect = get.mock.calls.length
+    fireEvent.click(screen.getByRole('button', { name: '전체 태그' }))
+    fireEvent.click(screen.getByRole('button', { name: '피커에서 태그 고르기' }))
+
+    await waitFor(() => expect(screen.getByRole('button', { name: '공부' })).toBeTruthy())
+    // 태그를 바꿔도 이미 받아둔 기간 데이터를 다시 필터링할 뿐, 새 요청을 보내지 않는다.
+    expect(get).toHaveBeenCalledTimes(callsBeforeSelect)
+  })
+})
+
+describe('LogsView — 주별/월별에서 일별 상세로 드릴다운', () => {
+  it('[회귀] 주별 막대의 특정 요일을 클릭하면 그 날의 일별 상세로 이동한다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    await waitFor(() => expect(screen.getByTestId('weekly-bar-chart')).toBeTruthy())
+
+    const dayButtons = within(screen.getByTestId('weekly-bar-chart')).getAllByRole('button')
+    expect(dayButtons.length).toBe(7)
+    fireEvent.click(dayButtons[0])
+
+    // 일별 탭으로 전환되고, 어디서 왔는지 보여주는 뒤로가기가 뜬다.
+    await waitFor(() => expect(screen.getByRole('button', { name: /뒤로 · 주별/ })).toBeTruthy())
+  })
+
+  it('[회귀] 월별 히트맵의 날짜를 클릭하면 그 날의 일별 상세로 이동한다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '월별' }))
+    await waitFor(() => expect(screen.getByTestId('monthly-heatmap')).toBeTruthy())
+
+    const dayButtons = within(screen.getByTestId('monthly-heatmap')).getAllByRole('button')
+    expect(dayButtons.length).toBeGreaterThan(0)
+    fireEvent.click(dayButtons[0])
+
+    await waitFor(() => expect(screen.getByRole('button', { name: /뒤로 · 월별/ })).toBeTruthy())
+  })
+
+  it('뒤로가기를 누르면 원래 있던 기간 탭으로 돌아간다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    await waitFor(() => expect(screen.getByTestId('weekly-bar-chart')).toBeTruthy())
+
+    const dayButtons = within(screen.getByTestId('weekly-bar-chart')).getAllByRole('button')
+    fireEvent.click(dayButtons[0])
+    const backButton = await screen.findByRole('button', { name: /뒤로 · 주별/ })
+
+    fireEvent.click(backButton)
+
+    // 주별 탭으로 복귀 — 막대그래프가 다시 보인다.
+    await waitFor(() => expect(screen.getByTestId('weekly-bar-chart')).toBeTruthy())
+  })
+
+  it('일별 탭을 직접 클릭해 들어가면(드릴다운이 아니면) 뒤로가기 버튼이 없다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '일별' }))
+
+    await waitFor(() => expect(screen.getByText('기록이 없습니다')).toBeTruthy())
+    expect(screen.queryByRole('button', { name: /뒤로 · 주별/ })).toBeNull()
+    expect(screen.queryByRole('button', { name: /뒤로 · 월별/ })).toBeNull()
+  })
+
+  it('[회귀] URL의 date가 존재하지 않는 달력 날짜여도(예: 13월 45일) 굴러간 날짜로 진행하지 않고 오늘로 안전하게 대체한다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+    setNavQuery('tab=daily&date=2024-13-45&from=weekly')
+
+    renderLogs()
+
+    // 크래시 없이 렌더되고, 뒤로가기(from=weekly)는 그대로 유효하다 —
+    // date만 무효 처리되고 나머지 드릴다운 컨텍스트는 살아있다.
+    await waitFor(() => expect(screen.getByRole('button', { name: /뒤로 · 주별/ })).toBeTruthy())
   })
 })

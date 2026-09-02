@@ -114,6 +114,7 @@ const ru: Messages = {
   'tagPicker.recent': 'недавние',
   'tagPicker.noResults': 'Подходящих тегов нет',
   'tagPicker.selectThis': 'Выбрать',
+  'tagPicker.createNew': 'Создать новый тег',
 
   'logs.eyebrow': 'записи',
   'logs.tabDaily': 'День',
@@ -129,8 +130,7 @@ const ru: Messages = {
   'logs.dailyAvg': 'СРЕДНЕЕ В ДЕНЬ',
   'logs.monthTotal': 'ИТОГ ЗА МЕСЯЦ',
   'logs.tagTotal': 'ИТОГО',
-  'logs.selectTag': 'Выберите тег',
-  'logs.selectTagStats': 'Выберите тег, чтобы увидеть статистику',
+  'logs.allTags': 'Все теги',
   'logs.noRecordsPeriod': 'Нет записей за этот период',
   'logs.periodWeek': 'Эта неделя',
   'logs.periodMonth': 'Этот месяц',

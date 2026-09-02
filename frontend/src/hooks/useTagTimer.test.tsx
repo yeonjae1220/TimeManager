@@ -13,7 +13,7 @@ vi.mock('@/native/runningSession', async (importOriginal) => ({
 
 import apiClient from '@/utils/apiClient'
 import { useTagTimer } from './useTagTimer'
-import { useTagStore } from '@/store/tagStore'
+import { useTagStore, type Tag } from '@/store/tagStore'
 import {
   peekPendingTimerOperations,
   peekResetTimerMarker,
@@ -559,6 +559,142 @@ describe('useTagTimer — 네이티브 표면 동기화', () => {
     })
 
     expect(get).toHaveBeenCalledTimes(2)
+  })
+})
+
+// 네트워크 응답 타이밍을 직접 제어해 "왕복이 끝나기 전" 상태를 관찰한다.
+function deferred<T>() {
+  let resolve!: (value: T) => void
+  const promise = new Promise<T>((res) => { resolve = res })
+  return { promise, resolve }
+}
+
+describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 전 즉시 표시)', () => {
+  it('[캐시 시드] 태그 트리 캐시에 있으면 네트워크 응답 전에도 즉시 tag·sw 를 그린다', async () => {
+    useTagStore.setState({
+      tagTree: [tagPayload({
+        id: 1, name: 'Cached', state: true,
+        latestStartTimeMs: Date.now() - 5000, latestStopTimeMs: null,
+      })] as Tag[],
+    })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+
+    const { result } = renderHook(() => useTagTimer())
+    let loadPromise!: Promise<void>
+    act(() => {
+      loadPromise = result.current.loadTag(1, 7)
+    })
+
+    // 네트워크가 아직 끝나지 않았는데도 캐시로 즉시 그려져 있다 — "태그 선택"
+    // 상태로 보이며 시작 버튼이 무력화되는 공백이 없다.
+    expect(result.current.tag?.name).toBe('Cached')
+    expect(result.current.sw.isRunning).toBe(true)
+    // 캐시로 그린 잠정 값으로는 네이티브 알림을 건드리지 않는다 — 권위는 네트워크뿐.
+    expect(syncNative).not.toHaveBeenCalled()
+
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ id: 1, name: 'Cached', state: false, latestStartTimeMs: null, latestStopTimeMs: Date.now() }) })
+      await loadPromise
+    })
+
+    // 네트워크 응답이 캐시 값을 덮어써 화해한다.
+    expect(result.current.sw.isRunning).toBe(false)
+    expect(syncNative).toHaveBeenCalledTimes(1)
+    expect(lastSyncedSession()).toBeNull()
+  })
+
+  it('[캐시 시드] 캐시에 없으면 네트워크 응답까지 기존과 동일하게 대기한다', async () => {
+    useTagStore.setState({ tagTree: [] })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+
+    const { result } = renderHook(() => useTagTimer())
+    let loadPromise!: Promise<void>
+    act(() => {
+      loadPromise = result.current.loadTag(1, 7)
+    })
+
+    expect(result.current.tag).toBeNull()
+    expect(syncNative).not.toHaveBeenCalled()
+
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ id: 1, name: 'Fresh' }) })
+      await loadPromise
+    })
+    expect(result.current.tag?.name).toBe('Fresh')
+  })
+
+  it('[캐시 시드] 이미 로드된 태그를 재조회하는 동안에는 캐시로 되돌아가지 않는다', async () => {
+    get.mockResolvedValueOnce({ data: tagPayload({ id: 1, name: 'Real', state: false }) })
+    const { result } = renderHook(() => useTagTimer())
+    await act(async () => {
+      await result.current.loadTag(1, 7)
+    })
+    expect(result.current.tag?.name).toBe('Real')
+
+    // 다른 탭 등에서 남은 stale 캐시 — 재조회(포그라운드 복귀 등) 중 화면이
+    // 이 값으로 되튀면 라이브로 흐르던 표시가 깨진다.
+    useTagStore.setState({ tagTree: [tagPayload({ id: 1, name: 'Stale', state: true })] as Tag[] })
+
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+    let loadPromise!: Promise<void>
+    act(() => {
+      loadPromise = result.current.loadTag(1, 7)
+    })
+
+    expect(result.current.tag?.name).toBe('Real')
+    expect(result.current.sw.isRunning).toBe(false)
+
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ id: 1, name: 'Updated', state: false }) })
+      await loadPromise
+    })
+    expect(result.current.tag?.name).toBe('Updated')
+  })
+
+  it('[캐시 시드] stale 캐시가 running 이어도 네트워크가 정지로 화해하면 wake lock 을 해제한다', async () => {
+    // 캐시가 "실행중"으로 남아 있으면(다른 기기에서 정지된 뒤 이 기기의 캐시가
+    // 아직 안 따라잡은 경우) 잠정 렌더가 화면 잠금을 먼저 취득할 수 있다. 서버가
+    // 정지로 화해하면 시작 버튼이 이미 "시작"으로 바뀌어 사용자가 stopStopwatch로
+    // 해제할 방법이 없으므로, loadTag 자신이 반드시 해제해야 한다.
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const release = vi.fn().mockResolvedValue(undefined)
+    const sentinel = { release, addEventListener: vi.fn(), removeEventListener: vi.fn() }
+    const request = vi.fn().mockResolvedValue(sentinel)
+    ;(navigator as unknown as { wakeLock: unknown }).wakeLock = { request }
+
+    useTagStore.setState({
+      tagTree: [tagPayload({
+        id: 1, name: 'Stale', state: true,
+        latestStartTimeMs: Date.now() - 5000, latestStopTimeMs: null,
+      })] as Tag[],
+    })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+
+    const { result } = renderHook(() => useTagTimer())
+    let loadPromise!: Promise<void>
+    await act(async () => {
+      loadPromise = result.current.loadTag(1, 7)
+      // requestWakeLock() 은 loadTag 안에서 await 되지 않으므로(fire-and-forget),
+      // 내부의 navigator.wakeLock.request() 마이크로태스크가 정리될 틱을 준다.
+      await Promise.resolve()
+      await Promise.resolve()
+    })
+    expect(request).toHaveBeenCalledWith('screen')
+    expect(result.current.isWakeLockActive).toBe(true)
+
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ id: 1, name: 'Stale', state: false, latestStartTimeMs: null, latestStopTimeMs: Date.now() }) })
+      await loadPromise
+    })
+
+    expect(result.current.isWakeLockActive).toBe(false)
+    expect(release).toHaveBeenCalled()
+
+    delete (navigator as unknown as { wakeLock?: unknown }).wakeLock
   })
 })
 

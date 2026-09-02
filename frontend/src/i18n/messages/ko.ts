@@ -114,6 +114,7 @@ const ko: Messages = {
   'tagPicker.recent': '최근',
   'tagPicker.noResults': '일치하는 태그가 없습니다',
   'tagPicker.selectThis': '선택',
+  'tagPicker.createNew': '새 태그 만들기',
 
   'logs.eyebrow': '기록',
   'logs.tabDaily': '일별',
@@ -129,8 +130,7 @@ const ko: Messages = {
   'logs.dailyAvg': '일 평균',
   'logs.monthTotal': '월간 합계',
   'logs.tagTotal': '합계',
-  'logs.selectTag': '태그를 선택하세요',
-  'logs.selectTagStats': '태그를 선택하면 통계가 표시됩니다',
+  'logs.allTags': '전체 태그',
   'logs.noRecordsPeriod': '해당 기간에 기록이 없습니다',
   'logs.periodWeek': '이번 주',
   'logs.periodMonth': '이번 달',

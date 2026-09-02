@@ -58,9 +58,83 @@ const INITIAL_STATE: StopwatchState = {
  */
 const FOREGROUND_REFRESH_THROTTLE_MS = 5_000
 
+/**
+ * 태그 스냅샷(네트워크 응답 또는 캐시된 Tag)으로부터 StopwatchState 를 계산한다.
+ * 순수 함수 — 로컬 스냅샷(peekTimerState)·리셋 마커와의 화해 규칙은 입력이 네트워크
+ * 응답이든 IndexedDB 캐시든 동일하게 적용된다. loadTag 가 콜드 스타트에서 네트워크
+ * 왕복 전에 캐시로 먼저 그리고(stale-while-revalidate), 응답이 오면 같은 함수로
+ * 다시 계산해 항상 서버값이 이기게 한다.
+ *
+ * data 타입을 Tag(옵셔널 필드)로 느슨하게 받는 것은 의도적이다 — 캐시 경로(태그
+ * 트리)는 이 필드들이 비어 있을 수 있고, 네트워크 응답 경로는 항상 채워져 있다.
+ * 아래 계산은 이미 전부 `|| 0`/`Number.isFinite` 로 방어돼 있으므로 두 입력을
+ * 같은 함수로 처리해도 안전하다.
+ */
+function computeStopwatchState(tagId: number, data: Tag): StopwatchState {
+  const saved = peekTimerState()
+  const useLocalState = saved &&
+    saved.tagId === tagId &&
+    saved.savedAt > (data.latestStartTimeMs || 0) &&
+    saved.savedAt > (data.latestStopTimeMs || 0)
+  const resetMarker = peekResetTimerMarker(tagId)
+  const useResetMarker = shouldApplyResetTimerMarker(
+    resetMarker,
+    data.latestStartTimeMs,
+    data.latestStopTimeMs
+  )
+
+  // 형제 필드들은 전부 `|| 0` 로 받는데 elapsedTime 만 응답을 그대로 썼다. 타입에
+  // number 라고 적혀 있어도 검증되지 않은 응답이라 타입체크가 못 잡고, NaN 하나가
+  // 화면 타이머와 네이티브 알림 기준시각을 동시에 망가뜨린다.
+  const restoredElapsed = useResetMarker
+    ? 0
+    : useLocalState ? saved!.elapsedTime : data.elapsedTime
+  const elapsed = Number.isFinite(restoredElapsed) ? restoredElapsed : 0
+
+  // 서버가 RUNNING인데 시작시각이 EPOCH(0) 등 무효면 신뢰하지 않는다 — 그대로
+  // isRunning=true 로 받아들이면 tick()이 매번 무효 앵커를 만나 영구히 동결되고,
+  // 다음 loadTag(포그라운드 복귀마다)도 같은 응답을 받아 다시 동결된다(재시작으로도
+  // 안 풀림). 경계에서 걸러 화면이 조용히 멈추는 대신 정지 상태로 안전하게 강등한다.
+  const rawStartMs = useLocalState ? saved!.latestStartTime : data.latestStartTimeMs
+  const hasValidStart = Number.isFinite(rawStartMs) && (rawStartMs ?? 0) > 0
+  const serverRunning = useLocalState ? saved!.isRunning : data.state
+  if (!useResetMarker && serverRunning && !hasValidStart) {
+    console.error('Tag reported RUNNING without a valid start time — treating as stopped:', tagId)
+  }
+  const isRunning = useResetMarker ? false : serverRunning && hasValidStart
+  const latestStartTime = useResetMarker || !isRunning ? 0 : (rawStartMs ?? 0)
+
+  // 실행 중이면 로드 시점까지의 경과를 즉시 반영한다(base로 되돌리지 않는다).
+  // 안 그러면 재조회가 성공해도 다음 tick이 돌 때까지 화면이 base에 멈춰 보인다
+  // — 인터벌이 죽어 있었다면 그 상태가 영구화된다.
+  const liveDelta = isRunning ? Math.max(0, Math.floor((Date.now() - latestStartTime) / 1000)) : 0
+  const dailyTotalTime = data.dailyTotalTime || 0
+  const tagTotalTime = data.tagTotalTime || 0
+  const totalTime = data.totalTime || 0
+
+  return {
+    isRunning,
+    latestStartTime,
+    latestEndTime: useResetMarker ? 0 : useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
+    elapsedTime: elapsed,
+    dailyTotalTime,
+    dailyGoalTime: data.dailyGoalTime || 0,
+    tagTotalTime,
+    totalTime,
+    elapsedTimeCal: elapsed + liveDelta,
+    dailyTotalTimeCal: dailyTotalTime + liveDelta,
+    tagTotalTimeCal: tagTotalTime + liveDelta,
+    totalTimeCal: totalTime + liveDelta,
+  }
+}
+
 export function useTagTimer() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [sw, setSw] = useState<StopwatchState>(INITIAL_STATE)
+  // 네트워크 응답으로 확정된 tag id. loadTag의 캐시 시드 단계에서는 갱신하지
+  // 않는다 — 호출부(TodayView의 autostart 등)가 "지금 보이는 tag/sw가 stale
+  // 캐시가 아니라 서버가 확정한 값"임을 구분해야 할 때 이 값과 tag.id를 비교한다.
+  const [confirmedTagId, setConfirmedTagId] = useState<number | null>(null)
   const [isWakeLockActive, setIsWakeLockActive] = useState(false)
   const wakeLockRef = useRef<WakeLockSentinel | null>(null)
   const isRunningRef = useRef(false)
@@ -70,6 +144,10 @@ export function useTagTimer() {
   // 포그라운드 복귀 재조회용 — 마지막으로 loadTag 에 넘어온 인자와 마지막 재조회 시각.
   const lastLoadArgsRef = useRef<{ tagId: number; memberId: number } | null>(null)
   const lastForegroundRefreshRef = useRef(0)
+  // loadTag 가 이미 이 tagId에 대해 상태를 적용했는지 — 캐시 시드는 최초 1회만
+  // (콜드 스타트 직후 loadTag 재호출, 예: 포그라운드 복귀 재조회에서 반복 적용해
+  // 라이브로 흐르던 화면을 캐시로 되돌리지 않기 위함).
+  const hydratedTagIdRef = useRef<number | null>(null)
 
   const requestWakeLock = useCallback(async () => {
     if (!('wakeLock' in navigator)) return
@@ -160,6 +238,30 @@ export function useTagTimer() {
 
   const loadTag = useCallback(async (tagId: number, memberId: number) => {
     lastLoadArgsRef.current = { tagId, memberId }
+
+    // 네트워크 왕복 전에 로컬 캐시(태그 트리 IndexedDB 캐시)로 먼저 그린다 — 콜드
+    // 스타트에서 온라인 요청이 끝나기 전까지 화면이 "태그 선택" 상태로 보이며 시작
+    // 버튼이 무력화되는 것을 막는다(오프라인 재전송 큐와 같은 원칙: 잠정 표시 →
+    // 서버 응답으로 화해). 같은 태그를 다시 불러올 때(포그라운드 복귀 재조회 등)는
+    // 건너뛴다 — 안 그러면 라이브로 흐르던 화면이 매번 캐시 스냅샷으로 되튄다.
+    // 네이티브 알림은 이 잠정 값으로 건드리지 않는다 — 권위는 항상 네트워크 응답이다.
+    // TODO: 이 캐시가 "실행중"으로 stale 하면(다른 기기에서 정지된 뒤 이 기기의
+    // 태그 트리 캐시가 아직 안 따라잡은 경우) 네트워크 왕복 1회 동안 잘못된
+    // 경과시간이 화면에 잠깐 보일 수 있다(자가 치유됨, 화면 잠금·네이티브 알림
+    // 같은 부작용은 없음 — 각각 별도로 해제/차단됨). 필요해지면
+    // useTagStore.getState().lastFetchedAt 신선도로 이 분기 자체를 게이팅할 것.
+    if (hydratedTagIdRef.current !== tagId) {
+      const cached = useTagStore.getState().findById(tagId)
+      if (cached) {
+        hydratedTagIdRef.current = tagId
+        setTag(cached)
+        const cachedSw = computeStopwatchState(tagId, cached)
+        setSw(cachedSw)
+        if (cachedSw.isRunning) requestWakeLock()
+        else releaseWakeLock()
+      }
+    }
+
     try {
       const response = await apiClient.get<Tag & {
         elapsedTime: number
@@ -172,65 +274,18 @@ export function useTagTimer() {
         state: boolean
       }>(`/api/v1/tags/${tagId}?memberId=${memberId}`)
       const data = response.data
+      hydratedTagIdRef.current = tagId
       setTag(data)
+      setConfirmedTagId(tagId)
 
-      const saved = peekTimerState()
-      const useLocalState = saved &&
-        saved.tagId === tagId &&
-        saved.savedAt > (data.latestStartTimeMs || 0) &&
-        saved.savedAt > (data.latestStopTimeMs || 0)
-      const resetMarker = peekResetTimerMarker(tagId)
-      const useResetMarker = shouldApplyResetTimerMarker(
-        resetMarker,
-        data.latestStartTimeMs,
-        data.latestStopTimeMs
-      )
-
-      // 형제 필드들은 전부 `|| 0` 로 받는데 elapsedTime 만 응답을 그대로 썼다. 타입에
-      // number 라고 적혀 있어도 검증되지 않은 응답이라 타입체크가 못 잡고, NaN 하나가
-      // 화면 타이머와 네이티브 알림 기준시각을 동시에 망가뜨린다.
-      const restoredElapsed = useResetMarker
-        ? 0
-        : useLocalState ? saved!.elapsedTime : data.elapsedTime
-      const elapsed = Number.isFinite(restoredElapsed) ? restoredElapsed : 0
-
-      // 서버가 RUNNING인데 시작시각이 EPOCH(0) 등 무효면 신뢰하지 않는다 — 그대로
-      // isRunning=true 로 받아들이면 tick()이 매번 무효 앵커를 만나 영구히 동결되고,
-      // 다음 loadTag(포그라운드 복귀마다)도 같은 응답을 받아 다시 동결된다(재시작으로도
-      // 안 풀림). 경계에서 걸러 화면이 조용히 멈추는 대신 정지 상태로 안전하게 강등한다.
-      const rawStartMs = useLocalState ? saved!.latestStartTime : data.latestStartTimeMs
-      const hasValidStart = Number.isFinite(rawStartMs) && (rawStartMs ?? 0) > 0
-      const serverRunning = useLocalState ? saved!.isRunning : data.state
-      if (!useResetMarker && serverRunning && !hasValidStart) {
-        console.error('Tag reported RUNNING without a valid start time — treating as stopped:', tagId)
-      }
-      const isRunning = useResetMarker ? false : serverRunning && hasValidStart
-      const latestStartTime = useResetMarker || !isRunning ? 0 : (rawStartMs ?? 0)
-
-      // 실행 중이면 로드 시점까지의 경과를 즉시 반영한다(base로 되돌리지 않는다).
-      // 안 그러면 재조회가 성공해도 다음 tick이 돌 때까지 화면이 base에 멈춰 보인다
-      // — 인터벌이 죽어 있었다면 그 상태가 영구화된다.
-      const liveDelta = isRunning ? Math.max(0, Math.floor((Date.now() - latestStartTime) / 1000)) : 0
-      const dailyTotalTime = data.dailyTotalTime || 0
-      const tagTotalTime = data.tagTotalTime || 0
-      const totalTime = data.totalTime || 0
-
-      const newSw: StopwatchState = {
-        isRunning,
-        latestStartTime,
-        latestEndTime: useResetMarker ? 0 : useLocalState ? (saved!.latestEndTime ?? 0) : (data.latestStopTimeMs ?? 0),
-        elapsedTime: elapsed,
-        dailyTotalTime,
-        dailyGoalTime: data.dailyGoalTime || 0,
-        tagTotalTime,
-        totalTime,
-        elapsedTimeCal: elapsed + liveDelta,
-        dailyTotalTimeCal: dailyTotalTime + liveDelta,
-        tagTotalTimeCal: tagTotalTime + liveDelta,
-        totalTimeCal: totalTime + liveDelta,
-      }
+      const newSw = computeStopwatchState(tagId, data)
       setSw(newSw)
+      // 캐시 시드가 (stale 데이터로) 잠금을 먼저 취득했을 수 있으므로, 서버가
+      // 정지로 화해하면 여기서 반드시 해제한다 — 안 그러면 시작 버튼이 이미
+      // "시작"으로 바뀌어 있어 사용자가 stopStopwatch를 통해 해제할 방법이 없고
+      // 화면이 언마운트될 때까지 잠금이 조용히 남는다.
       if (newSw.isRunning) requestWakeLock()
+      else releaseWakeLock()
 
       // 네이티브 표면의 기준점. 이 API 는 서버에서 reconcileRunningTimersQuietly() 를 먼저
       // 돌리고, newSw 는 그 결과를 로컬 스냅샷·리셋 마커와 화해시킨 값이다. 즉 여기가
@@ -251,7 +306,7 @@ export function useTagTimer() {
     } catch (e) {
       console.error('Failed to load tag:', e instanceof Error ? e.message : String(e))
     }
-  }, [requestWakeLock])
+  }, [requestWakeLock, releaseWakeLock])
 
   // 포그라운드 복귀 처리. 세 가지를 한다:
   //  1) 실행 중이면 Wake Lock 재취득 — OS 가 백그라운드 전환 시 자동 해제한다.
@@ -443,6 +498,7 @@ export function useTagTimer() {
   return {
     tag,
     sw,
+    confirmedTagId,
     isWakeLockActive,
     loadTag,
     startStopwatch,

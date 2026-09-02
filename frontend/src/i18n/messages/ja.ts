@@ -114,6 +114,7 @@ const ja: Messages = {
   'tagPicker.recent': '最近',
   'tagPicker.noResults': '一致するタグがありません',
   'tagPicker.selectThis': '選択',
+  'tagPicker.createNew': '新しいタグを作成',
 
   'logs.eyebrow': '記録',
   'logs.tabDaily': '日別',
@@ -129,8 +130,7 @@ const ja: Messages = {
   'logs.dailyAvg': '日平均',
   'logs.monthTotal': '月間合計',
   'logs.tagTotal': '合計',
-  'logs.selectTag': 'タグを選択',
-  'logs.selectTagStats': 'タグを選択すると統計が表示されます',
+  'logs.allTags': '全タグ',
   'logs.noRecordsPeriod': 'この期間に記録がありません',
   'logs.periodWeek': '今週',
   'logs.periodMonth': '今月',
