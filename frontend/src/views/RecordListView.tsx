@@ -7,6 +7,7 @@ import EditRecordModal from '@/components/EditRecordModal'
 import AddRecordModal from '@/components/AddRecordModal'
 import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
+import { dayOffsetSuffix } from '@/utils/dayOffset'
 import { useI18n } from '@/i18n/I18nProvider'
 
 interface Record {
@@ -193,7 +194,14 @@ export default function RecordListView() {
           )}
 
           <div>
-            {records.map((record, idx) => (
+            {records.map((record, idx) => {
+              const start = new Date(record.startTime)
+              const end = new Date(record.endTime)
+              // 행에 찍히는 날짜는 시작 시각의 것 하나뿐이라, 자정을 넘긴 기록은
+              // `23:00 → 01:30` 처럼 시간이 거꾸로 흐른 것처럼 읽힌다. 편집 모달은
+              // start/end 날짜를 따로 보여주는데 목록만 그 사실을 숨기고 있었다.
+              const spanSuffix = dayOffsetSuffix(start, end)
+              return (
               <div
                 key={record.id}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', borderBottom: '1px solid var(--border-subtle)' }}
@@ -202,13 +210,20 @@ export default function RecordListView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.totalTime)}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {new Date(record.startTime).toLocaleDateString(language)}
+                      {start.toLocaleDateString(language)}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-3)' }}>
-                    <span className="mono">{new Date(record.startTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mono">{start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
                     <span>→</span>
-                    <span className="mono">{new Date(record.endTime).toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mono">
+                      {end.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
+                      {spanSuffix && (
+                        // title 로 실제 종료 날짜를 붙인다 — "(+1)" 만으로는 무엇이
+                        // 하루 밀렸는지 읽는 사람이 추측해야 한다.
+                        <span title={end.toLocaleDateString(language)} style={{ marginLeft: 3, color: 'var(--text-2)' }}>{spanSuffix}</span>
+                      )}
+                    </span>
                   </div>
                 </div>
                 {/* Edit */}
@@ -230,7 +245,8 @@ export default function RecordListView() {
                   </svg>
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
         </div>
       </div>
