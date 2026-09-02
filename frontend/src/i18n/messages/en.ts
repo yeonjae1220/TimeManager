@@ -56,6 +56,9 @@ const en = {
   'oauth.signingIn': 'Signing in...',
   'oauth.backToLogin': 'Back to Login',
   'oauth.googleFail': 'Google sign-in failed. Please try again.',
+  'oauth.returningToApp': 'Returning to the app...',
+  'oauth.openAppHint': 'If the app does not open automatically, tap the button below.',
+  'oauth.openApp': 'Open the app',
 
   // register
   'register.eyebrow': 'create account',

@@ -33,6 +33,18 @@
                 <data android:scheme="https" android:host="timemanager.mungji.com" android:pathPrefix="/oauth/callback" />
             </intent-filter>
 
+            <!-- 커스텀 스킴 폴백: App Links 가 검증되지 않은 빌드(assetlinks.json 에 그 서명
+                 지문이 없는 경우)에서도 콜백을 앱으로 되돌린다. 위 App Links 가 검증되면
+                 브라우저가 콜백 페이지를 렌더링조차 하지 않으므로 이 경로는 안 탄다.
+                 스킴 값은 nativeOAuth.ts 의 NATIVE_OAUTH_SCHEME 과 일치해야 하며,
+                 nativeContract.test.ts 가 그 일치를 강제한다. -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="com.mungji.timemanager" android:host="oauth" />
+            </intent-filter>
+
         </activity>
 
         <provider

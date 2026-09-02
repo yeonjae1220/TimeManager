@@ -49,6 +49,9 @@ const de: Messages = {
   'oauth.signingIn': 'Anmeldung...',
   'oauth.backToLogin': 'Zurück zur Anmeldung',
   'oauth.googleFail': 'Google-Anmeldung fehlgeschlagen. Bitte versuchen Sie es erneut.',
+  'oauth.returningToApp': 'Zurück zur App...',
+  'oauth.openAppHint': 'Wenn die App nicht automatisch öffnet, tippen Sie auf die Schaltfläche unten.',
+  'oauth.openApp': 'App öffnen',
 
   'register.eyebrow': 'Konto erstellen',
   'register.title': 'Los geht’s.',

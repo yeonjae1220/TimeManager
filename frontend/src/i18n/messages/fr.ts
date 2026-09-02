@@ -49,6 +49,9 @@ const fr: Messages = {
   'oauth.signingIn': 'Connexion...',
   'oauth.backToLogin': 'Retour à la connexion',
   'oauth.googleFail': 'Échec de la connexion Google. Veuillez réessayer.',
+  'oauth.returningToApp': 'Retour à l\'application...',
+  'oauth.openAppHint': 'Si l\'application ne s\'ouvre pas automatiquement, appuyez sur le bouton ci-dessous.',
+  'oauth.openApp': 'Ouvrir l\'application',
 
   'register.eyebrow': 'créer un compte',
   'register.title': 'Commençons.',

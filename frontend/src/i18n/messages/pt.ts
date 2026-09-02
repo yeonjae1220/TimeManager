@@ -49,6 +49,9 @@ const pt: Messages = {
   'oauth.signingIn': 'Entrando...',
   'oauth.backToLogin': 'Voltar ao login',
   'oauth.googleFail': 'Falha no login com o Google. Tente novamente.',
+  'oauth.returningToApp': 'Voltando ao aplicativo...',
+  'oauth.openAppHint': 'Se o aplicativo não abrir automaticamente, toque no botão abaixo.',
+  'oauth.openApp': 'Abrir o aplicativo',
 
   'register.eyebrow': 'criar conta',
   'register.title': 'Vamos começar.',

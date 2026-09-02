@@ -49,6 +49,9 @@ const ko: Messages = {
   'oauth.signingIn': '로그인 중...',
   'oauth.backToLogin': '로그인으로 돌아가기',
   'oauth.googleFail': 'Google 로그인에 실패했습니다. 다시 시도해주세요.',
+  'oauth.returningToApp': '앱으로 돌아가는 중...',
+  'oauth.openAppHint': '앱이 자동으로 열리지 않으면 아래 버튼을 눌러주세요.',
+  'oauth.openApp': '앱 열기',
 
   'register.eyebrow': '계정 만들기',
   'register.title': '시작해 볼까요.',

@@ -49,6 +49,9 @@ const zh: Messages = {
   'oauth.signingIn': '登录中...',
   'oauth.backToLogin': '返回登录',
   'oauth.googleFail': 'Google 登录失败。请重试。',
+  'oauth.returningToApp': '正在返回应用...',
+  'oauth.openAppHint': '如果应用没有自动打开，请点击下方按钮。',
+  'oauth.openApp': '打开应用',
 
   'register.eyebrow': '创建账户',
   'register.title': '开始吧。',

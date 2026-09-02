@@ -49,6 +49,9 @@ const ja: Messages = {
   'oauth.signingIn': 'ログイン中...',
   'oauth.backToLogin': 'ログインに戻る',
   'oauth.googleFail': 'Google ログインに失敗しました。もう一度お試しください。',
+  'oauth.returningToApp': 'アプリに戻っています...',
+  'oauth.openAppHint': 'アプリが自動的に開かない場合は、下のボタンを押してください。',
+  'oauth.openApp': 'アプリを開く',
 
   'register.eyebrow': 'アカウント作成',
   'register.title': '始めましょう。',

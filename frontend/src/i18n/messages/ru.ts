@@ -49,6 +49,9 @@ const ru: Messages = {
   'oauth.signingIn': 'Вход...',
   'oauth.backToLogin': 'Вернуться к входу',
   'oauth.googleFail': 'Не удалось войти через Google. Попробуйте ещё раз.',
+  'oauth.returningToApp': 'Возврат в приложение...',
+  'oauth.openAppHint': 'Если приложение не открылось автоматически, нажмите кнопку ниже.',
+  'oauth.openApp': 'Открыть приложение',
 
   'register.eyebrow': 'создать аккаунт',
   'register.title': 'Начнём.',

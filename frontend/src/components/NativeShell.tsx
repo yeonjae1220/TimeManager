@@ -2,7 +2,7 @@
 
 import { useEffect } from 'react'
 import { isNativeApp } from '../utils/platform'
-import { OAUTH_CALLBACK_PATH } from '../utils/nativeOAuth'
+import { resolveOauthCallbackTarget } from '../utils/nativeOAuth'
 
 /**
  * 네이티브 셸(Capacitor)에서만 동작하는 플랫폼 연동.
@@ -52,27 +52,24 @@ export function NativeShell() {
         }
       })
 
-      // Universal/App Links 로 되돌아온 OAuth 콜백을 WebView 로 넘긴다.
-      // 이 처리가 없으면 콜백이 시스템 브라우저에 남아, 그쪽에서 로그인이 끝나고
-      // 앱은 로그아웃 상태로 남는다(WebView 와 브라우저는 쿠키 저장소가 분리돼 있다).
+      // 되돌아온 OAuth 콜백을 WebView 로 넘긴다. 이 처리가 없으면 콜백이 시스템 브라우저에
+      // 남아, 그쪽에서 로그인이 끝나고 앱은 로그아웃 상태로 남는다(WebView 와 브라우저는
+      // 쿠키 저장소가 분리돼 있다).
+      //
+      // 받는 형태가 둘이다 — Universal/App Links 의 https URL, 그리고 그게 안 잡혔을 때
+      // 콜백 페이지가 되돌려 보내는 커스텀 스킴 URL. 판별은 resolveOauthCallbackTarget 이 한다.
       let handled = false
       const handleUrl = (url: string) => {
         if (handled) return
-        let parsed: URL
-        try {
-          parsed = new URL(url)
-        } catch {
-          return
-        }
-        // 우리 콜백 경로만 처리 — 다른 딥링크는 기본 동작에 맡긴다.
-        if (parsed.origin !== window.location.origin) return
-        if (!parsed.pathname.startsWith(OAUTH_CALLBACK_PATH)) return
+        // 우리 콜백만 처리 — 다른 딥링크는 기본 동작에 맡긴다.
+        const target = resolveOauthCallbackTarget(url, window.location.origin)
+        if (!target) return
 
         handled = true
         void Browser.close()
-        // 같은 오리진이므로 일반 내비게이션. 콜백 페이지가 code 를 읽어 교환하고,
-        // state(CSRF)는 WebView 스토리지에 남아 있어 그대로 검증된다.
-        window.location.assign(parsed.pathname + parsed.search)
+        // WebView 오리진의 경로로 일반 내비게이션. 콜백 페이지가 code 를 읽어 교환하고,
+        // state(CSRF) 쿠키는 WebView 쪽에 남아 있어 그대로 검증된다.
+        window.location.assign(target)
       }
 
       const urlOpen = await App.addListener('appUrlOpen', ({ url }) => handleUrl(url))

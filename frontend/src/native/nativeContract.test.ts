@@ -6,6 +6,7 @@ import { LIVE_ACTIVITY_PLUGIN } from './liveActivity'
 import { TIMER_NOTIFICATION_PLUGIN } from './timerNotification'
 import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
 import { messages } from '@/i18n/messages'
+import { NATIVE_OAUTH_CALLBACK_HOST, NATIVE_OAUTH_SCHEME } from '@/utils/nativeOAuth'
 
 /**
  * TS 와 네이티브가 **같은 값을 각자 적어둔** 지점들. 한쪽만 바뀌어도 빌드·타입체크·
@@ -18,6 +19,8 @@ import { messages } from '@/i18n/messages'
 
 const PLUGIN_JAVA = 'frontend/android/app/src/main/java/com/mungji/timemanager/TimerNotificationPlugin.java'
 const RES_DIR = 'frontend/android/app/src/main/res'
+
+const ANDROID_MANIFEST = 'frontend/android/app/src/main/AndroidManifest.xml'
 
 const PLUGIN_SWIFT = 'frontend/ios/App/App/LiveActivityPlugin.swift'
 const CONTENT_STATE_SWIFT = 'frontend/ios/App/TimerActivityAttributes.swift'
@@ -118,5 +121,50 @@ describe('네이티브 계약 (iOS)', () => {
 
     expect(match, `${APP_INFO_PLIST} 에서 NSSupportsLiveActivities 키를 찾지 못했습니다`).not.toBeNull()
     expect(match![1]).toBe('true')
+  })
+})
+
+/**
+ * OAuth 콜백 딥링크 축. 스킴은 TS·iOS·Android 세 곳에 **각자 문자열로** 적혀 있어서
+ * 한쪽만 바뀌면 아무 에러 없이 딥링크가 끊긴다 — 앱은 시스템 브라우저에 콜백을 남긴 채
+ * 로그아웃 상태로 돌아오고, 사용자에게는 "구글 로그인이 그냥 안 된다"로만 보인다.
+ */
+describe('네이티브 계약 (OAuth 커스텀 스킴)', () => {
+  it('iOS Info.plist 의 CFBundleURLSchemes 가 TS 상수와 같다', () => {
+    const plist = readRepoFile(APP_INFO_PLIST)
+    const block = plist.match(/<key>CFBundleURLSchemes<\/key>\s*<array>([\s\S]*?)<\/array>/)
+
+    expect(block, `${APP_INFO_PLIST} 에서 CFBundleURLSchemes 를 찾지 못했습니다`).not.toBeNull()
+    const schemes = [...block![1].matchAll(/<string>([^<]+)<\/string>/g)].map((m) => m[1])
+    expect(schemes).toContain(NATIVE_OAUTH_SCHEME)
+  })
+
+  it('AndroidManifest 의 커스텀 스킴 intent-filter 가 TS 상수와 같다', () => {
+    const xml = readRepoFile(ANDROID_MANIFEST)
+    const data = [...xml.matchAll(/<data\s+android:scheme="([^"]+)"(?:\s+android:host="([^"]+)")?[^>]*\/>/g)]
+      .map(([, scheme, host]) => ({ scheme, host }))
+
+    expect(data.some((d) => d.scheme === NATIVE_OAUTH_SCHEME && d.host === NATIVE_OAUTH_CALLBACK_HOST))
+      .toBe(true)
+  })
+
+  it('커스텀 스킴 intent-filter 에 BROWSABLE 이 있다 — 없으면 브라우저가 링크를 못 넘긴다', () => {
+    const xml = readRepoFile(ANDROID_MANIFEST)
+    const filters = [...xml.matchAll(/<intent-filter[\s\S]*?<\/intent-filter>/g)].map((m) => m[0])
+    const custom = filters.find((f) => f.includes(`android:scheme="${NATIVE_OAUTH_SCHEME}"`))
+
+    expect(custom, `${ANDROID_MANIFEST} 에서 커스텀 스킴 intent-filter 를 찾지 못했습니다`).toBeDefined()
+    expect(custom).toContain('android.intent.category.BROWSABLE')
+    expect(custom).toContain('android.intent.category.DEFAULT')
+  })
+
+  /**
+   * Universal/App Links 는 유료 계정·서명 지문이 갖춰지면 이 폴백보다 우선한다.
+   * 폴백이 생겼다고 원래 경로를 지우면 그때 되돌릴 것이 없어지므로 함께 남아 있는지 고정한다.
+   */
+  it('App Links(https) intent-filter 가 함께 남아 있다', () => {
+    const xml = readRepoFile(ANDROID_MANIFEST)
+    expect(xml).toContain('android:autoVerify="true"')
+    expect(xml).toMatch(/android:scheme="https"\s+android:host="timemanager\.mungji\.com"/)
   })
 })

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { saveOauthState } from '@/utils/oauthState'
-import { openOAuthUrl } from '@/utils/nativeOAuth'
+import { createOauthState, openOAuthUrl } from '@/utils/nativeOAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function LoginView() {
@@ -33,7 +33,9 @@ export default function LoginView() {
     const redirectUri = `${window.location.origin}/oauth/callback`
     const clientId = process.env.NEXT_PUBLIC_GOOGLE_CLIENT_ID
     if (!clientId) return
-    const state = crypto.randomUUID()
+    // 네이티브에서 시작하면 state 에 릴레이 표식이 붙는다 — 콜백이 시스템 브라우저에
+    // 남았을 때 그 페이지가 자기를 앱으로 되돌려야 하는지 판별하는 유일한 근거다.
+    const state = createOauthState()
     saveOauthState(state)
     const params = new URLSearchParams({
       client_id: clientId,

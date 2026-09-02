@@ -18,6 +18,25 @@
 	<string>$(PRODUCT_NAME)</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
+	<!-- 커스텀 스킴 폴백. Universal Links 는 associated-domains 권한(유료 계정)이 있어야
+	     동작하므로, 그 전까지는 이 스킴이 OAuth 콜백을 앱으로 되돌리는 유일한 경로다.
+	     Universal Links 가 켜지면 iOS 가 그쪽을 우선 채택해 이 경로는 안 타지만,
+	     검증 실패/미검증 창의 안전망으로 남겨 둔다.
+	     스킴 값은 nativeOAuth.ts 의 NATIVE_OAUTH_SCHEME 과 일치해야 한다
+	     (nativeContract.test.ts 가 강제). -->
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>com.mungji.timemanager.oauth</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>com.mungji.timemanager</string>
+			</array>
+		</dict>
+	</array>
 	<key>CFBundleShortVersionString</key>
 	<string>$(MARKETING_VERSION)</string>
 	<key>CFBundleVersion</key>

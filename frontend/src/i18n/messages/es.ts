@@ -49,6 +49,9 @@ const es: Messages = {
   'oauth.signingIn': 'Iniciando sesión...',
   'oauth.backToLogin': 'Volver al inicio de sesión',
   'oauth.googleFail': 'Error al iniciar sesión con Google. Inténtalo de nuevo.',
+  'oauth.returningToApp': 'Volviendo a la aplicación...',
+  'oauth.openAppHint': 'Si la aplicación no se abre automáticamente, pulsa el botón de abajo.',
+  'oauth.openApp': 'Abrir la aplicación',
 
   'register.eyebrow': 'crear cuenta',
   'register.title': 'Empecemos.',
