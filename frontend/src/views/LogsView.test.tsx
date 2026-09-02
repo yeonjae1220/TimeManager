@@ -61,6 +61,29 @@ vi.mock('@/components/TagPickerModal', () => ({
   ),
 }))
 
+// 하루 경계(dailyResetHour)는 별도 엔드포인트에서 온다. 훅 자체의 캐시·실패 처리는
+// useDailyResetHour.test.ts 가 검증하므로, 여기서는 "경계가 이 값일 때 화면이 어느
+// 날짜를 조회하는가"만 보게 훅을 직접 대체한다.
+//
+// 기본값 0 은 "자정 = 하루 경계", 즉 논리적 날짜와 달력 날짜가 같은 설정이다.
+// 경계와 무관한 기존 테스트들이 예전과 똑같은 날짜를 조회하게 하려는 것이다.
+// vi.hoisted 가 필요하다 — vi.mock 팩토리는 import 보다 먼저 평가되므로, 평범한
+// const 로 두면 팩토리가 TDZ 에 걸린 변수를 읽는다.
+const boundary = vi.hoisted(() => ({
+  resetHour: 0 as number | null,
+  timezone: undefined as string | undefined,
+  failed: false,
+  reload: () => {},
+}))
+vi.mock('@/hooks/useDailyResetHour', () => ({
+  useDailyResetHour: () => boundary,
+}))
+
+/** 이 테스트에서만 경계를 바꾼다. beforeEach 가 기본값(자정 경계)으로 되돌린다. */
+function setBoundary(next: Partial<typeof boundary>) {
+  Object.assign(boundary, next)
+}
+
 import apiClient from '@/utils/apiClient'
 import * as nextNavigation from 'next/navigation'
 import { I18nProvider } from '@/i18n/I18nProvider'
@@ -86,11 +109,13 @@ beforeEach(() => {
   localStorage.setItem(LANG_KEY, 'ko')
   get.mockReset()
   resetNav()
+  setBoundary({ resetHour: 0, timezone: undefined, failed: false, reload: vi.fn() })
 })
 
 afterEach(() => {
   cleanup()
   localStorage.clear()
+  vi.useRealTimers()
   vi.restoreAllMocks()
 })
 
@@ -412,5 +437,244 @@ describe('LogsView — 주별/월별에서 일별 상세로 드릴다운', () =>
     // 크래시 없이 렌더되고, 뒤로가기(from=weekly)는 그대로 유효하다 —
     // date만 무효 처리되고 나머지 드릴다운 컨텍스트는 살아있다.
     await waitFor(() => expect(screen.getByRole('button', { name: /뒤로 · 주별/ })).toBeTruthy())
+  })
+})
+
+describe('LogsView — "오늘"의 경계는 자정이 아니라 dailyResetHour다', () => {
+  /** Date만 고정한다 — setTimeout까지 가짜로 만들면 waitFor가 진행되지 않는다. */
+  function freezeClockAt(d: Date) {
+    vi.useFakeTimers({ toFake: ['Date'] })
+    vi.setSystemTime(d)
+  }
+
+  /**
+   * 칸/막대의 접근성 이름. 컴포넌트와 같은 API로 만들어 로케일 표기에 의존하지 않는다.
+   * (월별 히트맵 칸은 여기에 ": <시간>" 이 덧붙는다.)
+   */
+  function dayLabel(d: Date): string {
+    return d.toLocaleDateString('ko', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' })
+  }
+
+  /** 주별 막대 중 accent 색으로 "오늘" 강조된 요일들. */
+  function accentedWeekdays(chart: HTMLElement): string[] {
+    return within(chart).getAllByRole('button')
+      .filter((b) => Array.from(b.querySelectorAll('div')).some((d) => d.style.background === 'var(--accent)'))
+      .map((b) => b.getAttribute('aria-label') ?? '')
+  }
+
+  /** 월별 히트맵 칸 중 accent 테두리로 "오늘" 강조된 날짜들. */
+  function outlinedDays(heatmap: HTMLElement): string[] {
+    return within(heatmap).getAllByRole('button')
+      .filter((b) => b.style.outline === '2px solid var(--accent)')
+      .map((b) => (b.getAttribute('aria-label') ?? '').split(':')[0])
+  }
+
+  function requestedRanges(): string[] {
+    return get.mock.calls
+      .map((c) => String(c[0]))
+      .map((url) => url.match(/startDate=([\d-]+)&endDate=([\d-]+)/))
+      .filter((m): m is RegExpMatchArray => m !== null)
+      .map((m) => `${m[1]}~${m[2]}`)
+  }
+
+  it('[회귀] 자정~resetHour 사이에는 달력 오늘이 아니라 논리적 어제를 조회한다', async () => {
+    // 예전엔 기본 날짜가 new Date()(달력 오늘)라, resetHour=5 인 회원이 새벽 2시에
+    // 일별 탭을 열면 서버가 "9/2 05:00 ~ 9/3 05:00" 이라는 **아직 시작하지도 않은**
+    // 구간을 조회했다. 결과는 언제나 0건이고, 화면은 그걸 "기록이 없습니다"로
+    // 단언했다 — 그 시간대에 어제치를 보러 온 사용자에게 정확히 틀린 답이다.
+    freezeClockAt(new Date(2026, 8, 2, 2, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+
+    await waitFor(() => expect(requestedRanges()).toContain('2026-09-01~2026-09-01'))
+    expect(requestedRanges()).not.toContain('2026-09-02~2026-09-02')
+  })
+
+  it('resetHour 이후 시간대에는 달력 날짜와 같다', async () => {
+    freezeClockAt(new Date(2026, 8, 2, 14, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+
+    await waitFor(() => expect(requestedRanges()).toContain('2026-09-02~2026-09-02'))
+  })
+
+  it('[회귀] 경계를 아직 모르는 동안에는 아예 조회하지 않는다', async () => {
+    // 5(백엔드 기본값)로 짐작해 조회하면, 실제 설정이 다른 회원에게 엉뚱한 하루의
+    // 합계를 "오늘"로 보여준다. 짐작보다 기다림이 안전하다.
+    setBoundary({ resetHour: null })
+
+    const { container } = renderLogs()
+
+    await waitFor(() => expect(container.querySelector('.spinner')).toBeTruthy())
+    expect(get).not.toHaveBeenCalled()
+    expect(screen.queryByText('기록이 없습니다')).toBeNull()
+  })
+
+  it('경계 조회가 확정 실패하면 오류로 알리고 재시도를 준다', async () => {
+    setBoundary({ resetHour: null, failed: true })
+
+    renderLogs()
+
+    await waitFor(() => expect(screen.getByText('불러오지 못했습니다.')).toBeTruthy())
+    fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
+    expect(boundary.reload as unknown as ReturnType<typeof vi.fn>).toHaveBeenCalled()
+  })
+
+  it('[회귀] 월별 히트맵도 달력 날짜가 아니라 논리적 날짜로 모은다', async () => {
+    // 9/2 02:00 에 시작한 세션은 resetHour=5 기준으로 9/1 에 속한다(서버가 그렇게
+    // 세고, 주별 막대·일별 탭도 그렇게 보여준다). 예전엔 히트맵만 startTime의 달력
+    // 날짜로 모아 9/2 칸을 칠했고, 그 칸을 눌러 들어간 일별 상세에는 그 세션이
+    // 없었다 — 칸의 숫자와 드릴다운 결과가 서로 다른 하루를 가리켰다.
+    freezeClockAt(new Date(2026, 8, 15, 12, 0, 0))
+    setBoundary({ resetHour: 5 })
+
+    const sessionStart = new Date(2026, 8, 2, 2, 0, 0)
+    const sessionEnd = new Date(2026, 8, 4, 4, 0, 0)
+    const withSession = {
+      data: {
+        totalSeconds: 7200,
+        tagSummaries: [{
+          tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 7200, sessionCount: 1,
+          sessions: [{ startTime: sessionStart.toISOString(), endTime: sessionEnd.toISOString(), durationSeconds: 7200 }],
+        }],
+      },
+    }
+    get.mockImplementation((url: string) => {
+      const m = url.match(/startDate=([\d-]+)&endDate=([\d-]+)/)
+      if (!m) return Promise.resolve(EMPTY_SUMMARY)
+      const [, start, end] = m
+      // 히트맵은 주 단위로 조회한다. 세션이 속한 논리적 날짜(9/1)를 품은 주에만
+      // 실어 보낸다 — 모든 요청에 담으면 주차 수만큼 중복 합산돼 검증이 무의미해진다.
+      const isWeekRange = start !== end
+      if (isWeekRange && start <= '2026-09-01' && '2026-09-01' <= end) return Promise.resolve(withSession)
+      return Promise.resolve(EMPTY_SUMMARY)
+    })
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '월별' }))
+    const heatmap = await screen.findByTestId('monthly-heatmap')
+
+    // 칸의 접근성 이름은 "<날짜>: <시간>" 이다.
+    const labels = within(heatmap).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? '')
+
+    expect(labels).toContain(`${dayLabel(new Date(2026, 8, 1))}: 2h 0m`)
+    expect(labels).toContain(`${dayLabel(new Date(2026, 8, 2))}: 0m`)
+  })
+
+  // ── "오늘" 강조(주별 막대 색·월별 칸 테두리)도 같은 경계를 따른다 ──────────────
+  // 예전엔 두 차트 모두 `new Date()` 의 달력 날짜로 강조 칸을 골랐다. resetHour=5 인
+  // 회원이 새벽 2시에 열면 강조된 칸은 아직 아무것도 안 들어간 빈 칸이고, 방금 기록한
+  // 시간은 강조되지 않은 전날 칸에 들어가 있다 — 눈이 먼저 가는 표시가 데이터와 다른
+  // 하루를 가리켰다.
+
+  it('[회귀] 주별 막대의 "오늘" 강조는 달력 오늘이 아니라 논리적 오늘이다', async () => {
+    freezeClockAt(new Date(2026, 8, 2, 2, 0, 0)) // 수요일 새벽 2시 → 논리적으로는 아직 화요일(9/1)
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    const chart = await screen.findByTestId('weekly-bar-chart')
+
+    expect(accentedWeekdays(chart)).toEqual([dayLabel(new Date(2026, 8, 1))])
+  })
+
+  it('주별 막대는 resetHour 이후 시간대에는 달력 오늘을 강조한다', async () => {
+    freezeClockAt(new Date(2026, 8, 2, 14, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    const chart = await screen.findByTestId('weekly-bar-chart')
+
+    expect(accentedWeekdays(chart)).toEqual([dayLabel(new Date(2026, 8, 2))])
+  })
+
+  it('[회귀] 경계를 아직 모르는 동안에는 아무 막대도 "오늘"로 강조하지 않는다', async () => {
+    // 주간 조회 자체는 경계와 무관해서 차트는 그려진다. 그렇다고 달력 날짜로
+    // 짐작해 칠하면, 실제 resetHour 가 다른 회원에게 틀린 칸을 오늘이라 단언한다.
+    freezeClockAt(new Date(2026, 8, 2, 2, 0, 0))
+    setBoundary({ resetHour: null })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    const chart = await screen.findByTestId('weekly-bar-chart')
+
+    expect(accentedWeekdays(chart)).toEqual([])
+  })
+
+  it('[회귀] 월별 히트맵의 "오늘" 테두리도 달력 오늘이 아니라 논리적 오늘이다', async () => {
+    freezeClockAt(new Date(2026, 8, 2, 2, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '월별' }))
+    const heatmap = await screen.findByTestId('monthly-heatmap')
+
+    expect(outlinedDays(heatmap)).toEqual([dayLabel(new Date(2026, 8, 1))])
+  })
+
+  it('월별 히트맵은 resetHour 이후 시간대에는 달력 오늘에 테두리를 두른다', async () => {
+    freezeClockAt(new Date(2026, 8, 2, 14, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '월별' }))
+    const heatmap = await screen.findByTestId('monthly-heatmap')
+
+    expect(outlinedDays(heatmap)).toEqual([dayLabel(new Date(2026, 8, 2))])
+  })
+})
+
+describe('LogsView — 날짜를 넘긴 세션', () => {
+  it('[회귀] 종료가 다음 날이면 시:분 옆에 (+1)을 붙인다', async () => {
+    // `23:00 → 01:30` 만 보면 시간이 거꾸로 흐른 것처럼 읽힌다. 어느 날 기록으로
+    // 집계되는지(시작 시각 기준)와 별개로, 시계가 되감긴 이유는 보여줘야 한다.
+    get.mockResolvedValue({
+      data: {
+        totalSeconds: 9000,
+        tagSummaries: [{
+          tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 9000, sessionCount: 1,
+          sessions: [{
+            startTime: new Date(2026, 8, 1, 23, 0, 0).toISOString(),
+            endTime: new Date(2026, 8, 2, 1, 30, 0).toISOString(),
+            durationSeconds: 9000,
+          }],
+        }],
+      },
+    })
+
+    renderLogs()
+
+    await waitFor(() => expect(screen.getByText('(+1)')).toBeTruthy())
+  })
+
+  it('같은 날에 끝난 세션에는 꼬리표를 붙이지 않는다', async () => {
+    get.mockResolvedValue({
+      data: {
+        totalSeconds: 3600,
+        tagSummaries: [{
+          tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 3600, sessionCount: 1,
+          sessions: [{
+            startTime: new Date(2026, 8, 1, 13, 0, 0).toISOString(),
+            endTime: new Date(2026, 8, 1, 14, 0, 0).toISOString(),
+            durationSeconds: 3600,
+          }],
+        }],
+      },
+    })
+
+    renderLogs()
+
+    await waitFor(() => expect(screen.getByText('세션')).toBeTruthy())
+    expect(screen.queryByText(/^\(\+\d+\)$/)).toBeNull()
   })
 })
