@@ -74,6 +74,10 @@ export default function RecordListView() {
   const [tag, setTag] = useState<Tag | null>(null)
   const [records, setRecords] = useState<Record[]>([])
   const [loading, setLoading] = useState(true)
+  // 최초 로드에서만 페이지 본문 스피너를 보여준다 — pull-to-refresh 로 다시
+  // 불러올 때는 PullToRefresh 자체 인디케이터가 이미 그 역할을 하므로, 여기서도
+  // 같이 돌면 스피너가 두 개 겹쳐 보인다.
+  const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
   const [error, setError] = useState('')
   const [editingRecord, setEditingRecord] = useState<Record | null>(null)
   const [showAdd, setShowAdd] = useState(false)
@@ -92,10 +96,12 @@ export default function RecordListView() {
       ])
       setTag(tagRes.data)
       setRecords(recRes.data)
+      setError('')
     } catch {
       setError(t('records.loadFail'))
     } finally {
       setLoading(false)
+      setHasLoadedOnce(true)
     }
   }, [tagId])
 
@@ -146,7 +152,7 @@ export default function RecordListView() {
   }
 
   return (
-    <AppShell>
+    <AppShell onRefresh={fetchRecords}>
       <div className="page">
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>
@@ -180,7 +186,7 @@ export default function RecordListView() {
             </button>
           </div>
 
-          {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
+          {loading && !hasLoadedOnce && <div className="spinner" style={{ margin: '40px auto' }} />}
           {error && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{error}</p>}
           {!loading && records.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('records.empty')}</p>

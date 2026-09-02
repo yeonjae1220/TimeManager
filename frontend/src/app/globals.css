@@ -304,9 +304,49 @@ input, select, textarea {
 .auth-link:hover { text-decoration: underline; }
 
 /* App Shell */
+/* position:fixed 로 문서 흐름에서 완전히 빼낸다 — html/body 는 건드리지 않으므로
+   랜딩·로그인 등 다른 페이지의 기본 문서 스크롤은 그대로다. 이 레이어 자체는
+   .app-content 만 스크롤되고, 나머지(topbar/tab-bar)는 항상 고정된다. */
 .app-shell {
-  min-height: 100dvh;
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.app-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior-y: contain;
+  -webkit-overflow-scrolling: touch;
   padding-bottom: calc(60px + env(safe-area-inset-bottom));
+}
+
+.pull-indicator {
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.pull-spinner {
+  width: 18px;
+  height: 18px;
+  margin-bottom: 10px;
+  border-radius: 50%;
+  border: 2px solid var(--border);
+  border-top-color: var(--accent);
+  animation: pull-spin 0.6s linear infinite;
+  animation-play-state: paused;
+}
+
+.pull-spinner--spin {
+  animation-play-state: running;
+}
+
+@keyframes pull-spin {
+  to { transform: rotate(360deg); }
 }
 
 /* Tab Bar */

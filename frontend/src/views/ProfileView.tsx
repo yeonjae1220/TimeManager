@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Monitor, Moon, Sun } from 'lucide-react'
 import AppShell from '@/components/layout/AppShell'
@@ -46,16 +46,20 @@ export default function ProfileView() {
   const [deleteError, setDeleteError] = useState('')
   const { preference: themePreference, setPreference: setThemePreference } = useTheme()
 
-  useEffect(() => {
+  const loadProfile = useCallback(async () => {
     if (!memberId) return
-    apiClient.get<Profile>(`/api/v1/members/${memberId}`)
-      .then((res) => {
-        setProfile(res.data)
-        setName(res.data.name)
-        setDailyResetHour(res.data.dailyResetHour)
-      })
-      .catch(() => setLoadError(t('profile.loadFail')))
+    try {
+      const res = await apiClient.get<Profile>(`/api/v1/members/${memberId}`)
+      setProfile(res.data)
+      setName(res.data.name)
+      setDailyResetHour(res.data.dailyResetHour)
+      setLoadError('')
+    } catch {
+      setLoadError(t('profile.loadFail'))
+    }
   }, [memberId, t])
+
+  useEffect(() => { void loadProfile() }, [loadProfile])
 
   async function handleSave() {
     if (!memberId) return
@@ -115,7 +119,7 @@ export default function ProfileView() {
   const isGoogle = profile?.provider?.toLowerCase() === 'google'
 
   return (
-    <AppShell>
+    <AppShell onRefresh={loadProfile}>
       <div className="page">
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>

@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import AddTagForm from '@/components/AddTagForm'
@@ -348,9 +348,11 @@ export default function TagListView() {
   const [dragState, setDragState] = useState<DragState>({ draggingId: null, overId: null })
   const dragTagRef = useRef<Tag | null>(null)
 
-  useEffect(() => {
-    if (memberId) loadTags(memberId)
+  const refreshTags = useCallback(async () => {
+    if (memberId) await loadTags(memberId)
   }, [memberId, loadTags])
+
+  useEffect(() => { void refreshTags() }, [refreshTags])
 
   function handleDragStart(e: React.DragEvent, tag: Tag) {
     dragTagRef.current = tag
@@ -418,7 +420,7 @@ export default function TagListView() {
   }
 
   return (
-    <AppShell>
+    <AppShell onRefresh={refreshTags}>
       <div className="page">
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>

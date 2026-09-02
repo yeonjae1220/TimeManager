@@ -15,8 +15,12 @@ vi.mock('next/navigation', () => ({
   useSearchParams: () => new URLSearchParams(mockSearch),
 }))
 
+const appShellProps: { onRefresh?: () => Promise<unknown> } = {}
 vi.mock('@/components/layout/AppShell', () => ({
-  default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
+  default: ({ children, onRefresh }: { children: React.ReactNode; onRefresh?: () => Promise<unknown> }) => {
+    appShellProps.onRefresh = onRefresh
+    return <div>{children}</div>
+  },
 }))
 vi.mock('@/components/TagPickerModal', () => ({ default: () => null }))
 vi.mock('@/components/DailyGoalSheet', () => ({ default: () => null }))
@@ -128,6 +132,9 @@ vi.mock('@/hooks/useTagTimer', () => ({
 import { I18nProvider } from '@/i18n/I18nProvider'
 import { LANG_KEY } from '@/i18n/messages/index'
 import TodayView from './TodayView'
+import apiClient from '@/utils/apiClient'
+
+const getApiClientGet = () => apiClient.get as unknown as ReturnType<typeof vi.fn>
 
 let mockSearch = ''
 
@@ -223,5 +230,21 @@ describe('TodayView — 태그 탭 시작 버튼(autostart) 오케스트레이�
     await waitFor(() => expect(screen.getByRole('button', { name: /집중 시작/ })).toBeTruthy())
     expect(startStopwatch).not.toHaveBeenCalled()
     expect(replace).not.toHaveBeenCalled()
+  })
+})
+
+describe('TodayView — pull-to-refresh 연결', () => {
+  it('[회귀] AppShell에 onRefresh를 넘기고, 호출 시 오늘 합계를 다시 조회한다', async () => {
+    renderToday()
+    await waitFor(() => expect(getApiClientGet()).toHaveBeenCalled())
+
+    expect(typeof appShellProps.onRefresh).toBe('function')
+
+    getApiClientGet().mockClear()
+    await appShellProps.onRefresh?.()
+
+    // AppShell이 children만 remount해선 이 fetch에 안 닿는다(TodayView 자신의
+    // effect라 부모다) — onRefresh가 실제로 연결돼 있어야만 여기서 다시 불린다.
+    expect(getApiClientGet()).toHaveBeenCalled()
   })
 })
