@@ -130,7 +130,7 @@ interface TagStoreState {
   retryPendingTimerOp: () => Promise<void>
   _retryPendingIfEligible: () => void
   getRetryPromise: () => Promise<void> | null
-  handleOnline: () => void
+  handleOnline: () => Promise<void>
   clearCache: () => Promise<void>
 }
 
@@ -395,9 +395,12 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
   handleOnline() {
     const activeMemberId = get()._activeMemberId
-    if (!activeMemberId) return
-    // 재전송 완료 후 즉시 1회 갱신 — 매직 딜레이 없이 재전송 결과를 그대로 반영
-    get().retryPendingTimerOp().then(() => {
+    if (!activeMemberId) return Promise.resolve()
+    // 재전송 완료 후 즉시 1회 갱신 — 매직 딜레이 없이 재전송 결과를 그대로 반영.
+    // Promise를 반환해야 호출부(TodayView)가 재전송이 끝난 뒤에 "오늘 기록시간"을
+    // 조회할 수 있다 — 안 그러면 큐에 남은 오프라인 stop이 아직 서버에 반영되기 전에
+    // summary를 읽어, 그 세션분이 통째로 빠진 값을 화면에 영구히 남긴다(재조회 전까지).
+    return get().retryPendingTimerOp().then(() => {
       const mid = get()._activeMemberId
       if (mid) get().refreshTags(mid)
     })

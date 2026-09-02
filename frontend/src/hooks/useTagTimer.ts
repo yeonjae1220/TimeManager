@@ -55,8 +55,9 @@ const INITIAL_STATE: StopwatchState = {
 
 /**
  * 포그라운드 복귀 시 재조회 최소 간격. 앱 전환을 빠르게 반복해도 API 를 도배하지 않는다.
+ * TodayView도 "오늘 기록시간"(summary) 재조회 스로틀에 동일 값을 재사용한다.
  */
-const FOREGROUND_REFRESH_THROTTLE_MS = 5_000
+export const FOREGROUND_REFRESH_THROTTLE_MS = 5_000
 
 /**
  * 태그 스냅샷(네트워크 응답 또는 캐시된 Tag)으로부터 StopwatchState 를 계산한다.
@@ -381,7 +382,11 @@ export function useTagTimer() {
     }
   }, [tag, sw, requestWakeLock])
 
-  const stopStopwatch = useCallback(async () => {
+  // onSegment는 네트워크 POST 전, setSw와 같은 동기 구간에서 호출된다. 호출부(TodayView)가
+  // "오늘 기록시간"을 낙관적으로 갱신하는 데 쓰는데, POST의 await 이후(반환값으로만) 갱신하면
+  // 그 사이 한 번의 렌더가 isRunning=false·러닝 델타=0 인 상태로 화면에 노출돼 총합이 잠깐
+  // 실제보다 작게 보였다가(POST 완료 시) 되돌아오는 깜빡임이 생긴다(GLOBAL-PIT류 회귀).
+  const stopStopwatch = useCallback(async (onSegment?: (segment: number) => void) => {
     if (!tag || !sw.isRunning) return
     const endTime = Date.now()
     // 시계 역행 등으로 구간이 음수가 되면 그 구간은 0으로 클램프(누적 elapsed는 보존).
@@ -421,6 +426,10 @@ export function useTagTimer() {
 
     // 정지도 API 전에. 로컬이 이미 멈췄으므로 오프라인이어도 알림은 즉시 사라져야 한다.
     void syncNativeRunningSession(null)
+
+    // setSw(newSw)와 동일한 동기 구간 — 아래 await 로 넘어가기 전에 반드시 불러야
+    // 위 주석의 깜빡임이 안 생긴다.
+    onSegment?.(segment)
 
     try {
       await apiClient.post(`/api/v1/tags/${tag.id}/timer/stop`, {

@@ -148,6 +148,36 @@ describe('useDailyResetHour — "오늘" 경계 계산에 필요한 회원 설�
 
   // ── [회귀] 최초 조회가 실패해도 세션 내내 죽어있으면 안 된다 ──────────────────
 
+  // ── [회귀] timezone도 dailyResetHour와 함께 실려와야 한다 ───────────────────
+  // "오늘 기록시간" 조회가 서버(회원 프로필 시간대 기준)와 같은 하루 경계를 쓰려면
+  // 클라이언트도 그 시간대를 알아야 한다(resolveTodaySummaryDateParam 참조).
+
+  it('[회귀] 성공하면 timezone도 함께 돌려준다', async () => {
+    get.mockResolvedValue({ data: { dailyResetHour: 5, timezone: 'Asia/Seoul' } })
+    const { result } = renderHook(() => useDailyResetHour(7))
+
+    await waitFor(() => expect(result.current.resetHour).toBe(5))
+    expect(result.current.timezone).toBe('Asia/Seoul')
+  })
+
+  it('응답에 timezone이 없으면 undefined다(구버전 서버 대비 하위 호환)', async () => {
+    get.mockResolvedValue({ data: { dailyResetHour: 5 } })
+    const { result } = renderHook(() => useDailyResetHour(7))
+
+    await waitFor(() => expect(result.current.resetHour).toBe(5))
+    expect(result.current.timezone).toBeUndefined()
+  })
+
+  it('캐시된 값을 재사용할 때도 timezone이 함께 유지된다', async () => {
+    get.mockResolvedValue({ data: { dailyResetHour: 5, timezone: 'Asia/Seoul' } })
+    const { result: r1 } = renderHook(() => useDailyResetHour(7))
+    await waitFor(() => expect(r1.current.resetHour).toBe(5))
+
+    const { result: r2 } = renderHook(() => useDailyResetHour(7))
+    await waitFor(() => expect(r2.current.timezone).toBe('Asia/Seoul'))
+    expect(get).toHaveBeenCalledTimes(1)
+  })
+
   it('[회귀] reload()로 실패 이후에도 다시 시도할 수 있다', async () => {
     get.mockRejectedValueOnce(new Error('network'))
     const errSpy = vi.spyOn(console, 'error').mockImplementation(() => {})

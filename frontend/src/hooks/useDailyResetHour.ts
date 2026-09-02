@@ -4,8 +4,15 @@ import { useCallback } from 'react'
 import apiClient from '@/utils/apiClient'
 import { useAsyncData } from './useAsyncData'
 
-/** memberId → dailyResetHour. 프로필 저장 성공 시 invalidateDailyResetHour로 즉시 무효화된다. */
-const cache = new Map<number, number>()
+interface CachedSettings {
+  resetHour: number
+  /** 회원 프로필의 시간대(IANA 이름, 예: "Asia/Seoul"). 응답에 없으면 undefined —
+   * 호출부는 이를 "브라우저 기본 시간대를 쓰라"는 뜻으로 받아들인다. */
+  timezone: string | undefined
+}
+
+/** memberId → {dailyResetHour, timezone}. 프로필 저장 성공 시 invalidateDailyResetHour로 즉시 무효화된다. */
+const cache = new Map<number, CachedSettings>()
 
 /** 테스트 전용 — 모듈 전체 캐시 격리(여러 memberId를 다루는 테스트 간 격리용). */
 export function __resetDailyResetHourCache(): void {
@@ -24,6 +31,9 @@ export function invalidateDailyResetHour(memberId: number): void {
 
 export interface DailyResetHourState {
   resetHour: number | null
+  /** 회원 프로필의 시간대. resetHour와 마찬가지로 로딩 중·실패 시 undefined —
+   * 호출부(resolveTodaySummaryDateParam)는 이 경우 브라우저 기본 시간대로 계산한다. */
+  timezone: string | undefined
   /**
    * 확정 실패 여부. "로딩 중"(resetHour===null && failed===false)과 구분해야 한다 —
    * 구분 못 하면 로딩 중에도 reload()를 걸어 마운트마다 요청이 중복되거나, 반대로
@@ -49,13 +59,14 @@ export function useDailyResetHour(memberId: number | null): DailyResetHourState 
     const cached = cache.get(memberId as number)
     if (cached !== undefined) return Promise.resolve(cached)
     return apiClient
-      .get<{ dailyResetHour: number }>(`/api/v1/members/${memberId}`)
+      .get<{ dailyResetHour: number; timezone?: string }>(`/api/v1/members/${memberId}`)
       .then((res) => {
-        cache.set(memberId as number, res.data.dailyResetHour)
-        return res.data.dailyResetHour
+        const settings: CachedSettings = { resetHour: res.data.dailyResetHour, timezone: res.data.timezone }
+        cache.set(memberId as number, settings)
+        return settings
       })
   }, [memberId])
 
   const { data, failed, reload } = useAsyncData(memberId != null ? loader : null)
-  return { resetHour: data, failed, reload }
+  return { resetHour: data?.resetHour ?? null, timezone: data?.timezone, failed, reload }
 }

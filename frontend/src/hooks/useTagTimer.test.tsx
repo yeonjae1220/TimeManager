@@ -414,6 +414,37 @@ describe('useTagTimer — 추가 엣지케이스 검증 (잠재 버그 스윕)',
     expect(seg).toBe(45)
   })
 
+  it('[회귀·타이밍] stop 시 onSegment가 정지 POST 응답 전(await 이전)에 동기 호출된다', async () => {
+    // TodayView가 "오늘 기록시간"을 낙관적으로 갱신하는 지점이다. POST 완료 후(반환값으로만)
+    // 호출되면, sw.isRunning=false로 내려간 렌더가 그 갱신 없이 먼저 화면에 노출돼
+    // "오늘 기록시간"이 잠깐 실제보다 작게 보였다가 POST 완료 시 되돌아오는 회귀가 생긴다.
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-07-12T10:00:00.000Z'))
+    const { result } = await renderWithTag()
+    await act(async () => {
+      await result.current.startStopwatch()
+    })
+    vi.setSystemTime(new Date('2026-07-12T10:00:20.000Z')) // +20초
+
+    const gate = deferred<{ data: unknown }>()
+    post.mockReturnValueOnce(gate.promise) // stop POST를 아직 끝내지 않은 채로 붙잡아둔다
+
+    const onSegment = vi.fn()
+    let stopPromise!: Promise<number | undefined>
+    act(() => {
+      stopPromise = result.current.stopStopwatch(onSegment)
+    })
+
+    // POST가 아직 응답하지 않았는데도 onSegment는 이미 불려 있어야 한다.
+    expect(onSegment).toHaveBeenCalledWith(20)
+
+    await act(async () => {
+      gate.resolve({ data: {} })
+      await stopPromise
+    })
+    vi.useRealTimers()
+  })
+
   // ── ⑧ 시계 역행 시 elapsed 음수 방지 ─────────────────────────────────────
 
   it('[⑧시계역행] stop 시점이 start보다 과거여도 elapsed가 음수로 전송되지 않는다', async () => {

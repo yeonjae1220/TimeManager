@@ -14,6 +14,7 @@ import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connecti
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
 import { useDailyResetHour } from '@/hooks/useDailyResetHour'
+import { FOREGROUND_REFRESH_THROTTLE_MS } from '@/hooks/useTagTimer'
 import { hapticStart, hapticStop } from '@/native/haptics'
 import { ensureNotificationPermission } from '@/native/notificationPermission'
 import { resyncNativeRunningSession } from '@/native/runningSession'
@@ -23,6 +24,12 @@ function todayLabel(locale: string): string {
 }
 
 const TODAY_RECENT_TAG_LIMIT = 6
+
+// 태그 탭 "시작" 버튼(?autostart=1)의 자동 시작 의도가 유효한 시간. 이 창을 넘겨서야
+// 네트워크가 확정되면(오프라인이 오래 지속되다가 포그라운드 복귀로 뒤늦게 재조회되는
+// 경우 등) 자동 시작하지 않는다 — 안 그러면 사용자가 이미 잊어버린 뒤, 다른 화면을
+// 보고 있는 동안 타이머가 스스로 시작되는 것처럼 보인다(회귀).
+const AUTOSTART_STALE_MS = 10_000
 
 export default function TodayView() {
   const params = useParams()
@@ -56,7 +63,10 @@ export default function TodayView() {
   const [showGoalSheet, setShowGoalSheet] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
   const [isOnline, setIsOnline] = useState(true)
-  const [todayTotalSeconds, setTodayTotalSeconds] = useState(0)
+  // 아직 서버 요약을 한 번도 못 받았음을 "0건"과 구분하기 위해 null로 시작한다 —
+  // 구분 못 하면 캐시 시드로 태그 통계만 먼저 채워진 화면에서 두 통계 타일이
+  // 우연히 같은 값으로 보였다가 요약 도착 시 어긋나 보이는 회귀가 생긴다.
+  const [todayTotalSeconds, setTodayTotalSeconds] = useState<number | null>(null)
   const didAutoLoad = useRef(false)
   // 태그 탭의 "시작" 버튼(?autostart=1)으로 도착했을 때, 목표 태그가 실제로
   // 로드될 때까지 자동 시작을 미뤄둔다. loadTag() 직후 곧바로 startStopwatch()를
@@ -64,18 +74,26 @@ export default function TodayView() {
   // 비동기) 조용히 no-op한다 — 아래 별도 effect가 tag state 갱신을 보고 트리거해야
   // 이 문제가 안 생긴다.
   const pendingAutoStartRef = useRef<number | null>(null)
+  // pendingAutoStartRef가 세팅된 시각 — AUTOSTART_STALE_MS 판단에 쓴다.
+  const pendingAutoStartRequestedAtRef = useRef(0)
 
   // "오늘"의 경계는 자정이 아니라 이 값(dailyResetHour) — resolveTodaySummaryDateParam 참조.
   // 최초 조회가 실패하면 자동 재시도가 없으므로, reload를 재접속 시점에 함께 불러야 한다
   // (안 하면 일시적 네트워크 오류 한 번으로 "오늘 기록시간"이 세션 내내 멈춘다).
   const {
     resetHour: dailyResetHour,
+    timezone: memberTimezone,
     failed: dailyResetHourFailed,
     reload: reloadDailyResetHour,
   } = useDailyResetHour(memberId || null)
 
+  // 응답이 요청 순서와 다르게 도착해도(예: 정지 직후의 재조회가 그 직전 마운트
+  // 조회보다 먼저 나가 있던 상태) 가장 최근에 보낸 요청의 응답만 반영한다 —
+  // 안 그러면 먼저 보낸 느린 응답이 늦게 도착해 방금 반영한 낙관적 값을 되돌린다.
+  const todayTotalRequestIdRef = useRef(0)
+
   const fetchTodayTotal = useCallback(async () => {
-    const ds = resolveTodaySummaryDateParam(new Date(), dailyResetHour)
+    const ds = resolveTodaySummaryDateParam(new Date(), dailyResetHour, memberTimezone)
     if (ds === null) {
       // 로딩 중(failed===false)이면 곧 스스로 풀리니 그냥 기다린다. 확정 실패
       // (4xx/5xx)면 connectivity 신호가 안 오는 경우가 많아 — apiClient 인터셉터는
@@ -84,14 +102,27 @@ export default function TodayView() {
       if (dailyResetHourFailed) reloadDailyResetHour()
       return
     }
+    const requestId = ++todayTotalRequestIdRef.current
     try {
       const res = await apiClient.get<{ totalSeconds: number }>(`/api/v1/records/summary?startDate=${ds}&endDate=${ds}`)
+      if (todayTotalRequestIdRef.current !== requestId) return // stale — 더 최근 요청이 이미 나갔다
       setTodayTotalSeconds(res.data.totalSeconds || 0)
     } catch (e) {
+      if (todayTotalRequestIdRef.current !== requestId) return
       // Keep the current on-screen value; the selected tag timer still gives useful feedback.
       console.error('Failed to fetch today total:', e instanceof Error ? e.message : String(e))
     }
-  }, [dailyResetHour, dailyResetHourFailed, reloadDailyResetHour])
+  }, [dailyResetHour, memberTimezone, dailyResetHourFailed, reloadDailyResetHour])
+
+  // connectivity 콜백·visibilitychange 리스너 등 effect 밖 이벤트 핸들러가 항상
+  // 최신 fetchTodayTotal(최신 dailyResetHour를 참조하는 버전)을 부르게 한다. 그
+  // 핸들러들을 마운트 effect의 deps에 fetchTodayTotal을 직접 넣으면, resetHour가
+  // null→값으로 해소될 때마다 마운트 effect 전체(태그 트리 재조회·connectivity
+  // 재구독)가 다시 돌아 loadTags가 중복 호출된다(회귀) — ref로 우회한다.
+  const fetchTodayTotalRef = useRef(fetchTodayTotal)
+  useEffect(() => {
+    fetchTodayTotalRef.current = fetchTodayTotal
+  }, [fetchTodayTotal])
 
   // 당겨서 새로고침 시 실행 — 태그 트리와 오늘 합계를 다시 조회한다. 진행 중인
   // 스톱워치(useTagTimer)는 이 컴포넌트가 remount되지 않으므로 그대로 유지된다.
@@ -111,6 +142,7 @@ export default function TodayView() {
         if (tagId) {
           if (searchParams?.get('autostart') === '1') {
             pendingAutoStartRef.current = tagId
+            pendingAutoStartRequestedAtRef.current = Date.now()
             // 소비 즉시 URL에서 지운다 — 남겨두면 새로고침이나 재진입 시
             // 이미 정지한 세션을 다시 자동 시작시킬 수 있다.
             router.replace(`/members/${memberId}/today?tagId=${tagId}`)
@@ -126,7 +158,6 @@ export default function TodayView() {
     }
 
     loadTags(memberId)
-    fetchTodayTotal()
 
     // 배너와 재전송 트리거를 모두 connectivity 한 곳에서 받는다.
     // window 'online'/'offline' 을 직접 듣지 않는 이유는 네이티브 WebView 에서
@@ -137,18 +168,43 @@ export default function TodayView() {
     const unsubscribe = subscribeConnectivity((online) => {
       setIsOnline(online)
       if (!online) return
-      handleOnline()
-      // fetchTodayTotal 자체가 확정 실패(dailyResetHourFailed) 시 reloadDailyResetHour를
-      // 함께 호출하므로 여기서 따로 부를 필요는 없다 — mount·재접속·정지 등 모든
-      // 호출부를 한곳(fetchTodayTotal)에서 일관되게 복구시킨다.
-      fetchTodayTotal()
+      // 재전송(큐에 남은 오프라인 stop 등)이 끝난 뒤에야 요약을 조회한다 — 순서를
+      // 바꾸면 아직 서버에 반영되지 않은 세션분이 통째로 빠진 값을 읽어와, 다음
+      // 재조회 전까지 "오늘 기록시간"이 틀린 채로 영구히 남는다(회귀).
+      void handleOnline().then(() => fetchTodayTotalRef.current())
     })
 
     // 포그라운드 복귀 시의 즉시 확인은 ConnectivityWatcher(레이아웃 전역)가 맡는다.
     // 이 화면에만 두면 다른 화면에서 오프라인이 된 뒤 앱을 껐다 켰을 때 복귀 감지가
     // 죽은 채로 남는다.
     return unsubscribe
-  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag, fetchTodayTotal])
+  }, [memberId, loadTags, handleOnline, loadTag, addRecentTag])
+
+  // dailyResetHour가 해소되거나(최초 마운트) memberTimezone이 바뀌면(무효화 등) 요약을
+  // (다시) 조회한다. 위 마운트 effect와 분리한 이유는 그 effect의 deps에 fetchTodayTotal을
+  // 넣으면 resetHour 해소 자체가 태그 트리 재조회·connectivity 재구독까지 함께 반복시키기
+  // 때문이다(바로 위 fetchTodayTotalRef 주석 참조) — 여기서는 순수하게 조회만 반복한다.
+  useEffect(() => {
+    if (!memberId) return
+    fetchTodayTotal()
+  }, [memberId, fetchTodayTotal])
+
+  // 포그라운드 복귀 시 "오늘 기록시간"도 함께 재조회한다. useTagTimer 내부의
+  // visibilitychange 리스너는 태그 하나(sw)만 재조회하므로, 이게 없으면 오래
+  // 백그라운드에 있다 돌아왔을 때(다른 기기에서 기록이 추가된 경우 등) 태그 타일만
+  // 최신이고 총합 타일은 낡은 스냅샷으로 남는다(회귀).
+  const lastForegroundTotalRefreshRef = useRef(0)
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState !== 'visible') return
+      const now = Date.now()
+      if (now - lastForegroundTotalRefreshRef.current < FOREGROUND_REFRESH_THROTTLE_MS) return
+      lastForegroundTotalRefreshRef.current = now
+      fetchTodayTotalRef.current()
+    }
+    document.addEventListener('visibilitychange', handleVisibilityChange)
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange)
+  }, [])
 
   const selectTag = useCallback(async (tagId: number) => {
     if (!memberId || isSwitching) return
@@ -189,11 +245,17 @@ export default function TodayView() {
     }
     if (sw.isRunning) {
       hapticStop()
-      const segment = await stopStopwatch()
-      // 정지 순간 runningDelta가 0으로 떨어지므로, 서버 summary 재조회가 도착하기 전까지의 공백 동안
-      // 방금 끝낸 세그먼트를 낙관적으로 더해 "오늘 기록시간"이 이전 값으로 잠깐 튀는 것을 막는다.
+      // onSegment는 stopStopwatch 내부에서 정지 POST(네트워크 await)로 넘어가기 전,
+      // sw를 isRunning=false로 내리는 것과 같은 동기 구간에서 호출된다. 여기서 바로
+      // setTodayTotalSeconds를 갱신해야 두 setState가 같은 커밋으로 배치되어, 러닝
+      // 델타가 0으로 떨어진 렌더가 낙관적 보정 없이 화면에 노출되는 틈(정지 직후
+      // "오늘 기록시간"이 잠깐 틀린 값으로 보였다가 POST 완료 시 되돌아오던 회귀)이
+      // 없어진다. await 이후(반환값)로 갱신하면 그 틈이 다시 생긴다.
+      await stopStopwatch((segment) => {
+        if (!segment) return
+        setTodayTotalSeconds((s) => (s === null ? s : s + segment))
+      })
       // fetchTodayTotal()이 곧 서버 절대값으로 덮어써 화해하므로 이중 계산은 없다.
-      if (segment) setTodayTotalSeconds((s) => s + segment)
       fetchTodayTotal()
       return
     }
@@ -214,6 +276,10 @@ export default function TodayView() {
     if (!tag || tag.id !== pendingAutoStartRef.current) return
     if (confirmedTagId !== pendingAutoStartRef.current) return
     pendingAutoStartRef.current = null
+    // 요청 후 오래(오프라인이 길게 이어지다 포그라운드 복귀로 뒤늦게 확정된 경우 등)
+    // 지났으면 시작하지 않는다 — 사용자가 이미 다른 화면으로 넘어갔을 시점에 타이머가
+    // 스스로 시작되는 것을 막는다. 사용자는 필요하면 수동으로 시작 버튼을 누르면 된다.
+    if (Date.now() - pendingAutoStartRequestedAtRef.current > AUTOSTART_STALE_MS) return
     if (sw.isRunning) return
     void startTimerFlow()
   }, [tag, sw.isRunning, confirmedTagId, startTimerFlow])
@@ -439,7 +505,9 @@ export default function TodayView() {
             <section style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: 1, background: 'var(--border-subtle)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', overflow: 'hidden', marginBottom: 24 }}>
               {[
                 { label: t('today.statTodayTag'), val: formattedDailyTotalTime },
-                { label: t('today.statTodayTotal'), val: formatTime(todayRecordTotal) },
+                // 아직 요약을 못 받았으면(null) 태그 통계와 우연히 같은 값으로 보이는
+                // 대신 로딩 중임을 명시한다 — 도착하면 실제 값으로 바뀐다.
+                { label: t('today.statTodayTotal'), val: todayRecordTotal === null ? '—' : formatTime(todayRecordTotal) },
                 { label: t('today.statCurrentTagTotal'), val: formattedTotalTime },
               ].map(({ label, val }) => (
                 <div key={label} style={{ background: 'var(--surface)', padding: '14px 12px', textAlign: 'center' }}>
