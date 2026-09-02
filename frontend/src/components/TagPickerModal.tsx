@@ -44,11 +44,6 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
   const findById = useTagStore((s) => s.findById)
   const createTag = useTagStore((s) => s.createTag)
 
-  useEffect(() => {
-    document.body.style.overflow = 'hidden'
-    return () => { document.body.style.overflow = '' }
-  }, [])
-
   // 탐색 중인 레벨을 벗어나면 그 레벨에서 열어둔 생성 폼은 닫는다.
   useEffect(() => { setShowCreateForm(false) }, [pathIds.join(',')])
 

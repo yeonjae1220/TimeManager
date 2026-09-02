@@ -146,7 +146,7 @@ export default function RecordListView() {
   }
 
   return (
-    <AppShell>
+    <AppShell onRefresh={fetchRecords}>
       <div className="page">
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>

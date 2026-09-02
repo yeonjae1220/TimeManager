@@ -93,6 +93,13 @@ export default function TodayView() {
     }
   }, [dailyResetHour, dailyResetHourFailed, reloadDailyResetHour])
 
+  // 당겨서 새로고침 시 실행 — 태그 트리와 오늘 합계를 다시 조회한다. 진행 중인
+  // 스톱워치(useTagTimer)는 이 컴포넌트가 remount되지 않으므로 그대로 유지된다.
+  const refreshToday = useCallback(async () => {
+    if (!memberId) return
+    await Promise.all([loadTags(memberId), fetchTodayTotal()])
+  }, [memberId, loadTags, fetchTodayTotal])
+
   useEffect(() => {
     if (!memberId) return
 
@@ -228,7 +235,7 @@ export default function TodayView() {
       : t('today.startCta')
 
   return (
-    <AppShell isRunning={sw.isRunning}>
+    <AppShell isRunning={sw.isRunning} onRefresh={refreshToday}>
       <div className="page today-page" style={{ position: 'relative' }}>
         {!isOnline && (
           <div className="offline-banner">
