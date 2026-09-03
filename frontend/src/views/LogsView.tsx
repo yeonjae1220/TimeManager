@@ -73,6 +73,18 @@ function getTopTag(data: SummaryData): TagSummary | null {
   }, null)
 }
 
+/**
+ * timeZone을 지정하지 않는다 — 안전한 건 이 함수가 시간대 이동을 하지 않기
+ * 때문이 아니라, 이 파일에서 넘기는 Date가 전부 `parseLocalDate`나 `new Date(y,m,d)`
+ * 처럼 연/월/일을 직접 조립해 만든 값(=로컬 자정에 심어둔 "달력 날짜 라벨")이기
+ * 때문이다. 그런 Date는 이미 만들 때 쓴 것과 같은 실행 환경 시간대로만 읽으면
+ * (getFullYear 등도 그렇게 읽는다) 항상 원래 연/월/일이 그대로 돌아온다 — 그 라벨이
+ * dailyResetHour/timezone(logicalDateStringOf) 기준으로 옳게 계산됐는지는 그 Date를
+ * "만든" 쪽의 책임이다. 반대로 `new Date()`처럼 실제 시각(instant)에서 막 얻은 Date에
+ * 이 함수를 쓰면 기기 시간대로 계산한 달력 날짜가 나와 회원 프로필 시간대와 어긋난다
+ * — 그런 값은 이 함수가 아니라 resolveTodaySummaryDateParam/logicalDateStringOf를
+ * 거쳐야 한다.
+ */
 function toLocalDate(d: Date): string {
   return d.toLocaleDateString('sv-SE') // YYYY-MM-DD
 }

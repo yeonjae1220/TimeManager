@@ -667,6 +667,54 @@ describe('LogsView — "오늘"의 경계는 자정이 아니라 dailyResetHour�
     expect(requestedRanges()).toContain('2026-08-01~2026-08-31')
     expect(requestedRanges()).not.toContain('2026-09-01~2026-09-30')
   })
+
+  it('[회귀] 기기 시간대와 회원 프로필 시간대가 달라도 월별 탭은 프로필 시간대를 기준으로 그린다', async () => {
+    // 지금까지의 테스트는 전부 기기 시간대 == 실행 환경 시간대라 "달력 오늘"과
+    // "논리적 오늘"만 다를 뿐, 기기 시간대 자체가 회원 프로필과 다른 경우(여행 중
+    // 등)는 걸러내지 못했다. 여기서는 기기를 LA(UTC-8)로, 회원 프로필을
+    // 서울(UTC+9)로 갈라 둔다 — 이 실제 시각을 기기 시간대로 읽으면 아직
+    // 8/31(월)이지만 서울 기준으로는 이미 9/1(화)이다. refDate가 기기 시간대로
+    // 계산되면 8월 그리드를 열어, 9/1에 시작한 세션도 "오늘" 테두리도 어디에도
+    // 나타나지 않는다.
+    const originalTz = process.env.TZ
+    process.env.TZ = 'America/Los_Angeles'
+    try {
+      vi.useFakeTimers({ toFake: ['Date'] })
+      vi.setSystemTime(new Date('2026-09-01T02:00:00Z'))
+      setBoundary({ resetHour: 0, timezone: 'Asia/Seoul' })
+
+      const sessionStart = new Date('2026-08-31T20:00:00Z') // 서울 9/1 05:00, LA 8/31 12:00
+      const sessionEnd = new Date('2026-08-31T21:00:00Z')
+      const withSession = {
+        data: {
+          totalSeconds: 3600,
+          tagSummaries: [{
+            tagId: 7, tagName: '공부', parentTagName: '', totalSeconds: 3600, sessionCount: 1,
+            sessions: [{ startTime: sessionStart.toISOString(), endTime: sessionEnd.toISOString(), durationSeconds: 3600 }],
+          }],
+        },
+      }
+      get.mockImplementation((url: string) => {
+        const m = url.match(/startDate=([\d-]+)&endDate=([\d-]+)/)
+        if (!m) return Promise.resolve(EMPTY_SUMMARY)
+        const [, start, end] = m
+        const isWeekRange = start !== end
+        if (isWeekRange && start <= '2026-09-01' && '2026-09-01' <= end) return Promise.resolve(withSession)
+        return Promise.resolve(EMPTY_SUMMARY)
+      })
+
+      renderLogs()
+      fireEvent.click(screen.getByRole('button', { name: '월별' }))
+      const heatmap = await screen.findByTestId('monthly-heatmap')
+
+      expect(requestedRanges()).toContain('2026-09-01~2026-09-30')
+      const labels = within(heatmap).getAllByRole('button').map((b) => b.getAttribute('aria-label') ?? '')
+      expect(labels).toContain(`${dayLabel(new Date(2026, 8, 1))}: 1h 0m`)
+      expect(outlinedDays(heatmap)).toEqual([dayLabel(new Date(2026, 8, 1))])
+    } finally {
+      process.env.TZ = originalTz
+    }
+  })
 })
 
 describe('LogsView — 날짜를 넘긴 세션', () => {
