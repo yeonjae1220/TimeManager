@@ -5,9 +5,16 @@ import { useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
 import { reportReachable, reportUnreachable } from '@/utils/connectivity'
 
+// 응답이 영영 오지 않으면(네트워크 hang) 이 프라미스는 resolve도 reject도 되지
+// 않는다. useAsyncData는 fail()이 불려야만 failed를 세우므로, 그런 요청은
+// 재시도 수단도 없이 스피너가 영원히 도는 화면이 된다. 타임아웃을 걸어 hang을
+// 명시적 실패(ECONNABORTED)로 바꿔 기존 실패 처리 경로(LoadError→reload)를 태운다.
+const REQUEST_TIMEOUT_MS = 15_000
+
 const apiClient = axios.create({
   baseURL: '',
   withCredentials: true,
+  timeout: REQUEST_TIMEOUT_MS,
 })
 
 apiClient.interceptors.request.use((config) => {
