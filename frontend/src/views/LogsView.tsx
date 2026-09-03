@@ -201,6 +201,40 @@ function LoadError({ onRetry }: { onRetry: () => void }) {
   )
 }
 
+// ────────────────────────────────────────────────────────────
+// Day boundary helpers
+// ────────────────────────────────────────────────────────────
+
+/**
+ * dayBoundary(회원의 dailyResetHour+timezone)로부터 "논리적 오늘"을 계산한다.
+ *
+ * "오늘"은 달력 오늘이 아니라 dailyResetHour 기준의 논리적 오늘이다. 달력 날짜를
+ * 그대로 쓰면 자정~resetHour 사이에 **아직 시작하지도 않은 구간**(오늘 05:00~
+ * 내일 05:00)을 조회해 0시간을 진짜 값처럼 보여준다. 그 시간대에 어제치를 확인하러
+ * 온 사용자에게 "기록이 없습니다"를 단언하는 화면이라, 침묵보다 나쁘다.
+ * TodayView가 resolveTodaySummaryDateParam으로 이미 고친 것과 같은 결함이다.
+ *
+ * resetHour를 아직 모르면(로딩 중) null이다 — 5(백엔드 기본값)로 짐작하지 않는다.
+ * DailyTab/WeeklyTab/MonthlyTab이 각자 "오늘이 속한 기간"을 정하는 데 쓴다.
+ */
+function useLogicalToday(dayBoundary: DayBoundary): Date | null {
+  const { resetHour, timezone } = dayBoundary
+  return useMemo(() => {
+    const key = resolveTodaySummaryDateParam(new Date(), resetHour, timezone)
+    return key ? parseLocalDate(key) : null
+  }, [resetHour, timezone])
+}
+
+/**
+ * dayBoundary가 아직 해석되지 않은 동안의 대기 화면. 로딩 중이면 스피너, 확정
+ * 실패면 재시도 버튼 — DailyTab/WeeklyTab/MonthlyTab이 각자 다른 방식으로
+ * 구현하던 대기 상태를 하나로 합쳤다.
+ */
+function BoundaryWait({ dayBoundary }: { dayBoundary: DayBoundary }) {
+  if (dayBoundary.failed) return <LoadError onRetry={dayBoundary.reload} />
+  return <div className="spinner" style={{ margin: '40px auto' }} />
+}
+
 /** 기간 요약 조회. 4개 탭이 같은 엔드포인트를 쓰므로 URL 조립을 한 곳에 둔다. */
 function getSummary(start: Date, end: Date): Promise<SummaryData> {
   return apiClient
@@ -224,18 +258,7 @@ interface DailyTabProps {
 
 function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps) {
   const { t: tr, language } = useI18n()
-  const { resetHour, timezone } = dayBoundary
-  // "오늘"은 달력 오늘이 아니라 dailyResetHour 기준의 논리적 오늘이다. 달력 날짜를
-  // 그대로 보내면 자정~resetHour 사이에 **아직 시작하지도 않은 구간**(오늘 05:00~
-  // 내일 05:00)을 조회해 0시간을 진짜 값처럼 보여준다. 그 시간대에 어제치를 확인하러
-  // 온 사용자에게 "기록이 없습니다"를 단언하는 화면이라, 침묵보다 나쁘다.
-  // TodayView가 resolveTodaySummaryDateParam으로 이미 고친 것과 같은 결함이다.
-  //
-  // resetHour를 아직 모르면(로딩 중) null이다 — 5(백엔드 기본값)로 짐작하지 않는다.
-  const logicalToday = useMemo(() => {
-    const key = resolveTodaySummaryDateParam(new Date(), resetHour, timezone)
-    return key ? parseLocalDate(key) : null
-  }, [resetHour, timezone])
+  const logicalToday = useLogicalToday(dayBoundary)
 
   // 사용자가 화살표로 옮긴 날짜. 드릴다운이면 initialDate, 아니면 논리적 오늘이
   // 정해질 때까지 date 전체가 null로 남는다. DailyTab은 key={dateParam ?? 'today'}로
@@ -270,9 +293,8 @@ function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps)
         </button>
       )}
       {/* 경계를 모르는 동안은 날짜 자체를 못 정한다 — 화살표도 합계도 가리킬 대상이
-          없으니 스피너만 둔다. 확정 실패면 자동 재시도가 없으므로 재시도를 준다. */}
-      {date === null && !dayBoundary.failed && <div className="spinner" style={{ margin: '40px auto' }} />}
-      {date === null && dayBoundary.failed && <LoadError onRetry={dayBoundary.reload} />}
+          없으니 대기 화면만 둔다. */}
+      {date === null && <BoundaryWait dayBoundary={dayBoundary} />}
       {date !== null && (
         <NavArrows
           label={label}
@@ -347,9 +369,15 @@ function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps)
 
 function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; onDayClick: (date: Date) => void; dayBoundary: DayBoundary }) {
   const { t: tr, language } = useI18n()
-  const [monday, setMonday] = useState(() => startOfWeek(new Date()))
+  const logicalToday = useLogicalToday(dayBoundary)
 
-  const load = useCallback(() => getSummary(monday, addDays(monday, 6)), [monday])
+  // 사용자가 화살표로 옮긴 주. 논리적 오늘이 정해질 때까지 monday 전체가 null로
+  // 남는다 — 기기 달력의 "이번 주"를 먼저 보여줬다가 논리적 주로 바뀌면(자정 직후
+  // dailyResetHour 이전 방문) 오늘 강조가 그 사이 다른 주로 튄다.
+  const [mondayOverride, setMondayOverride] = useState<Date | null>(null)
+  const monday = mondayOverride ?? (logicalToday ? startOfWeek(logicalToday) : null)
+
+  const load = useMemo(() => (monday ? () => getSummary(monday, addDays(monday, 6)) : null), [monday])
   const { data, loading, failed, reload } = useAsyncData(load)
 
   // Fetch per-day data for bar chart
@@ -357,14 +385,24 @@ function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; on
   // "그날 기록이 없음" 과 "그날 조회 실패" 가 막대 높이 0 으로 똑같이 보인다.
   // 메인 요약이 성공한 부분 실패 상황에서는 화면 어디에도 단서가 안 남는다.
   // 하나라도 실패하면 차트를 그리지 않는다 — 거짓 0 보다 공백이 정직하다.
-  const loadDailyTotals = useCallback(
-    () => Promise.all(
+  const loadDailyTotals = useMemo(
+    () => (monday ? () => Promise.all(
       Array.from({ length: 7 }, (_, i) => addDays(monday, i))
         .map((d) => getSummary(d, d).then((s) => s.totalSeconds)),
-    ),
+    ) : null),
     [monday],
   )
   const { data: dailyTotals } = useAsyncData(loadDailyTotals)
+
+  // 경계를 모르는 동안은 어느 주가 "이번 주"인지도 못 정한다 — 화살표도 막대도
+  // 가리킬 대상이 없으니 대기 화면만 둔다(DailyTab과 동일한 게이팅).
+  if (monday === null) {
+    return (
+      <div>
+        <BoundaryWait dayBoundary={dayBoundary} />
+      </div>
+    )
+  }
 
   const maxDay = Math.max(...(dailyTotals ?? []), 1)
   const todayKey = resolveTodaySummaryDateParam(new Date(), dayBoundary.resetHour, dayBoundary.timezone)
@@ -373,8 +411,8 @@ function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; on
     <div>
       <NavArrows
         label={weekLabel(monday, language)}
-        onPrev={() => setMonday((d) => addDays(d, -7))}
-        onNext={() => setMonday((d) => addDays(d, 7))}
+        onPrev={() => setMondayOverride(addDays(monday, -7))}
+        onNext={() => setMondayOverride(addDays(monday, 7))}
       />
       {/* 7-day bar chart — 날짜별 조회가 하나라도 실패하면 자리만 비워둔다.
           0 짜리 막대를 그리면 "기록 없음"과 구별되지 않는 거짓 정보가 된다. */}
@@ -447,9 +485,15 @@ function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; on
 function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; onDayClick: (date: Date) => void; dayBoundary: DayBoundary }) {
   const { t: tr, language } = useI18n()
   const { resetHour, timezone } = dayBoundary
-  const [refDate, setRefDate] = useState(new Date())
+  const logicalToday = useLogicalToday(dayBoundary)
 
-  const load = useCallback(() => getSummary(startOfMonth(refDate), endOfMonth(refDate)), [refDate])
+  // 사용자가 화살표로 옮긴 달. WeeklyTab과 같은 이유로, 논리적 오늘이 정해질
+  // 때까지 refDate 전체가 null로 남는다(자정~resetHour 사이엔 기기 달력의
+  // "이번 달"이 논리적으로 아직 지난달일 수 있다 — 예: 매월 1일 02:00).
+  const [refDateOverride, setRefDateOverride] = useState<Date | null>(null)
+  const refDate = refDateOverride ?? (logicalToday ? startOfMonth(logicalToday) : null)
+
+  const load = useMemo(() => (refDate ? () => getSummary(startOfMonth(refDate), endOfMonth(refDate)) : null), [refDate])
   const { data, loading, failed, reload } = useAsyncData(load)
 
   // Per-day totals for heatmap (batch: one call per day is expensive, so we use per-week calls)
@@ -467,7 +511,7 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
   // resetHour를 모르는 동안은 loader 자체를 넘기지 않는다. 짐작한 경계로 칠한
   // 히트맵은 아래 "실패한 주를 빈 칸으로 그리지 않는다"와 같은 부류의 거짓 데이터다.
   const loadHeatmap = useMemo(() => {
-    if (resetHour === null) return null
+    if (refDate === null || resetHour === null) return null
     return () => {
       const end = endOfMonth(refDate)
       const weeks: Date[] = []
@@ -499,6 +543,16 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
   }, [refDate, resetHour, timezone])
   const { data: dailyTotals } = useAsyncData(loadHeatmap)
 
+  // 경계를 모르는 동안은 어느 달이 "이번 달"인지도 못 정한다 — 화살표도 히트맵도
+  // 가리킬 대상이 없으니 대기 화면만 둔다(DailyTab/WeeklyTab과 동일한 게이팅).
+  if (refDate === null) {
+    return (
+      <div>
+        <BoundaryWait dayBoundary={dayBoundary} />
+      </div>
+    )
+  }
+
   const year = refDate.getFullYear()
   const month = refDate.getMonth()
   const monthLabel = refDate.toLocaleDateString(language, { year: 'numeric', month: 'long' })
@@ -520,8 +574,8 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
     <div>
       <NavArrows
         label={monthLabel}
-        onPrev={() => setRefDate((d) => new Date(d.getFullYear(), d.getMonth() - 1, 1))}
-        onNext={() => setRefDate((d) => new Date(d.getFullYear(), d.getMonth() + 1, 1))}
+        onPrev={() => setRefDateOverride(new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1))}
+        onNext={() => setRefDateOverride(new Date(refDate.getFullYear(), refDate.getMonth() + 1, 1))}
       />
 
       {/* Heatmap calendar */}
