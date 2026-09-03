@@ -595,18 +595,22 @@ describe('LogsView — "오늘"의 경계는 자정이 아니라 dailyResetHour�
     expect(accentedWeekdays(chart)).toEqual([dayLabel(new Date(2026, 8, 2))])
   })
 
-  it('[회귀] 경계를 아직 모르는 동안에는 아무 막대도 "오늘"로 강조하지 않는다', async () => {
-    // 주간 조회 자체는 경계와 무관해서 차트는 그려진다. 그렇다고 달력 날짜로
-    // 짐작해 칠하면, 실제 resetHour 가 다른 회원에게 틀린 칸을 오늘이라 단언한다.
+  it('[회귀] 경계를 아직 모르는 동안에는 어느 주가 "이번 주"인지도 정하지 않는다', async () => {
+    // 예전엔 주간 조회가 경계와 무관하게 기기 달력의 "이번 주"로 즉시 나갔다 —
+    // resetHour=5인 회원이 월요일 02:00에 들어오면 논리적으로는 아직 지난주
+    // 일요일인데 새 주를 보여주고, 오늘 강조도 그 주 어디에도 찍히지 않았다.
+    // 지금은 DailyTab과 같은 방식으로 논리적 오늘이 정해질 때까지 조회 자체를
+    // 미룬다.
     freezeClockAt(new Date(2026, 8, 2, 2, 0, 0))
     setBoundary({ resetHour: null })
     get.mockResolvedValue(EMPTY_SUMMARY)
 
-    renderLogs()
+    const { container } = renderLogs()
     fireEvent.click(screen.getByRole('button', { name: '주별' }))
-    const chart = await screen.findByTestId('weekly-bar-chart')
 
-    expect(accentedWeekdays(chart)).toEqual([])
+    await waitFor(() => expect(container.querySelector('.spinner')).toBeTruthy())
+    expect(screen.queryByTestId('weekly-bar-chart')).toBeNull()
+    expect(get).not.toHaveBeenCalled()
   })
 
   it('[회귀] 월별 히트맵의 "오늘" 테두리도 달력 오늘이 아니라 논리적 오늘이다', async () => {
@@ -631,6 +635,37 @@ describe('LogsView — "오늘"의 경계는 자정이 아니라 dailyResetHour�
     const heatmap = await screen.findByTestId('monthly-heatmap')
 
     expect(outlinedDays(heatmap)).toEqual([dayLabel(new Date(2026, 8, 2))])
+  })
+
+  it('[회귀] 주별 탭은 달력 주가 아니라 논리적 오늘이 속한 주를 연다', async () => {
+    // 예전엔 기기 달력의 "이번 주"를 즉시 조회했다. resetHour=5인 회원이 월요일
+    // 새벽 2시에 열면 논리적으로는 아직 지난주 일요일인데, 화면은 이미 새 주로
+    // 넘어가 있어 방금 지난주에 남긴 기록도, 오늘 강조도 그 주 어디에도 없었다.
+    freezeClockAt(new Date(2026, 8, 7, 2, 0, 0)) // 월요일(9/7) 새벽 2시 → 논리적으로 아직 일요일(9/6)
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '주별' }))
+    await screen.findByTestId('weekly-bar-chart')
+
+    expect(requestedRanges()).toContain('2026-08-31~2026-09-06')
+    expect(requestedRanges()).not.toContain('2026-09-07~2026-09-13')
+  })
+
+  it('[회귀] 월별 탭은 달력 달이 아니라 논리적 오늘이 속한 달을 연다', async () => {
+    // 9월 1일 새벽 2시는 resetHour=5 기준으로 아직 8월 31일이다. 예전엔 기기
+    // 달력의 "이번 달"(9월)을 즉시 열어, 방금 8월 말에 남긴 기록이 안 보였다.
+    freezeClockAt(new Date(2026, 8, 1, 2, 0, 0))
+    setBoundary({ resetHour: 5 })
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: '월별' }))
+    await screen.findByTestId('monthly-heatmap')
+
+    expect(requestedRanges()).toContain('2026-08-01~2026-08-31')
+    expect(requestedRanges()).not.toContain('2026-09-01~2026-09-30')
   })
 })
 
