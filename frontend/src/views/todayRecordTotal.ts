@@ -16,7 +16,7 @@
  * 우연히 같은 값으로 보였다가 요약 도착 시 다른 값으로 바뀌는 것처럼 보인다(회귀) —
  * 그래서 null 은 그대로 null 을 돌려주고, 호출부가 로딩 중 표시를 하도록 한다.
  */
-import { logicalDateOf } from '@/utils/dayBoundary'
+import { logicalDateStringOf } from '@/utils/dayBoundary'
 
 export function computeTodayRecordTotal(
   todayTotalSeconds: number | null,
@@ -25,14 +25,6 @@ export function computeTodayRecordTotal(
 ): number | null {
   if (todayTotalSeconds === null) return null
   return Math.max(todayTotalSeconds + runningDelta, dailyTotalTimeCal)
-}
-
-function toLocalDate(d: Date, timeZone?: string): string {
-  // timeZone을 지정하지 않으면 런타임(브라우저) 기본 시간대를 쓴다 — 회원의
-  // 프로필 시간대를 아직 모를 때의 기존 동작과 동일하게 유지한다.
-  return timeZone
-    ? d.toLocaleDateString('sv-SE', { timeZone }) // YYYY-MM-DD
-    : d.toLocaleDateString('sv-SE')
 }
 
 /**
@@ -57,5 +49,5 @@ export function resolveTodaySummaryDateParam(
   timezone?: string,
 ): string | null {
   if (resetHour === null) return null
-  return toLocalDate(logicalDateOf(now, resetHour), timezone)
+  return logicalDateStringOf(now, resetHour, timezone)
 }

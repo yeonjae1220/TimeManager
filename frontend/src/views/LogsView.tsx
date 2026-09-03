@@ -9,12 +9,13 @@ import { useAuthStore } from '@/store/authStore'
 import { useTagStore } from '@/store/tagStore'
 import { collectDescendantIds } from '@/utils/tagTree'
 import { logicalDateStringOf } from '@/utils/dayBoundary'
-import { dayOffsetSuffix } from '@/utils/dayOffset'
 import apiClient from '@/utils/apiClient'
 import { useAsyncData } from '@/hooks/useAsyncData'
-import { useDailyResetHour } from '@/hooks/useDailyResetHour'
+import { useDailyResetHour, type DailyResetHourState } from '@/hooks/useDailyResetHour'
+import { resolveTodaySummaryDateParam } from '@/views/todayRecordTotal'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { MessageKey } from '@/i18n/messages/index'
+import DayOffsetBadge from '@/components/DayOffsetBadge'
 
 // ────────────────────────────────────────────────────────────
 // Types
@@ -41,20 +42,11 @@ interface SummaryData {
 }
 
 /**
- * 회원의 "하루" 경계 설정(useDailyResetHour의 결과). 서버는 startDate=D 를 자정이
- * 아니라 dailyResetHour 기준으로 해석하므로, 화면이 날짜를 고르거나 값을 날짜별로
- * 모을 때 같은 경계를 써야 한다.
- *
- * resetHour가 null이면 아직 모른다는 뜻이다 — 5(백엔드 기본값) 같은 값으로 짐작해
- * 조회하면 실제 설정이 다른 회원에게 "0시간"을 진짜 값처럼 보여준다. 그래서 이
- * 화면들은 짐작 대신 조회를 미룬다.
+ * 회원의 "하루" 경계 설정. useDailyResetHour의 반환 타입을 그대로 쓴다 — 별도
+ * 인터페이스로 다시 적으면 훅의 반환 shape이 바뀔 때 둘 중 하나만 갱신되어
+ * 조용히 어긋날 수 있다.
  */
-interface DayBoundary {
-  resetHour: number | null
-  timezone: string | undefined
-  failed: boolean
-  reload: () => void
-}
+type DayBoundary = DailyResetHourState
 
 // ────────────────────────────────────────────────────────────
 // Helpers
@@ -126,20 +118,6 @@ function startOfMonth(d: Date): Date {
 
 function endOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth() + 1, 0)
-}
-
-/**
- * 차트에서 "오늘"로 강조할 칸의 키("YYYY-MM-DD"). 달력 오늘이 아니라 회원의 논리적
- * 오늘이다 — resetHour=5 인 회원이 새벽 2시에 열면 달력 오늘의 막대/칸은 아직 비어
- * 있고, 방금 기록한 시간은 전날 막대/칸에 들어간다. 달력 날짜로 강조하면 테두리가
- * 데이터와 다른 하루를 가리킨다.
- *
- * 경계를 아직 모르면(resetHour === null) null이다. 5(백엔드 기본값)로 짐작하면 실제
- * 설정이 다른 회원에게 엉뚱한 칸을 "오늘"이라 단언하게 된다 — 이 화면의 규칙대로
- * 짐작하는 대신 아무 칸도 강조하지 않는다.
- */
-function logicalTodayKey({ resetHour, timezone }: DayBoundary): string | null {
-  return resetHour === null ? null : logicalDateStringOf(new Date(), resetHour, timezone)
 }
 
 function weekLabel(mon: Date, locale: string): string {
@@ -247,21 +225,24 @@ interface DailyTabProps {
 function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps) {
   const { t: tr, language } = useI18n()
   const { resetHour, timezone } = dayBoundary
-  // 드릴다운이면 URL의 날짜로 즉시 시작하고, 아니면 회원 경계를 알기 전까지 null이다.
-  const [date, setDate] = useState<Date | null>(initialDate ?? null)
-
   // "오늘"은 달력 오늘이 아니라 dailyResetHour 기준의 논리적 오늘이다. 달력 날짜를
   // 그대로 보내면 자정~resetHour 사이에 **아직 시작하지도 않은 구간**(오늘 05:00~
   // 내일 05:00)을 조회해 0시간을 진짜 값처럼 보여준다. 그 시간대에 어제치를 확인하러
   // 온 사용자에게 "기록이 없습니다"를 단언하는 화면이라, 침묵보다 나쁘다.
   // TodayView가 resolveTodaySummaryDateParam으로 이미 고친 것과 같은 결함이다.
-  useEffect(() => {
-    // 이미 정해졌으면(드릴다운이거나 사용자가 화살표로 옮겼으면) 건드리지 않는다 —
-    // 안 그러면 resetHour가 뒤늦게 도착할 때 사용자가 넘긴 날짜를 오늘로 되돌린다.
-    if (date !== null || resetHour === null) return
-    const today = parseLocalDate(logicalDateStringOf(new Date(), resetHour, timezone))
-    if (today) setDate(today)
-  }, [date, resetHour, timezone])
+  //
+  // resetHour를 아직 모르면(로딩 중) null이다 — 5(백엔드 기본값)로 짐작하지 않는다.
+  const logicalToday = useMemo(() => {
+    const key = resolveTodaySummaryDateParam(new Date(), resetHour, timezone)
+    return key ? parseLocalDate(key) : null
+  }, [resetHour, timezone])
+
+  // 사용자가 화살표로 옮긴 날짜. 드릴다운이면 initialDate, 아니면 논리적 오늘이
+  // 정해질 때까지 date 전체가 null로 남는다. DailyTab은 key={dateParam ?? 'today'}로
+  // 렌더돼 드릴다운/탭 진입마다 새로 마운트되므로 override는 매번 null에서 시작한다
+  // — resetHour가 뒤늦게 도착해도 override가 남아 있으면 오늘로 되돌리지 않는다.
+  const [override, setOverride] = useState<Date | null>(null)
+  const date = override ?? initialDate ?? logicalToday
 
   // date가 null인 동안은 loader를 넘기지 않는다 — 짐작한 경계로 얻은 0건보다
   // 기다리는 편이 안전하다(useAsyncData는 loader가 null이면 로딩도 걸지 않는다).
@@ -295,8 +276,8 @@ function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps)
       {date !== null && (
         <NavArrows
           label={label}
-          onPrev={() => setDate((d) => (d ? addDays(d, -1) : d))}
-          onNext={() => setDate((d) => (d ? addDays(d, 1) : d))}
+          onPrev={() => date && setOverride(addDays(date, -1))}
+          onNext={() => date && setOverride(addDays(date, 1))}
         />
       )}
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
@@ -332,9 +313,6 @@ function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps)
                 t.sessions.map((s, i) => {
                   const sessionStart = new Date(s.startTime)
                   const sessionEnd = new Date(s.endTime)
-                  // 자정을 넘긴 세션은 시:분만 보면 `23:00 → 01:30` 처럼 되감긴 것처럼
-                  // 읽힌다. 종료가 며칠 뒤인지 꼬리표로 되살린다(같은 날이면 null).
-                  const spanSuffix = dayOffsetSuffix(sessionStart, sessionEnd)
                   return (
                   <div key={`${t.tagId}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
@@ -346,11 +324,7 @@ function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps)
                         {sessionStart.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
                         {' → '}
                         {sessionEnd.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
-                        {spanSuffix && (
-                          // title 로 실제 종료 날짜를 붙인다 — "(+1)" 만으로는 무엇이
-                          // 하루 밀렸는지 읽는 사람이 추측해야 한다.
-                          <span title={sessionEnd.toLocaleDateString(language)} style={{ marginLeft: 3, color: 'var(--text-2)' }}>{spanSuffix}</span>
-                        )}
+                        <DayOffsetBadge start={sessionStart} end={sessionEnd} language={language} />
                       </span>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text)' }}>{fmtDuration(s.durationSeconds)}</span>
                     </div>
@@ -393,7 +367,7 @@ function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; on
   const { data: dailyTotals } = useAsyncData(loadDailyTotals)
 
   const maxDay = Math.max(...(dailyTotals ?? []), 1)
-  const todayKey = logicalTodayKey(dayBoundary)
+  const todayKey = resolveTodaySummaryDateParam(new Date(), dayBoundary.resetHour, dayBoundary.timezone)
 
   return (
     <div>
@@ -532,7 +506,7 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
   const firstDay = new Date(year, month, 1)
   const lastDay = new Date(year, month + 1, 0)
   const startPad = (firstDay.getDay() + 6) % 7
-  const todayKey = logicalTodayKey(dayBoundary)
+  const todayKey = resolveTodaySummaryDateParam(new Date(), dayBoundary.resetHour, dayBoundary.timezone)
   const maxVal = Math.max(...Array.from(dailyTotals?.values() ?? []), 1)
 
   const cells: (Date | null)[] = [
