@@ -7,7 +7,7 @@ import EditRecordModal from '@/components/EditRecordModal'
 import AddRecordModal from '@/components/AddRecordModal'
 import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
-import { dayOffsetSuffix } from '@/utils/dayOffset'
+import DayOffsetBadge from '@/components/DayOffsetBadge'
 import { useI18n } from '@/i18n/I18nProvider'
 
 interface Record {
@@ -200,7 +200,6 @@ export default function RecordListView() {
               // 행에 찍히는 날짜는 시작 시각의 것 하나뿐이라, 자정을 넘긴 기록은
               // `23:00 → 01:30` 처럼 시간이 거꾸로 흐른 것처럼 읽힌다. 편집 모달은
               // start/end 날짜를 따로 보여주는데 목록만 그 사실을 숨기고 있었다.
-              const spanSuffix = dayOffsetSuffix(start, end)
               return (
               <div
                 key={record.id}
@@ -218,11 +217,7 @@ export default function RecordListView() {
                     <span>→</span>
                     <span className="mono">
                       {end.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
-                      {spanSuffix && (
-                        // title 로 실제 종료 날짜를 붙인다 — "(+1)" 만으로는 무엇이
-                        // 하루 밀렸는지 읽는 사람이 추측해야 한다.
-                        <span title={end.toLocaleDateString(language)} style={{ marginLeft: 3, color: 'var(--text-2)' }}>{spanSuffix}</span>
-                      )}
+                      <DayOffsetBadge start={start} end={end} language={language} />
                     </span>
                   </div>
                 </div>
