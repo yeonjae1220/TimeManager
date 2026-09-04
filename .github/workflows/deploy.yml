@@ -45,6 +45,11 @@ jobs:
   frontend-checks:
     name: Frontend Typecheck and Test
     runs-on: ubuntu-latest
+    # 지금은 레포 기본값이 read 라 없어도 같지만, 명시하지 않으면 나중에 조직/레포
+    # 설정이 write 로 바뀔 때 이 잡이 조용히 넓은 권한을 갖는다. 아래 두 push 잡이
+    # 이미 job-level permissions 를 쓰는 것과도 맞춘다.
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -83,6 +88,8 @@ jobs:
     # 배포(k8s backend/frontend)를 막지 않는다 — iOS 앱은 이 파이프라인으로 나가지
     # 않으므로, Swift 가 깨졌다고 백엔드 긴급 수정까지 세우는 것은 결합이 과하다.
     # 대신 PR·main 양쪽에서 빨간불로 보고한다.
+    permissions:
+      contents: read
     steps:
       - name: Checkout code
         uses: actions/checkout@v5
@@ -126,7 +133,6 @@ jobs:
       - name: Build (Release, device SDK)
         working-directory: frontend/ios/App
         run: |
-          set -o pipefail
           xcodebuild \
             -project App.xcodeproj \
             -scheme App \
