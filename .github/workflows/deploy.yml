@@ -42,6 +42,112 @@ jobs:
         working-directory: backend
         run: ./gradlew build --no-daemon
 
+  frontend-checks:
+    name: Frontend Typecheck and Test
+    runs-on: ubuntu-latest
+    # 지금은 레포 기본값이 read 라 없어도 같지만, 명시하지 않으면 나중에 조직/레포
+    # 설정이 write 로 바뀔 때 이 잡이 조용히 넓은 권한을 갖는다. 아래 두 push 잡이
+    # 이미 job-level permissions 를 쓰는 것과도 맞춘다.
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          # frontend/Dockerfile 의 node:20-alpine 과 맞춘다 — 배포하는 것과 다른
+          # 런타임에서 통과시키면 검증의 의미가 옅어진다.
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # next.config.ts 가 eslint.ignoreDuringBuilds 라 도커 빌드는 린트를 건너뛰지만
+      # 타입 검사는 next build 가 그대로 한다. 여기서 먼저 도는 이유는 속도다 —
+      # 도커 이미지를 만들기 전에 몇 분 일찍 깨지고, PR 에서도 돈다.
+      - name: Type check
+        working-directory: frontend
+        run: npx tsc --noEmit
+
+      # 428개가 여기서 처음으로 CI 에 걸린다. 그전까지는 로컬에서 누가 돌려야만
+      # 알 수 있었고, Dockerfile 에도 npm test 가 없어 깨진 채로 배포될 수 있었다.
+      - name: Unit tests
+        working-directory: frontend
+        run: npm test
+
+  ios-build:
+    name: iOS Build (App + Live Activity)
+    # macos-latest 가 아니라 고정한다 — 툴체인이 밑에서 조용히 바뀌면 이 잡이
+    # 검증했다는 사실 자체가 흔들린다. macos-14 는 이미 deprecated 다.
+    runs-on: macos-26
+    # 배포(k8s backend/frontend)를 막지 않는다 — iOS 앱은 이 파이프라인으로 나가지
+    # 않으므로, Swift 가 깨졌다고 백엔드 긴급 수정까지 세우는 것은 결합이 과하다.
+    # 대신 PR·main 양쪽에서 빨간불로 보고한다.
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v5
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v5
+        with:
+          # ⚠️ frontend-checks 는 20(Dockerfile 런타임)인데 여기만 22 다 — 통일하지 말 것.
+          # Capacitor CLI 8 이 NodeJS >=22.0.0 을 요구해서, 20 이면 cap sync 가
+          # `The Capacitor CLI requires NodeJS >=22.0.0` 로 즉시 죽는다(실측).
+          # 두 잡이 검증하는 대상이 다르다: frontend-checks 는 "배포되는 런타임에서
+          # 도는가", 여기는 "빌드 툴체인이 도는가".
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      # 이 확장은 supplementalActivityFamilies / @Environment(\.activityFamily) 등
+      # iOS 18 SDK 심볼을 쓴다(배포 타깃은 16.2, 심볼은 weak link). SDK 가 더 낮은
+      # 러너 이미지로 바뀌면 Swift 컴파일 에러 수십 줄로 터지는데 원인이 안 보인다.
+      # 여기서 먼저 명확한 문구로 세운다.
+      - name: Verify Xcode / iOS SDK
+        run: |
+          xcodebuild -version
+          SDK="$(xcrun --sdk iphoneos --show-sdk-version)"
+          echo "iOS SDK: ${SDK}"
+          if [ "${SDK%%.*}" -lt 18 ]; then
+            echo "::error::iOS SDK ${SDK} — 이 프로젝트는 iOS 18 이상 SDK 가 필요하다 (워치 스마트 스택 API). 러너 이미지나 Xcode 선택을 확인할 것."
+            exit 1
+          fi
+
+      # Capacitor 플러그인이 로컬 SPM 패키지로 node_modules 에서 참조되므로
+      # npm ci 없이는 패키지 그래프 해석부터 실패한다.
+      - name: Install dependencies
+        working-directory: frontend
+        run: npm ci
+
+      # ios/App/App/public 과 capacitor.config.json 은 gitignore 대상이라 클린
+      # 체크아웃에는 없다. sync 가 webDir(capacitor-shell, 레포에 있음)에서 만들어준다.
+      # 웹 번들을 싣지 않는 hybrid 구성이라 next build 는 필요 없다.
+      - name: Capacitor sync
+        working-directory: frontend
+        run: npx cap sync ios
+
+      # 서명은 끈다 — 검증하려는 것은 컴파일과 링크지 배포가 아니다.
+      # App 스킴이 TimerLiveActivityExtension 을 의존·임베드하므로 위젯 확장도 함께 빌드된다.
+      - name: Build (Release, device SDK)
+        working-directory: frontend/ios/App
+        run: |
+          xcodebuild \
+            -project App.xcodeproj \
+            -scheme App \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            build
+
   build-and-push:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
@@ -97,7 +203,10 @@ jobs:
   build-and-push-frontend:
     name: Build and Push Frontend Docker Image
     runs-on: ubuntu-latest
-    needs: build-and-test
+    # 프론트 테스트가 깨지면 프론트 이미지를 만들지 않는다 —
+    # Dockerfile 은 npm run build 만 하고 테스트를 돌리지 않기 때문에
+    # 이 needs 가 없으면 실패한 코드가 그대로 운영으로 나간다.
+    needs: [build-and-test, frontend-checks]
     if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
     permissions:
       contents: read

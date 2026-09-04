@@ -76,10 +76,19 @@ private struct TitleAndText: View {
 // MARK: - 표면별 뷰
 
 private extension View {
-    /// 잠금화면 표면의 공통 틴트. 구버전 위젯과 iOS 18 의 .medium 분기 양쪽에서 써야
-    /// 해서 한 벌로 뺀다 — 한쪽만 고쳐지면 두 OS 에서 잠금화면 색이 갈린다.
-    func lockScreenActivityTint() -> some View {
+    /// 잠금화면 표면의 공통 배색 — 배경 틴트 **와 전경색 체계**를 함께 정한다.
+    /// 구버전 위젯과 iOS 18 의 .medium 분기 양쪽에서 써야 해서 한 벌로 뺀다 —
+    /// 한쪽만 고쳐지면 두 OS 에서 잠금화면 색이 갈린다.
+    ///
+    /// ⚠️ colorScheme 을 명시적으로 못박는 것이 핵심이다. 배경은 activityBackgroundTint 로
+    /// 어둡게 **강제**해놓고 글자색은 `.primary`(시스템이 정함)에 맡기면 둘이 어긋난다 —
+    /// iOS 17.5 실측에서 어두운 카드 위에 제목·타이머가 검게 렌더돼 사실상 안 읽혔다
+    /// (같은 코드가 iOS 18.4 잠금화면과 iOS 17.5 Dynamic Island 에서는 흰색이었다).
+    /// activitySystemActionForegroundColor 는 시스템 액션 버튼 색이라 본문에 영향이 없다.
+    /// 배경을 우리가 정했으면 전경도 우리가 정해야 한다.
+    func lockScreenActivityStyle() -> some View {
         self
+            .environment(\.colorScheme, .dark)
             .activityBackgroundTint(Color.black.opacity(0.8))
             .activitySystemActionForegroundColor(Color.white)
     }
@@ -148,7 +157,7 @@ private struct AdaptiveContentView: View {
             // .medium(잠금화면)과 앞으로 늘어날 family. 좁은 표면은 .small 하나뿐이라
             // 넓은 쪽을 기본값으로 두는 게 안전하다.
             LockScreenView(state: state)
-                .lockScreenActivityTint()
+                .lockScreenActivityStyle()
         }
     }
 }
@@ -176,8 +185,12 @@ private func timerActivityConfiguration<Content: View>(
         } compactLeading: {
             TimerIcon()
         } compactTrailing: {
+            // 고정 폭이 아니라 하한이다. 44pt 는 `MM:SS`(5자) 기준이라, 한 시간을 넘겨
+            // `H:MM:SS`(7자)가 되는 순간 `2:0…` 로 잘린다(실측). 이 앱은 12시간+ 세션을
+            // 명시적으로 지원하므로(runningSession.ts LONG_RUN_REMINDERS) 드문 일이 아니다.
+            // 하한을 남기는 이유는 짧은 값에서 섬이 매초 들썩이지 않게 하기 위해서다.
             RunningTime(state: context.state)
-                .frame(width: 44)
+                .frame(minWidth: 44)
         } minimal: {
             TimerIcon()
         }
@@ -189,7 +202,7 @@ struct TimerLiveActivityLiveActivity: Widget {
     var body: some WidgetConfiguration {
         timerActivityConfiguration { state in
             LockScreenView(state: state)
-                .lockScreenActivityTint()
+                .lockScreenActivityStyle()
         }
     }
 }
