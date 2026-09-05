@@ -45,7 +45,9 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
   const createTag = useTagStore((s) => s.createTag)
 
   // 탐색 중인 레벨을 벗어나면 그 레벨에서 열어둔 생성 폼은 닫는다.
-  useEffect(() => { setShowCreateForm(false) }, [pathIds.join(',')])
+  // pathIds 는 매 렌더 새 배열이라 참조 비교로는 항상 "바뀐" 것이 되므로 값으로 비교한다.
+  const pathKey = pathIds.join(',')
+  useEffect(() => { setShowCreateForm(false) }, [pathKey])
 
   const currentChildren: Tag[] = pathIds.length === 0
     ? getVisibleChildren(tagTree)

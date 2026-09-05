@@ -178,6 +178,10 @@ export default function TodayView() {
     // 이 화면에만 두면 다른 화면에서 오프라인이 된 뒤 앱을 껐다 켰을 때 복귀 감지가
     // 죽은 채로 남는다.
     return unsubscribe
+    // router·searchParams 는 일부러 뺐다. 둘 다 didAutoLoad 가드 안에서 1회만 읽히는데,
+    // deps 에 넣으면 이 effect 안의 router.replace() 가 searchParams 를 바꿔 effect 를
+    // 다시 돌린다 — 태그 트리 재조회와 connectivity 재구독이 함께 반복된다(회귀).
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [memberId, loadTags, handleOnline, loadTag, addRecentTag])
 
   // dailyResetHour가 해소되거나(최초 마운트) memberTimezone이 바뀌면(무효화 등) 요약을

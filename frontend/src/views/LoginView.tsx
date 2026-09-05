@@ -8,7 +8,7 @@ import { createOauthState, openOAuthUrl } from '@/utils/nativeOAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function LoginView() {
-  const { login, googleLogin } = useAuth()
+  const { login } = useAuth()
   const { t } = useI18n()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')

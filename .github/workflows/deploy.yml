@@ -43,7 +43,7 @@ jobs:
         run: ./gradlew build --no-daemon
 
   frontend-checks:
-    name: Frontend Typecheck and Test
+    name: Frontend Lint, Typecheck and Test
     runs-on: ubuntu-latest
     # 지금은 레포 기본값이 read 라 없어도 같지만, 명시하지 않으면 나중에 조직/레포
     # 설정이 write 로 바뀔 때 이 잡이 조용히 넓은 권한을 갖는다. 아래 두 push 잡이
@@ -67,7 +67,15 @@ jobs:
         working-directory: frontend
         run: npm ci
 
-      # next.config.ts 가 eslint.ignoreDuringBuilds 라 도커 빌드는 린트를 건너뛰지만
+      # next.config.ts 가 eslint.ignoreDuringBuilds: true 라 도커 빌드는 린트를 아예
+      # 건너뛴다. 즉 이 스텝이 없으면 린트는 파이프라인 어디에서도 돌지 않는다.
+      # --max-warnings 0 인 이유: 경고를 통과시키면 쌓이기만 하고 아무도 안 본다.
+      # 지금 0건이라 세울 수 있는 문턱이고, 의도적으로 규칙을 어기는 자리는
+      # 소스에 이유를 적은 eslint-disable 로 명시돼 있다.
+      - name: Lint
+        working-directory: frontend
+        run: npm run lint
+
       # 타입 검사는 next build 가 그대로 한다. 여기서 먼저 도는 이유는 속도다 —
       # 도커 이미지를 만들기 전에 몇 분 일찍 깨지고, PR 에서도 돈다.
       - name: Type check

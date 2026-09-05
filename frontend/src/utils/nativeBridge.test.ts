@@ -78,11 +78,11 @@ describe('nativeBridge', () => {
 
     it('플러그인이 있으면 모듈을 fn 에 넘기고 결과를 돌려준다', async () => {
       setCapacitor(nativeBridge(['Haptics']))
-      const module = { Haptics: { impact: vi.fn().mockResolvedValue(undefined) } }
+      const pluginModule = { Haptics: { impact: vi.fn().mockResolvedValue(undefined) } }
 
       const result = await withPlugin(
         'Haptics',
-        async () => module,
+        async () => pluginModule,
         async (m) => {
           await m.Haptics.impact()
           return 'ok'
@@ -90,7 +90,7 @@ describe('nativeBridge', () => {
       )
 
       expect(result).toBe('ok')
-      expect(module.Haptics.impact).toHaveBeenCalledOnce()
+      expect(pluginModule.Haptics.impact).toHaveBeenCalledOnce()
     })
 
     it('플러그인 호출이 실패해도 예외를 삼키고 warn 만 남긴다', async () => {

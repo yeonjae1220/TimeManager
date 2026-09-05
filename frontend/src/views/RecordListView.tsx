@@ -104,7 +104,9 @@ export default function RecordListView() {
       setLoading(false)
       setHasLoadedOnce(true)
     }
-  }, [tagId])
+    // t 는 I18nProvider 의 useMemo(..., [language]) 산물이라 언어를 바꿀 때만 바뀐다 —
+    // 매 렌더 재생성이 아니므로 여기 넣어도 재조회 루프가 돌지 않는다.
+  }, [tagId, t])
 
   useEffect(() => { fetchRecords() }, [fetchRecords])
 
