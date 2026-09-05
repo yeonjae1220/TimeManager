@@ -26,6 +26,8 @@ const PLUGIN_SWIFT = 'frontend/ios/App/App/LiveActivityPlugin.swift'
 const CONTENT_STATE_SWIFT = 'frontend/ios/App/TimerActivityAttributes.swift'
 const APP_INFO_PLIST = 'frontend/ios/App/App/Info.plist'
 const ONGOING_CONTENT_TS = 'frontend/src/native/ongoingContent.ts'
+const LIVE_ACTIVITY_VIEW_SWIFT = 'frontend/ios/App/TimerLiveActivity/TimerLiveActivityLiveActivity.swift'
+const LIVE_ACTIVITY_BUNDLE_SWIFT = 'frontend/ios/App/TimerLiveActivity/TimerLiveActivityBundle.swift'
 
 describe('네이티브 계약', () => {
   it('플러그인 이름이 TS 상수와 Java 애너테이션에서 같다', () => {
@@ -166,5 +168,94 @@ describe('네이티브 계약 (OAuth 커스텀 스킴)', () => {
     const xml = readRepoFile(ANDROID_MANIFEST)
     expect(xml).toContain('android:autoVerify="true"')
     expect(xml).toMatch(/android:scheme="https"\s+android:host="timemanager\.mungji\.com"/)
+  })
+})
+
+
+/**
+ * Live Activity **표시** 축(TM-ADR-012 C2/C5). 여기 있는 결함은 컴파일도 되고 타입체크도
+ * 통과하며, 짧은 세션이나 밝은 배경에서는 눈으로도 안 보인다 — 실제로 두 건 다 배포된
+ * 뒤 실기에서만 드러났다(1시간 넘는 세션의 Dynamic Island 잘림, iOS 17.5 잠금화면 대비).
+ * CI 의 ios-build 잡은 "컴파일이 깨졌는가"만 보므로 이 둘이 되돌려져도 초록불이다.
+ *
+ * 렌더 결과로 확인하려면 ViewInspector 같은 외부 의존성이나 스냅샷 기준 이미지가
+ * 필요한데, 그래도 대비 쪽은 못 잡는다 — `activityBackgroundTint` 는 실제 Live Activity
+ * 밖에서 무동작이라 스냅샷에 배경이 아예 안 찍힌다. 그래서 소스 대조로 고정한다:
+ * 픽셀이 아니라 **그 결정이 소스에 남아 있는지**를 지킨다. 잡을 수 있는 것은 "되돌림"이고,
+ * "새로 생긴 다른 표시 결함"은 못 잡는다.
+ */
+describe('Live Activity 렌더러 (iOS)', () => {
+  it('Dynamic Island compactTrailing 을 고정 폭이 아니라 하한으로 제약한다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+    const block = swift.match(/compactTrailing:\s*\{([\s\S]*?)\n\s*\}\s*minimal:/)
+
+    expect(block, `${LIVE_ACTIVITY_VIEW_SWIFT} 에서 compactTrailing 블록을 찾지 못했습니다`).not.toBeNull()
+
+    // 44pt 는 `MM:SS`(5자) 기준이라 한 시간을 넘겨 `H:MM:SS`(7자)가 되면 `2:0…` 로 잘린다.
+    // 이 앱은 12시간+ 세션을 명시적으로 지원한다(runningSession.ts LONG_RUN_REMINDERS).
+    expect(block![1], 'compactTrailing 에 .frame(minWidth:) 가 없습니다').toMatch(/\.frame\(\s*minWidth:/)
+    expect(block![1], 'compactTrailing 이 고정 폭(.frame(width:))으로 돌아갔습니다 — 긴 세션에서 시간이 잘립니다')
+      .not.toMatch(/\.frame\(\s*width:/)
+  })
+
+  it('잠금화면 배색이 배경과 전경을 함께 못박는다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+    const helper = swift.match(/func lockScreenActivityStyle\(\)[^{]*\{([\s\S]*?)\n {4}\}/)
+
+    expect(helper, `${LIVE_ACTIVITY_VIEW_SWIFT} 에서 lockScreenActivityStyle 을 찾지 못했습니다`).not.toBeNull()
+
+    // 배경을 우리가 어둡게 강제해놓고 글자색을 시스템(.primary)에 맡기면 둘이 어긋난다 —
+    // iOS 17.5 실측에서 어두운 카드 위에 제목·타이머가 검게 렌더돼 사실상 안 읽혔다.
+    expect(helper![1], '전제가 깨졌습니다: 이 헬퍼가 더는 배경 틴트를 정하지 않습니다').toContain('activityBackgroundTint')
+    expect(helper![1], '배경을 정하면서 colorScheme 을 안 정했습니다 — iOS 17 잠금화면에서 글자가 배경에 묻힙니다')
+      .toMatch(/\.environment\(\\\.colorScheme,\s*\.\w+\)/)
+  })
+
+  /**
+   * 화면에 나오는 것은 전부 공용 뷰 한 벌에서 나와야 한다 — 버전별 Widget 이 각자
+   * 배치를 들고 있으면 위 두 수정이 한쪽에만 적용되고 다른 쪽은 조용히 남는다
+   * (GLOBAL-PIT-132: 같은 로직이 두 벌이면 한 벌만 고쳐진다).
+   */
+  it('버전별 Widget 두 개가 같은 설정 함수를 통과한다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+
+    for (const widget of ['TimerLiveActivityLiveActivity', 'TimerLiveActivitySmartStack']) {
+      const body = swift.match(new RegExp(`struct ${widget}: Widget \\{([\\s\\S]*?)\\n\\}`))
+      expect(body, `${widget} 를 찾지 못했습니다`).not.toBeNull()
+      expect(body![1], `${widget} 가 공용 설정(timerActivityConfiguration)을 안 씁니다`)
+        .toContain('timerActivityConfiguration')
+    }
+
+    // 배경 틴트가 헬퍼 밖에서도 칠해지면 위 대비 검사를 우회한다.
+    // 주석에도 이름이 등장하므로 호출 모양(`.activityBackgroundTint(`)으로만 센다.
+    expect(swift.match(/\.activityBackgroundTint\(/g) ?? [], 'activityBackgroundTint 가 헬퍼 밖에서도 쓰입니다')
+      .toHaveLength(1)
+  })
+
+  it('잠금화면 뷰를 쓰는 자리마다 배색 헬퍼가 붙어 있다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+    // 선언(`private struct LockScreenView`)이 아니라 사용처(`LockScreenView(state:`)만 센다.
+    const uses = swift.split(/LockScreenView\(state:[^)]*\)/).slice(1)
+
+    expect(uses.length, '잠금화면 뷰 사용처를 하나도 못 찾았습니다').toBeGreaterThanOrEqual(2)
+    for (const after of uses) {
+      expect(after.trimStart(), '.lockScreenActivityStyle() 없이 잠금화면 뷰를 쓰는 자리가 있습니다')
+        .toMatch(/^\.lockScreenActivityStyle\(\)/)
+    }
+  })
+
+  /**
+   * 두 Widget 중 하나라도 번들에서 빠지면 그 OS 대역에서 Live Activity 가 통째로 안 뜬다 —
+   * 크래시가 아니라 무동작이라 아무 신호가 없다.
+   */
+  it('WidgetBundle 이 버전별 Widget 을 둘 다 싣는다', () => {
+    const bundle = readRepoFile(LIVE_ACTIVITY_BUNDLE_SWIFT)
+
+    expect(bundle).toContain('TimerLiveActivitySmartStack()')
+    expect(bundle).toContain('TimerLiveActivityLiveActivity()')
+    // SE-0360 — 두 분기가 다른 타입을 돌려주는 근거라 명시적 return 이 빠지면 컴파일이 깨진다.
+    // 컴파일 에러라 ios-build 가 잡지만, 왜 있는지를 여기 남겨 되돌림 시도 자체를 줄인다.
+    expect(bundle).toMatch(/return smartStackWidgets/)
+    expect(bundle).toMatch(/return legacyWidgets/)
   })
 })
