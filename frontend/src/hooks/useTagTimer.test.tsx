@@ -556,7 +556,7 @@ describe('useTagTimer — 네이티브 표면 동기화', () => {
 
   it('[포그라운드 복귀] 재조회로 서버 정지를 반영해 유령 알림을 지운다', async () => {
     const startedAt = Date.now() - 60_000
-    const { result } = await renderWithTag({
+    await renderWithTag({
       state: true,
       latestStartTimeMs: startedAt,
       latestStopTimeMs: null,

@@ -124,6 +124,13 @@ function addDays(d: Date, n: number): Date {
   return r
 }
 
+// 같은 길이의 직전 구간. 인자만 쓰는 순수 함수라 컴포넌트 밖에 둔다 —
+// 안에 두면 매 렌더 새 함수가 되어 useCallback deps 에 넣을 수 없다.
+function getPrevRange(start: Date, end: Date): [Date, Date] {
+  const len = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
+  return [addDays(start, -len), addDays(end, -len)]
+}
+
 function startOfMonth(d: Date): Date {
   return new Date(d.getFullYear(), d.getMonth(), 1)
 }
@@ -580,8 +587,6 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
     ...Array.from({ length: lastDay.getDate() }, (_, i) => new Date(year, month, i + 1)),
   ]
 
-  const totalDays = data ? Math.round(data.totalSeconds / (lastDay.getDate() * 1)) : 0
-
   return (
     <div>
       <NavArrows
@@ -696,29 +701,22 @@ function TagTab({ memberId }: { memberId: number }) {
 
   useEffect(() => { if (memberId) loadTags(memberId) }, [memberId, loadTags])
 
-  function getRange(): [Date, Date] {
+  const getRange = useCallback((): [Date, Date] => {
     const today = new Date()
     if (period === 'week') return [startOfWeek(today), addDays(startOfWeek(today), 6)]
     if (period === 'month') return [startOfMonth(today), endOfMonth(today)]
     return [new Date(customStart), new Date(customEnd)]
-  }
+  }, [period, customStart, customEnd])
 
-  function getPrevRange(start: Date, end: Date): [Date, Date] {
-    const len = Math.round((end.getTime() - start.getTime()) / 86400000) + 1
-    return [addDays(start, -len), addDays(end, -len)]
-  }
-
-  // getRange/getPrevRange 는 매 렌더 재정의되는 지역 함수라 deps 에 넣을 수 없다.
-  // 실제 입력은 기간 세 값뿐이다 — 조회 자체는 항상 전체 태그를 가져오고,
-  // selectedTagId 는 filterForTag 에서 클라이언트 사이드로만 골라낸다. 그래서
-  // 태그를 바꿔도 재조회가 필요 없다(스피너 없이 즉시 필터링).
-  // eslint-disable-next-line react-hooks/exhaustive-deps
+  // 실제 입력은 getRange 가 담은 기간 세 값뿐이다 — 조회 자체는 항상 전체 태그를
+  // 가져오고, selectedTagId 는 filterForTag 에서 클라이언트 사이드로만 골라낸다.
+  // 그래서 태그를 바꿔도 재조회가 필요 없다(스피너 없이 즉시 필터링).
   const loadRanges = useCallback(() => {
     const [start, end] = getRange()
     const [pStart, pEnd] = getPrevRange(start, end)
     return Promise.all([getSummary(start, end), getSummary(pStart, pEnd)])
       .then(([cur, pr]) => ({ current: cur, prev: pr }))
-  }, [period, customStart, customEnd])
+  }, [getRange])
 
   // 태그 미선택 시에도 조회한다 — 예전엔 여기서 loader 를 null 로 넘겨 태그를
   // 고르기 전까지 빈 화면만 보여줬다. "전체 태그" 기본 데이터를 먼저 보여주는

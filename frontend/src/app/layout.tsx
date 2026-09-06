@@ -26,7 +26,6 @@ const themeScript = `
 })();
 `
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const metadata: Metadata = {
   metadataBase: new URL(BASE_URL),
   title: {
@@ -59,7 +58,6 @@ export const metadata: Metadata = {
   },
 }
 
-// eslint-disable-next-line react-refresh/only-export-components
 export const viewport: Viewport = {
   themeColor: '#0c0c0c',
   width: 'device-width',

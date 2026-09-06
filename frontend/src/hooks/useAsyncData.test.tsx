@@ -219,6 +219,9 @@ describe('useAsyncData — 경쟁 조건', () => {
       // k 가 바뀌면 loader identity 가 바뀌어 재요청된다 (실제 코드의 날짜 변경과 동일).
       // useCallback(loader, [k]) 로 쓰면 안 된다 — 같은 loader 참조를 그대로
       // 돌려주므로 identity 가 영원히 그대로라 재요청 자체가 안 걸린다.
+      // k 는 loader 본문이 쓰지 않지만, 재요청을 걸려면 identity 가 바뀌어야 해서
+      // 일부러 넣은 것이다. (disable 지시자는 반드시 대상 줄 바로 위여야 한다)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       useAsyncData(useCallback(() => loader(), [k])),
     { initialProps: { k: 1 } })
 
@@ -247,6 +250,9 @@ describe('useAsyncData — 경쟁 조건', () => {
     }
 
     const { result, rerender } = renderHook(({ k }: { k: number }) =>
+      // k 는 loader 본문이 쓰지 않지만, 재요청을 걸려면 identity 가 바뀌어야 해서
+      // 일부러 넣은 것이다. (disable 지시자는 반드시 대상 줄 바로 위여야 한다)
+      // eslint-disable-next-line react-hooks/exhaustive-deps
       useAsyncData(useCallback(() => loader(), [k])),
     { initialProps: { k: 1 } })
 

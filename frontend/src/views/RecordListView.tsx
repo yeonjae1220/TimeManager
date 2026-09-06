@@ -9,6 +9,7 @@ import { useTagStore } from '@/store/tagStore'
 import apiClient from '@/utils/apiClient'
 import DayOffsetBadge from '@/components/DayOffsetBadge'
 import { useI18n } from '@/i18n/I18nProvider'
+import type { MessageKey } from '@/i18n/messages/index'
 
 interface Record {
   id: number
@@ -79,7 +80,10 @@ export default function RecordListView() {
   // 불러올 때는 PullToRefresh 자체 인디케이터가 이미 그 역할을 하므로, 여기서도
   // 같이 돌면 스피너가 두 개 겹쳐 보인다.
   const [hasLoadedOnce, setHasLoadedOnce] = useState(false)
-  const [error, setError] = useState('')
+  // 실패를 번역된 문자열이 아니라 **메시지 키**로 들고 있는다. 번역을 렌더 시점으로
+  // 미루면 fetchRecords 가 t 를 붙잡지 않아 언어 전환이 재조회를 일으키지 않고,
+  // 이미 떠 있는 에러 문구도 전환 즉시 새 언어로 다시 그려진다.
+  const [errorKey, setErrorKey] = useState<MessageKey | null>(null)
   const [editingRecord, setEditingRecord] = useState<Record | null>(null)
   const [showAdd, setShowAdd] = useState(false)
 
@@ -97,9 +101,9 @@ export default function RecordListView() {
       ])
       setTag(tagRes.data)
       setRecords(recRes.data)
-      setError('')
+      setErrorKey(null)
     } catch {
-      setError(t('records.loadFail'))
+      setErrorKey('records.loadFail')
     } finally {
       setLoading(false)
       setHasLoadedOnce(true)
@@ -188,7 +192,7 @@ export default function RecordListView() {
           </div>
 
           {loading && !hasLoadedOnce && <div className="spinner" style={{ margin: '40px auto' }} />}
-          {error && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{error}</p>}
+          {errorKey && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{t(errorKey)}</p>}
           {!loading && records.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('records.empty')}</p>
           )}
