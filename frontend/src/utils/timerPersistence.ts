@@ -308,12 +308,32 @@ export function forgetTagTimerLocally(tagId: number): void {
   clearResetTimerMarker(tagId)
 }
 
+/**
+ * 서버가 이 태그의 타이머 상태를 마지막으로 바꾼 시각(ms). 0 은 "서버가 이 타이머를
+ * 건드린 적이 없다"는 뜻이다(신규 태그·EPOCH 센티넬).
+ *
+ * 로컬 스냅샷과 서버 응답 중 무엇을 믿을지 가르는 기준이라 정의가 한 곳이어야 한다 —
+ * 예전에는 useTagTimer(computeStopwatchState)·tagStore(applyLocalTimerOverrides)·
+ * 이 파일의 리셋 마커 판정이 같은 계산을 각자 복제하고 있었고, 그런 구조는 한 곳만
+ * 고쳐지고 나머지가 조용히 남는다.
+ *
+ * 0 을 돌려주는 것이 곧 "로컬이 이긴다"이므로, 검증되지 않은 응답값(NaN 등)은 0 으로
+ * 강등한다 — 그대로 흘리면 모든 비교가 false 가 되어 판정이 통째로 뒤집힌다.
+ */
+export function serverTimerChangedAt(
+  latestStartTimeMs: number | null | undefined,
+  latestStopTimeMs: number | null | undefined
+): number {
+  const finite = (value: number | null | undefined) =>
+    typeof value === 'number' && Number.isFinite(value) ? value : 0
+  return Math.max(finite(latestStartTimeMs), finite(latestStopTimeMs))
+}
+
 export function shouldApplyResetTimerMarker(
   marker: ResetTimerMarker | null,
   latestStartTimeMs: number | null | undefined,
   latestStopTimeMs: number | null | undefined
 ): marker is ResetTimerMarker {
   if (!marker || marker.expiresAt <= Date.now()) return false
-  const serverChangedAt = Math.max(latestStartTimeMs ?? 0, latestStopTimeMs ?? 0)
-  return serverChangedAt <= marker.savedAt
+  return serverTimerChangedAt(latestStartTimeMs, latestStopTimeMs) <= marker.savedAt
 }

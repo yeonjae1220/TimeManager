@@ -3,8 +3,10 @@ package project.TimeManager.domain.tag.model;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.MemberId;
 
+import java.time.Instant;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
+import java.time.temporal.ChronoUnit;
 
 public class Tag {
 
@@ -158,16 +160,58 @@ public class Tag {
         this.dailyTotalTime += delta;
     }
 
+    /**
+     * 기록(Record)으로부터 파생 필드를 재계산해 반영한다.
+     * <p>
+     * {@code latestStopTime} 만은 <b>전진만</b> 한다. 이 값은 단순한 표시용 파생값이 아니라
+     * "서버가 이 태그의 정지를 관측한 시각"이고, 다른 기기가 자기 로컬 스냅샷과 서버 중
+     * 무엇을 믿을지 판정하는 기준이기 때문이다. 기록에서 재계산한 값으로 그대로 덮으면,
+     * 마지막 기록을 지운 순간 그 시각이 EPOCH(또는 더 오래된 기록의 종료시각)로 후퇴해
+     * "정지했다"는 증거가 사라진다. 그러면 그 태그를 켜둔 채로 있던 다른 기기의 로컬
+     * 스냅샷이 서버를 이겨 유령 러닝이 부활하고, 거기서 정지를 누르면 옛 시작시각 기준의
+     * 거대한 기록이 새로 만들어진다.
+     */
     public void synchronizeRecordDerivedFields(Long tagTotalTime, Long dailyTotalTime,
                                                ZonedDateTime latestStartTime, ZonedDateTime latestStopTime) {
         this.tagTotalTime = tagTotalTime;
         this.dailyTotalTime = dailyTotalTime;
         this.latestStartTime = latestStartTime != null ? latestStartTime : EPOCH;
-        this.latestStopTime = latestStopTime != null ? latestStopTime : EPOCH;
+
+        ZonedDateTime candidate = latestStopTime != null ? latestStopTime : EPOCH;
+        boolean advances = this.latestStopTime == null || candidate.isAfter(this.latestStopTime);
+        this.latestStopTime = advances ? candidate : this.latestStopTime;
     }
 
     public boolean isRunning() {
         return timerState == TimerState.RUNNING;
+    }
+
+    /**
+     * 센티넬로 볼 상한. 센티넬은 "1970-01-01 00:00 (쓴 쪽의 타임존)" 이라 절대시각이
+     * 타임존에 따라 ±18시간 흔들린다 — JVM 기본 타임존의 EPOCH 하나만 기준으로 삼으면
+     * 다른 타임존에서 쓰인 센티넬이 "실제 시각"으로 통과해 1970년부터의 거대한 구간이
+     * 만들어진다. 어떤 타임존의 1970-01-01 이든 덮도록 하루 여유를 둔다(실제 데이터는
+     * 전부 서비스 개시 이후이므로 이 경계에 걸릴 실제 값은 없다).
+     */
+    private static final Instant SENTINEL_UPPER_BOUND = Instant.EPOCH.plus(1, ChronoUnit.DAYS);
+
+    /**
+     * {@code latestStartTime}/{@code latestStopTime} 은 "값 없음"을 null 이 아니라 EPOCH 센티넬로
+     * 표현한다(withDefaults·reset·haltRunWithoutRecording). 센티넬을 실제 시각으로 착각하면
+     * 1970년부터의 거대한 구간이 만들어지므로, 판정은 반드시 이 두 메서드로 한다.
+     */
+    private static boolean isRealInstant(ZonedDateTime candidate) {
+        return candidate != null && candidate.toInstant().isAfter(SENTINEL_UPPER_BOUND);
+    }
+
+    /** 실행 기준 시작시각이 센티넬이 아닌 실제 시각인가. */
+    public boolean hasStartAnchor() {
+        return isRealInstant(latestStartTime);
+    }
+
+    /** 서버가 이 태그의 정지를 관측한 적이 있는가. */
+    public boolean hasStopMark() {
+        return isRealInstant(latestStopTime);
     }
 
     // Getters

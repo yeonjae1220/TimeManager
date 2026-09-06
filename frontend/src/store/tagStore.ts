@@ -12,6 +12,7 @@ import {
   peekResetTimerMarkers,
   peekTimerState,
   removePendingTimerOperation,
+  serverTimerChangedAt,
   shouldApplyResetTimerMarker,
 } from '@/utils/timerPersistence'
 import { sessionFromTimerState, syncNativeRunningSession } from '@/native/runningSession'
@@ -63,7 +64,7 @@ function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
   if (localTimer) {
     const target = findTagById(next, localTimer.tagId)
     if (target) {
-      const serverChangedAt = Math.max(target.latestStartTimeMs || 0, target.latestStopTimeMs || 0)
+      const serverChangedAt = serverTimerChangedAt(target.latestStartTimeMs, target.latestStopTimeMs)
       if (localTimer.savedAt > serverChangedAt) {
         target.state = localTimer.isRunning
         target.elapsedTime = localTimer.elapsedTime
@@ -365,8 +366,15 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
           const isClientError = typeof status === 'number' && status >= 400 && status < 500
           if (isClientError) {
-            // 401 외 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그 등).
-            // 큐 헤드에 남겨두면 뒤의 정상 op까지 영구히 막으므로, 폐기하고 다음 op로 진행한다.
+            // 401 외 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그,
+            // 서버가 거부한 stale 한 정지 등). 큐 헤드에 남겨두면 뒤의 정상 op까지 영구히
+            // 막으므로 폐기하고 다음 op로 진행한다.
+            //
+            // 다만 폐기는 사용자가 실제로 누른 조작이 사라지는 자리다. 흔적을 안 남기면
+            // "왜 기록이 없지"를 추적할 수단이 0이 되므로 무엇을 왜 버렸는지 반드시 남긴다.
+            console.warn(
+              `Discarding pending timer op (type=${pending.type}, tagId=${pending.tagId}, status=${status}) — 서버가 확정 거부했습니다`
+            )
             removePendingTimerOperation(pending.id)
             continue
           }

@@ -30,6 +30,8 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.BDDMockito.then;
+import static org.mockito.ArgumentMatchers.eq;
+import org.mockito.ArgumentCaptor;
 
 @ExtendWith(MockitoExtension.class)
 @DisplayName("TimerCommandService")
@@ -83,6 +85,20 @@ class TimerCommandServiceTest {
                 latestStartTime,
                 ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()),
                 TimerState.RUNNING,
+                MemberId.of(memberId),
+                null
+        );
+    }
+
+    private Tag stoppedTagWithLastStop(Long tagId, Long memberId, ZonedDateTime latestStopTime) {
+        return Tag.reconstitute(
+                TagId.of(tagId),
+                "StoppedTag",
+                TagType.CUSTOM,
+                0L, 0L, 0L, 0L, 0L, 0L,
+                ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()),
+                latestStopTime,
+                TimerState.STOPPED,
                 MemberId.of(memberId),
                 null
         );
@@ -197,5 +213,158 @@ class TimerCommandServiceTest {
         then(loadTagPort).shouldHaveNoMoreInteractions();
         then(saveTagPort).shouldHaveNoInteractions();
         then(createRecordUseCase).shouldHaveNoInteractions();
+    }
+
+    // ── 유령 정지 방어 ────────────────────────────────────────────────────────────
+    // 다른 기기에서 이미 정지된 세션을, 옛 시작시각을 든 채 남아 있던 기기가 다시 정지시키면
+    // 서버가 그 구간을 그대로 믿고 거대한 기록을 만들던 결함에 대한 회귀 테스트.
+
+    @Test
+    @DisplayName("[유령정지] 실행 중이면 기록 구간의 시작은 클라이언트 값이 아니라 서버의 latestStartTime 을 쓴다")
+    void stopTimer_usesServerAnchorAsRecordStart_whenRunning() {
+        // Arrange — 서버는 10:00 에 시작했다고 알고 있는데, 클라이언트는 stale 한 2:13 을 보낸다.
+        ZonedDateTime serverAnchor = START;
+        ZonedDateTime staleClientStart = START.minusHours(8);
+        Tag running = runningTagOwnedBy(10L, 1L, serverAnchor);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        // Act
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 600L, staleClientStart, END, 1L));
+
+        // Assert
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime())
+                .as("클라이언트가 보낸 stale 한 시작시각이 기록 구간이 되면 안 된다")
+                .isEqualTo(serverAnchor);
+        assertThat(captor.getValue().endTime()).isEqualTo(END);
+    }
+
+    @Test
+    @DisplayName("[유령정지] 이미 정지된 태그에 대해 서버가 닫은 구간을 다시 정지시키면 거부하고 기록도 만들지 않는다")
+    void stopTimer_rejectsRestopOfAlreadyClosedPeriod() {
+        // Arrange — 다른 기기가 12:20 에 정지시켰고, 이 기기는 그보다 이른 2:13 을 시작시각으로 든다.
+        ZonedDateTime alreadyStoppedAt = START;
+        Tag stopped = stoppedTagWithLastStop(10L, 1L, alreadyStoppedAt);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(stopped));
+
+        // Act & Assert
+        assertThatThrownBy(() -> timerCommandService.stopTimer(
+                new StopTimerCommand(10L, 99999L, alreadyStoppedAt.minusHours(8), alreadyStoppedAt.plusHours(24), 1L)))
+                .isInstanceOf(DomainException.class);
+
+        then(createRecordUseCase).shouldHaveNoInteractions();
+        then(saveTagPort).shouldHaveNoInteractions();
+    }
+
+    @Test
+    @DisplayName("[오프라인] 이미 정지된 태그여도 서버가 닫은 구간 이후의 세션이면 정상 기록한다(오프라인 start 유실 방지)")
+    void stopTimer_acceptsSessionAfterLastClosedPeriod_whenNotRunning() {
+        // Arrange — 오프라인에서 start 가 큐에 남아 서버에 안 닿은 채, 온라인 복귀 후 stop 만 도착한 경우.
+        // 서버는 이 태그를 RUNNING 으로 모르지만, 세션 구간은 마지막으로 닫힌 구간보다 뒤라 정당하다.
+        ZonedDateTime lastClosed = START.minusDays(1);
+        Tag stopped = stoppedTagWithLastStop(10L, 1L, lastClosed);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(stopped));
+
+        // Act
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 600L, START, END, 1L));
+
+        // Assert — 사용자의 오프라인 세션이 조용히 사라지면 안 된다.
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime()).isEqualTo(START);
+        assertThat(captor.getValue().endTime()).isEqualTo(END);
+        assertThat(stopped.getTimerState()).isEqualTo(TimerState.STOPPED);
+    }
+
+    @Test
+    @DisplayName("[방어] RUNNING 인데 서버 시작시각이 EPOCH 로 무효면 서버 앵커를 쓰지 않고 클라이언트 값으로 기록한다")
+    void stopTimer_fallsBackToClientStart_whenServerAnchorInvalid() {
+        // Arrange — 정상 경로에서는 생기지 않지만, 생기면 1970년부터의 거대한 기록이 된다.
+        Tag running = runningTagOwnedBy(10L, 1L,
+                ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault()));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        // Act
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 600L, START, END, 1L));
+
+        // Assert
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime())
+                .as("EPOCH 앵커로 56년짜리 기록을 만들면 안 된다")
+                .isEqualTo(START);
+    }
+
+    @Test
+    @DisplayName("[시계오차] 정지시각이 미래로 찍혀 있으면 그 표시를 근거로 정지를 거부하지 않는다")
+    void stopTimer_doesNotRejectUsingFutureStopMark() {
+        // 시계가 앞선 기기가 미래 종료시각을 보내면 latestStopTime 이 미래로 남는다.
+        // 그 값을 "이미 닫힌 구간"의 근거로 쓰면, 그 태그는 실제 시각이 따라잡을 때까지
+        // 정상 정지가 전부 400 으로 막히고 재전송 큐가 그걸 조용히 폐기한다.
+        ZonedDateTime future = ZonedDateTime.now(SEOUL).plusDays(3);
+        Tag stopped = stoppedTagWithLastStop(10L, 1L, future);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(stopped));
+
+        ZonedDateTime realStart = ZonedDateTime.now(SEOUL).minusMinutes(30);
+        timerCommandService.stopTimer(
+                new StopTimerCommand(10L, 1800L, realStart, realStart.plusMinutes(30), 1L));
+
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime()).isEqualTo(realStart);
+    }
+
+    @Test
+    @DisplayName("[시계오차] 서버 앵커가 클라이언트 종료시각보다 뒤면 앵커를 쓰지 않는다 — 정지 자체가 막히면 안 된다")
+    void stopTimer_fallsBackToClientStart_whenServerAnchorIsAfterEndTime() {
+        // 기기 A 의 시계가 앞서 10:10 에 시작했고, 정상 시계의 기기 B 가 실제 10:05 에 정지를 누른다.
+        // 앵커(10:10)를 그대로 기록 시작으로 쓰면 TimeRange 가 역전으로 던져 400 이 되고,
+        // 트랜잭션이 롤백돼 태그가 RUNNING 으로 남는다 — 사용자는 타이머를 끌 수 없게 된다.
+        ZonedDateTime serverAnchor = START.plusMinutes(5);
+        Tag running = runningTagOwnedBy(10L, 1L, serverAnchor);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 60L, START, START.plusMinutes(1), 1L));
+
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime())
+                .as("쓸 수 없는 앵커 대신 클라이언트 값으로 물러서야 한다")
+                .isEqualTo(START);
+        assertThat(running.getTimerState()).isEqualTo(TimerState.STOPPED);
+    }
+
+    @Test
+    @DisplayName("[오프라인] 닫힌 구간보다 앞에서 끝나는 세션은 거부하지 않는다 — 유령 정지는 항상 그 경계를 넘어선다")
+    void stopTimer_acceptsSessionContainedBeforeStopMark() {
+        // 기록을 지워 정지표시만 stale 하게 남은 상황에서, 그보다 앞에서 끝나는 오프라인 세션.
+        // 유령 정지는 종료시각이 "지금"이라 반드시 정지표시를 넘어서므로, 넘어서지 않는 세션은
+        // 정당한 것으로 본다 — 아니면 사용자의 오프라인 기록이 조용히 사라진다.
+        ZonedDateTime stopMark = START.plusHours(1);
+        Tag stopped = stoppedTagWithLastStop(10L, 1L, stopMark);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(stopped));
+
+        timerCommandService.stopTimer(new StopTimerCommand(
+                10L, 1200L, START.plusMinutes(10), START.plusMinutes(30), 1L));
+
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime()).isEqualTo(START.plusMinutes(10));
+    }
+
+    @Test
+    @DisplayName("[기존동작] 실행 중인 태그의 정상 정지는 그대로 정지·기록된다")
+    void stopTimer_normalStopStillWorks() {
+        Tag running = runningTagOwnedBy(10L, 1L, START);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 600L, START, END, 1L));
+
+        assertThat(running.getTimerState()).isEqualTo(TimerState.STOPPED);
+        assertThat(running.getElapsedTime()).isEqualTo(600L);
+        assertThat(running.getLatestStopTime()).isEqualTo(END);
+        then(saveTagPort).should().saveTag(running);
+        then(createRecordUseCase).should().createRecord(any(CreateRecordCommand.class));
     }
 }
