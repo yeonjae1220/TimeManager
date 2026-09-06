@@ -59,9 +59,44 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         assertOwner(tag, command.memberId());
+
+        ZonedDateTime recordStart = resolveRecordStart(tag, command);
+
         tag.stop(command.endTime(), command.elapsedTime());
         saveTagPort.saveTag(tag);
-        return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime(), false));
+        return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), recordStart, command.endTime(), false));
+    }
+
+    /**
+     * 이 정지가 기록할 구간의 시작시각을 정한다.
+     * <p>
+     * 클라이언트가 보낸 시작시각을 그대로 믿으면, 다른 기기에서 이미 정지된 세션을 옛 시작시각을
+     * 든 채 남아 있던 기기가 다시 정지시킬 때 서버가 그 구간을 통째로 기록으로 만든다(실제로
+     * 34시간짜리 기록이 생겼다). 그렇다고 "서버가 RUNNING 이 아니면 거부"로 막으면, 오프라인에서
+     * start 가 큐에 남은 채 stop 만 먼저 도착하는 정당한 경로가 함께 죽어 사용자의 세션이 조용히
+     * 사라진다(재전송 큐는 401 외 4xx 를 폐기한다). 그래서 두 경우를 구간으로 가른다.
+     */
+    private ZonedDateTime resolveRecordStart(Tag tag, StopTimerCommand command) {
+        if (tag.isRunning()) {
+            // 서버가 실행 중으로 알고 있으면 그 기준 시작시각이 정본이다 — stale 한 클라이언트 값을 덮는다.
+            // 앵커가 센티넬이면(정상 경로에선 생기지 않음) 1970년부터의 기록을 만드는 대신 클라 값으로 물러선다.
+            return tag.hasStartAnchor() ? tag.getLatestStartTime() : command.startTime();
+        }
+
+        // 서버가 실행 중으로 모르는 정지 요청. 주장하는 세션이 이미 닫힌 구간을 침범하면 거부한다.
+        // 경계가 맞닿는 경우(이어서 시작한 세션)는 침범이 아니다 — TimeRange.overlaps 와 같은 규칙.
+        //
+        // 단, 미래로 찍힌 정지시각은 근거로 쓰지 않는다. 시계가 앞선 기기가 미래 종료시각을 한 번
+        // 보내면 그 태그는 실제 시각이 따라잡을 때까지 정상 정지가 전부 거부되고, 재전송 큐가 그
+        // 4xx 를 폐기해 사용자의 세션이 조용히 사라진다. 증거가 못 미더우면 막지 않는 쪽으로 물러선다.
+        boolean stopMarkIsTrustworthy = tag.hasStopMark()
+                && !tag.getLatestStopTime().isAfter(ZonedDateTime.now(tag.getLatestStopTime().getZone()));
+        if (stopMarkIsTrustworthy && command.startTime().isBefore(tag.getLatestStopTime())) {
+            log.warn("Rejecting stop of already-closed period: tagId={}, claimedStart={}, lastStop={}",
+                    command.tagId(), command.startTime(), tag.getLatestStopTime());
+            throw new DomainException("이미 정지된 세션입니다");
+        }
+        return command.startTime();
     }
 
     @Override

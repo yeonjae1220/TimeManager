@@ -128,4 +128,60 @@ class TagTimerTest {
             assertThat(tag.getLatestStopTime()).isEqualTo(START.plusMinutes(10));
         }
     }
+
+    @Nested
+    @DisplayName("EPOCH 센티넬 판정")
+    class SentinelDetection {
+
+        /**
+         * "값 없음"은 null 이 아니라 1970-01-01 센티넬로 표현되는데, 그 절대시각은 그 값을
+         * 쓴 쪽의 타임존에 따라 ±18시간 흔들린다. JVM 기본 타임존만 기준으로 삼으면 다른
+         * 타임존에서 쓰인 센티넬이 "실제 시각"으로 통과해, 1970년부터의 거대한 구간이 만들어진다.
+         */
+        @Test
+        @DisplayName("어느 타임존에서 쓴 센티넬이든 값 없음으로 판정한다")
+        void treatsSentinelAsAbsent_regardlessOfWritingZone() {
+            for (String zone : new String[]{"UTC", "Asia/Seoul", "America/Los_Angeles", "Pacific/Kiritimati", "Etc/GMT+12"}) {
+                ZonedDateTime sentinel = ZonedDateTime.of(1970, 1, 1, 0, 0, 0, 0, ZoneId.of(zone));
+                Tag tag = Tag.reconstitute(
+                        TagId.of(1L), "Ovlo", TagType.CUSTOM,
+                        0L, 0L, 0L, 0L, 0L, 0L,
+                        sentinel, sentinel,
+                        TimerState.STOPPED, MemberId.of(1L), null);
+
+                assertThat(tag.hasStartAnchor())
+                        .as("%s 에서 쓴 센티넬이 실제 시작시각으로 통과했습니다", zone)
+                        .isFalse();
+                assertThat(tag.hasStopMark())
+                        .as("%s 에서 쓴 센티넬이 실제 정지시각으로 통과했습니다", zone)
+                        .isFalse();
+            }
+        }
+
+        @Test
+        @DisplayName("실제 시각은 값 있음으로 판정한다")
+        void treatsRealInstantAsPresent() {
+            Tag tag = Tag.reconstitute(
+                    TagId.of(1L), "Ovlo", TagType.CUSTOM,
+                    0L, 0L, 0L, 0L, 0L, 0L,
+                    START, START.plusHours(1),
+                    TimerState.RUNNING, MemberId.of(1L), null);
+
+            assertThat(tag.hasStartAnchor()).isTrue();
+            assertThat(tag.hasStopMark()).isTrue();
+        }
+
+        @Test
+        @DisplayName("null 은 값 없음이다")
+        void treatsNullAsAbsent() {
+            Tag tag = Tag.reconstitute(
+                    TagId.of(1L), "Ovlo", TagType.CUSTOM,
+                    0L, 0L, 0L, 0L, 0L, 0L,
+                    null, null,
+                    TimerState.STOPPED, MemberId.of(1L), null);
+
+            assertThat(tag.hasStartAnchor()).isFalse();
+            assertThat(tag.hasStopMark()).isFalse();
+        }
+    }
 }
