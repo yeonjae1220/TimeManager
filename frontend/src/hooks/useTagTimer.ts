@@ -10,6 +10,7 @@ import {
   peekTimerState,
   saveResetTimerMarker,
   saveTimerState,
+  serverTimerChangedAt,
   shouldApplyResetTimerMarker,
 } from '@/utils/timerPersistence'
 import { useTagStore, type Tag } from '@/store/tagStore'
@@ -75,8 +76,7 @@ function computeStopwatchState(tagId: number, data: Tag): StopwatchState {
   const saved = peekTimerState()
   const useLocalState = saved &&
     saved.tagId === tagId &&
-    saved.savedAt > (data.latestStartTimeMs || 0) &&
-    saved.savedAt > (data.latestStopTimeMs || 0)
+    saved.savedAt > serverTimerChangedAt(data.latestStartTimeMs, data.latestStopTimeMs)
   const resetMarker = peekResetTimerMarker(tagId)
   const useResetMarker = shouldApplyResetTimerMarker(
     resetMarker,

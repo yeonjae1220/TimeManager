@@ -182,6 +182,27 @@ describe('추가 엣지케이스 검증 (잠재 버그 스윕)', () => {
     expect(tag2Stops.length).toBeGreaterThanOrEqual(1) // 정상 op는 결국 처리되어야 함
   })
 
+  it('[추적성] 4xx로 op를 폐기할 때는 무엇을 왜 버렸는지 흔적을 남긴다', async () => {
+    // 폐기 자체는 옳다(그 op 는 앞으로도 성공할 수 없다). 하지만 사용자가 실제로 누른
+    // 조작이 사라지는 자리라, 아무 흔적이 없으면 "왜 기록이 없지"를 추적할 수단이 0이 된다.
+    // 서버가 stale 한 정지를 거부하기 시작하면서 이 경로를 타는 빈도가 늘었다.
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {})
+    post.mockRejectedValue({ response: { status: 400 } })
+    enqueuePendingTimerOperation({
+      type: 'stop', tagId: 42, elapsedTime: 5,
+      latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
+    })
+
+    await useTagStore.getState().retryPendingTimerOp()
+
+    expect(peekPendingTimerOperations()).toHaveLength(0)
+    const logged = warn.mock.calls.map((c) => c.map(String).join(' ')).join('\n')
+    expect(logged, '폐기된 op 의 종류·태그·상태코드가 로그에 남아야 한다').toContain('stop')
+    expect(logged).toContain('42')
+    expect(logged).toContain('400')
+    warn.mockRestore()
+  })
+
   it('[⑦401·EC7] 401(세션 만료)이면 op를 보존한다 — 재로그인 후 재전송해야 하므로', async () => {
     post.mockRejectedValue({ response: { status: 401 } })
     enqueuePendingTimerOperation({

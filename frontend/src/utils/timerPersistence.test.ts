@@ -1,4 +1,7 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
+import { readdirSync, statSync } from 'node:fs'
+import { join } from 'node:path'
+import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
 import {
   clearPendingTimerOperations,
   clearResetTimerMarker,
@@ -13,6 +16,7 @@ import {
   removePendingTimerOperation,
   saveResetTimerMarker,
   saveTimerState,
+  serverTimerChangedAt,
   shouldApplyResetTimerMarker,
   PENDING_OP_TTL_MS,
 } from './timerPersistence'
@@ -201,6 +205,76 @@ describe('timerPersistence', () => {
       expect(remaining[0].type).toBe('reset')
       expect(remaining[0].tagId).toBe(2)
     })
+  })
+
+})
+
+// ── 서버 최종 변경시각 판정 ─────────────────────────────────────────────────
+// "서버가 이 타이머를 마지막으로 바꾼 시각"은 로컬 스냅샷과 서버 중 무엇을 믿을지 가르는
+// 기준인데, 같은 계산이 useTagTimer·tagStore·shouldApplyResetTimerMarker 세 곳에 각자
+// 복제돼 있었다. 한 곳만 고치면 나머지가 조용히 남는 자리라 한 정의로 모은다.
+describe('serverTimerChangedAt', () => {
+  it('시작·정지 중 나중 시각을 고른다', () => {
+    expect(serverTimerChangedAt(1000, 2000)).toBe(2000)
+    expect(serverTimerChangedAt(3000, 2000)).toBe(3000)
+  })
+
+  it('서버가 이 타이머를 건드린 적 없으면(null·undefined·EPOCH) 0이다', () => {
+    // 0을 돌려줘야 "아직 서버에 안 닿은 오프라인 조작"이 로컬 스냅샷으로 이긴다.
+    // 여기서 0이 아닌 값을 내면 신규 태그의 오프라인 시작이 통째로 무시된다.
+    expect(serverTimerChangedAt(null, null)).toBe(0)
+    expect(serverTimerChangedAt(undefined, undefined)).toBe(0)
+    expect(serverTimerChangedAt(0, 0)).toBe(0)
+    expect(serverTimerChangedAt(null, 0)).toBe(0)
+  })
+
+  it('한쪽만 값이 있으면 그 값을 쓴다', () => {
+    expect(serverTimerChangedAt(null, 5000)).toBe(5000)
+    expect(serverTimerChangedAt(5000, null)).toBe(5000)
+  })
+
+  it('숫자가 아닌 값(NaN 등)은 0으로 강등한다', () => {
+    // 타입에 number 라고 적혀 있어도 응답은 검증된 적이 없다. NaN 이 그대로 흐르면
+    // 모든 비교가 false 가 되어 "서버가 항상 이긴다"로 조용히 뒤집힌다.
+    expect(serverTimerChangedAt(Number.NaN, 1000)).toBe(1000)
+    expect(serverTimerChangedAt(Number.NaN, Number.NaN)).toBe(0)
+    expect(serverTimerChangedAt(Number.POSITIVE_INFINITY, 1000)).toBe(1000)
+  })
+
+  // 이 계산이 다시 복제되면 한 곳만 고쳐지고 나머지는 조용히 남는다. 실제로 그렇게 세 벌이
+  // 생겼고, 그중 하나가 서버 정지시각 후퇴를 못 걸러 유령 러닝을 부활시켰다.
+  //
+  // 규칙은 "Math.max 를 쓰지 마라"가 아니다 — 원래 복제본 중 하나는 Math.max 없이
+  // `savedAt > (a || 0) && savedAt > (b || 0)` 형태였고 그런 가드는 그걸 못 잡는다.
+  // 두 필드를 함께 들여다보는 파일은 반드시 공유 함수를 거치게 한다.
+  it('두 타임스탬프를 함께 읽는 파일은 serverTimerChangedAt 을 거친다', () => {
+    const root = findRepoRoot()
+    const srcDir = join(root, 'frontend/src')
+
+    const files: string[] = []
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir)) {
+        const full = join(dir, entry)
+        if (statSync(full).isDirectory()) walk(full)
+        else if (/\.tsx?$/.test(entry) && !/\.test\.tsx?$/.test(entry)) files.push(full)
+      }
+    }
+    walk(srcDir)
+    expect(files.length, 'src 를 못 훑었습니다 — 이 테스트가 무의미해집니다').toBeGreaterThan(20)
+
+    const DEFINITION = join(srcDir, 'utils/timerPersistence.ts')
+    const offenders = files
+      .filter((full) => full !== DEFINITION)
+      .filter((full) => {
+        const source = readRepoFile(full.slice(root.length + 1))
+        const readsBoth =
+          source.includes('latestStartTimeMs') && source.includes('latestStopTimeMs')
+        return readsBoth && !source.includes('serverTimerChangedAt')
+      })
+      .map((full) => full.slice(srcDir.length + 1))
+
+    expect(offenders, '두 타임스탬프를 직접 비교하는 파일이 있습니다 — serverTimerChangedAt 을 쓰세요')
+      .toEqual([])
   })
 
 })
