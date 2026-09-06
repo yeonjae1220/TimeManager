@@ -316,6 +316,44 @@ class TimerCommandServiceTest {
     }
 
     @Test
+    @DisplayName("[시계오차] 서버 앵커가 클라이언트 종료시각보다 뒤면 앵커를 쓰지 않는다 — 정지 자체가 막히면 안 된다")
+    void stopTimer_fallsBackToClientStart_whenServerAnchorIsAfterEndTime() {
+        // 기기 A 의 시계가 앞서 10:10 에 시작했고, 정상 시계의 기기 B 가 실제 10:05 에 정지를 누른다.
+        // 앵커(10:10)를 그대로 기록 시작으로 쓰면 TimeRange 가 역전으로 던져 400 이 되고,
+        // 트랜잭션이 롤백돼 태그가 RUNNING 으로 남는다 — 사용자는 타이머를 끌 수 없게 된다.
+        ZonedDateTime serverAnchor = START.plusMinutes(5);
+        Tag running = runningTagOwnedBy(10L, 1L, serverAnchor);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 60L, START, START.plusMinutes(1), 1L));
+
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime())
+                .as("쓸 수 없는 앵커 대신 클라이언트 값으로 물러서야 한다")
+                .isEqualTo(START);
+        assertThat(running.getTimerState()).isEqualTo(TimerState.STOPPED);
+    }
+
+    @Test
+    @DisplayName("[오프라인] 닫힌 구간보다 앞에서 끝나는 세션은 거부하지 않는다 — 유령 정지는 항상 그 경계를 넘어선다")
+    void stopTimer_acceptsSessionContainedBeforeStopMark() {
+        // 기록을 지워 정지표시만 stale 하게 남은 상황에서, 그보다 앞에서 끝나는 오프라인 세션.
+        // 유령 정지는 종료시각이 "지금"이라 반드시 정지표시를 넘어서므로, 넘어서지 않는 세션은
+        // 정당한 것으로 본다 — 아니면 사용자의 오프라인 기록이 조용히 사라진다.
+        ZonedDateTime stopMark = START.plusHours(1);
+        Tag stopped = stoppedTagWithLastStop(10L, 1L, stopMark);
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(stopped));
+
+        timerCommandService.stopTimer(new StopTimerCommand(
+                10L, 1200L, START.plusMinutes(10), START.plusMinutes(30), 1L));
+
+        ArgumentCaptor<CreateRecordCommand> captor = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(captor.capture());
+        assertThat(captor.getValue().startTime()).isEqualTo(START.plusMinutes(10));
+    }
+
+    @Test
     @DisplayName("[기존동작] 실행 중인 태그의 정상 정지는 그대로 정지·기록된다")
     void stopTimer_normalStopStillWorks() {
         Tag running = runningTagOwnedBy(10L, 1L, START);

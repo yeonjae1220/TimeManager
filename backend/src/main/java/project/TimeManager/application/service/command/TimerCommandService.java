@@ -79,8 +79,14 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
     private ZonedDateTime resolveRecordStart(Tag tag, StopTimerCommand command) {
         if (tag.isRunning()) {
             // 서버가 실행 중으로 알고 있으면 그 기준 시작시각이 정본이다 — stale 한 클라이언트 값을 덮는다.
-            // 앵커가 센티넬이면(정상 경로에선 생기지 않음) 1970년부터의 기록을 만드는 대신 클라 값으로 물러선다.
-            return tag.hasStartAnchor() ? tag.getLatestStartTime() : command.startTime();
+            //
+            // 다만 앵커가 이 요청의 종료시각보다 뒤면 쓸 수 없다. 기기 간 시계 오차로 충분히
+            // 생기는데(앞선 시계의 A 가 시작 → 정상 시계의 B 가 정지), 그대로 쓰면 TimeRange 가
+            // 역전으로 던져 트랜잭션이 통째로 롤백되고 태그가 RUNNING 으로 남아 사용자가 타이머를
+            // 끌 수 없게 된다. 센티넬 앵커도 같은 이유로 못 쓴다(1970년부터의 거대한 구간).
+            boolean anchorIsUsable = tag.hasStartAnchor()
+                    && tag.getLatestStartTime().isBefore(command.endTime());
+            return anchorIsUsable ? tag.getLatestStartTime() : command.startTime();
         }
 
         // 서버가 실행 중으로 모르는 정지 요청. 주장하는 세션이 이미 닫힌 구간을 침범하면 거부한다.
@@ -91,7 +97,14 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
         // 4xx 를 폐기해 사용자의 세션이 조용히 사라진다. 증거가 못 미더우면 막지 않는 쪽으로 물러선다.
         boolean stopMarkIsTrustworthy = tag.hasStopMark()
                 && !tag.getLatestStopTime().isAfter(ZonedDateTime.now(tag.getLatestStopTime().getZone()));
-        if (stopMarkIsTrustworthy && command.startTime().isBefore(tag.getLatestStopTime())) {
+
+        // 침범의 정의는 "닫힌 경계를 걸치고 넘어간다"다. 경계보다 앞에서 끝나는 세션까지 막으면,
+        // 기록을 지워 정지표시만 stale 하게 남은 뒤 재전송된 정당한 오프라인 세션이 함께 죽는다.
+        // 유령 정지는 종료시각이 사실상 "지금"이라 반드시 경계를 넘어서므로 이 좁힘으로 놓치지 않는다.
+        boolean straddlesClosedBoundary = stopMarkIsTrustworthy
+                && command.startTime().isBefore(tag.getLatestStopTime())
+                && command.endTime().isAfter(tag.getLatestStopTime());
+        if (straddlesClosedBoundary) {
             log.warn("Rejecting stop of already-closed period: tagId={}, claimedStart={}, lastStop={}",
                     command.tagId(), command.startTime(), tag.getLatestStopTime());
             throw new DomainException("이미 정지된 세션입니다");
