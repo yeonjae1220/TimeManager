@@ -273,8 +273,17 @@ describe('Live Activity 렌더러 (iOS)', () => {
     const smartStack = swift.match(/struct TimerLiveActivitySmartStack: Widget \{([\s\S]*?)\n\}/)
 
     expect(smartStack, 'TimerLiveActivitySmartStack 를 찾지 못했습니다').not.toBeNull()
-    expect(smartStack![1], 'supplementalActivityFamilies 가 사라졌습니다 — 워치에 태그명이 안 보입니다')
-      .toMatch(/\.supplementalActivityFamilies\(\s*\[\s*\.small\s*\]\s*\)/)
+    // `.small` 이 목록에 있기만 하면 된다 — family 가 늘어나는 것 자체는 워치 지원을 깨지 않는다.
+    // `[.small]` 만 허용하면 `[.small, .medium]` 같은 정상 확장에 오탐이 난다(실측).
+    expect(smartStack![1], 'supplementalActivityFamilies 에서 .small 이 사라졌습니다 — 워치에 태그명이 안 보입니다')
+      .toMatch(/\.supplementalActivityFamilies\(\s*\[[^\]]*\.small\b/)
+
+    // 선언만으로는 부족하다. 이 Widget 이 family 를 분기하는 뷰를 그리지 않으면 —
+    // 예컨대 잠금화면 뷰를 직접 그리면 — 선언은 남은 채 **워치에 잠금화면 배치가 나온다**.
+    // 그때 AdaptiveContentView·SmartStackView 는 죽은 코드로 남는데, Swift 는 미사용
+    // private 타입을 경고하지 않아 ios-build 도 초록이다(실측: 이 단언 없이 28건 전건 통과).
+    expect(smartStack![1], 'iOS 18 Widget 이 family 분기 뷰를 안 그립니다 — 워치에 잠금화면 배치가 나옵니다')
+      .toContain('AdaptiveContentView(')
 
     // iOS 18+ API 라 구버전 Widget 에 붙으면 배포 타깃 16.2 에서 컴파일이 깨진다.
     const legacy = swift.match(/struct TimerLiveActivityLiveActivity: Widget \{([\s\S]*?)\n\}/)
