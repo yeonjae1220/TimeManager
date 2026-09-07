@@ -11,63 +11,96 @@ spec:
     requests:
       storage: 5Gi
 ---
+# 🔴 이 워크로드는 라이브에서 **StatefulSet** 으로 돌고 있다 (레포엔 Deployment 로만
+#    적혀 있었다). 그 상태로 `kubectl apply -f` 하면 StatefulSet 은 그대로 둔 채
+#    **같은 RWO PVC 를 마운트하는 Deployment 가 하나 더 생긴다** — 같은 데이터
+#    디렉터리를 두 프로세스가 붙잡는다. 어느 CI 도 이 파일을 apply 하지 않아 지금까지
+#    안 터졌을 뿐, 수동 apply 한 번이면 걸린다 (GLOBAL-PIT-083).
+#    StatefulSet 은 replicas:1 에서 구 파드를 완전히 내린 뒤 새 파드를 만들므로
+#    GLOBAL-PIT-095(RWO + RollingUpdate 영구 정체)가 구조적으로 성립하지 않는다.
+#    2026-09-07 라이브에서 회수 — `kubectl diff` 차이 0줄로 검증했다.
 apiVersion: apps/v1
-kind: Deployment
+kind: StatefulSet
 metadata:
   name: postgres
   namespace: timemanager
 spec:
+  persistentVolumeClaimRetentionPolicy:
+    whenDeleted: Retain
+    whenScaled: Retain
+  podManagementPolicy: OrderedReady
   replicas: 1
+  revisionHistoryLimit: 10
   selector:
     matchLabels:
       app: postgres
+  serviceName: postgres-headless
   template:
     metadata:
       labels:
         app: postgres
     spec:
-      nodeSelector:
-        project-timemanager: "true"
       containers:
-        - name: postgres
-          image: postgres:15-alpine
-          ports:
-            - containerPort: 5432
-          env:
-            - name: POSTGRES_DB
-              valueFrom:
-                secretKeyRef:
-                  name: timemanager-secret
-                  key: DB_NAME
-            - name: POSTGRES_USER
-              valueFrom:
-                secretKeyRef:
-                  name: timemanager-secret
-                  key: DB_USER
-            - name: POSTGRES_PASSWORD
-              valueFrom:
-                secretKeyRef:
-                  name: timemanager-secret
-                  key: DB_PASSWORD
-          volumeMounts:
-            - name: postgres-data
-              mountPath: /var/lib/postgresql/data
-          readinessProbe:
-            exec:
-              command: ["pg_isready", "-U", "timemanager"]
-            initialDelaySeconds: 5
-            periodSeconds: 10
-          resources:
-            requests:
-              memory: "128Mi"
-              cpu: "100m"
-            limits:
-              memory: "256Mi"
-              cpu: "500m"
+      - env:
+        - name: POSTGRES_DB
+          valueFrom:
+            secretKeyRef:
+              key: DB_NAME
+              name: timemanager-secret
+        - name: POSTGRES_USER
+          valueFrom:
+            secretKeyRef:
+              key: DB_USER
+              name: timemanager-secret
+        - name: POSTGRES_PASSWORD
+          valueFrom:
+            secretKeyRef:
+              key: DB_PASSWORD
+              name: timemanager-secret
+        image: postgres:15-alpine
+        imagePullPolicy: IfNotPresent
+        name: postgres
+        ports:
+        - containerPort: 5432
+          protocol: TCP
+        readinessProbe:
+          exec:
+            command:
+            - pg_isready
+            - -U
+            - timemanager
+          failureThreshold: 3
+          initialDelaySeconds: 5
+          periodSeconds: 10
+          successThreshold: 1
+          timeoutSeconds: 1
+        resources:
+          limits:
+            cpu: 500m
+            memory: 256Mi
+          requests:
+            cpu: 100m
+            memory: 128Mi
+        terminationMessagePath: /dev/termination-log
+        terminationMessagePolicy: File
+        volumeMounts:
+        - mountPath: /var/lib/postgresql/data
+          name: postgres-data
+      dnsPolicy: ClusterFirst
+      nodeSelector:
+        project-timemanager: 'true'
+      restartPolicy: Always
+      schedulerName: default-scheduler
+      securityContext: {}
+      terminationGracePeriodSeconds: 60
       volumes:
-        - name: postgres-data
-          persistentVolumeClaim:
-            claimName: timemanager-postgres-pvc
+      - name: postgres-data
+        persistentVolumeClaim:
+          claimName: timemanager-postgres-pvc
+  updateStrategy:
+    rollingUpdate:
+      partition: 0
+    type: RollingUpdate
 ---
 apiVersion: v1
 kind: Service
@@ -80,3 +113,22 @@ spec:
   ports:
     - port: 5432
       targetPort: 5432
+---
+# StatefulSet 의 serviceName 이 가리키는 headless Service.
+# 이것이 없으면 StatefulSet 파드의 안정적 DNS(<pod>.<svc>)가 성립하지 않는다.
+apiVersion: v1
+kind: Service
+metadata:
+  labels:
+    app: postgres
+  name: postgres-headless
+  namespace: timemanager
+spec:
+  clusterIP: None
+  ports:
+  - port: 5432
+    protocol: TCP
+    targetPort: 5432
+  selector:
+    app: postgres
+  type: ClusterIP
