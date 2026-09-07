@@ -761,3 +761,47 @@ describe('LogsView — 날짜를 넘긴 세션', () => {
     expect(screen.queryByText(/^\(\+\d+\)$/)).toBeNull()
   })
 })
+
+// ────────────────────────────────────────────────────────────
+// 무한 재조회 루프
+// ────────────────────────────────────────────────────────────
+
+describe('LogsView — 조회가 스스로 반복되지 않는다', () => {
+  // 결함: 주별/월별 탭의 기준 날짜를 렌더 본문에서 startOfWeek()/startOfMonth() 로
+  // 새로 만들면 매 렌더마다 다른 Date 객체가 나온다. 그 값이 useMemo deps 에 들어
+  // 있으므로 loader identity 가 매번 바뀌고, useAsyncData 는 loader 가 바뀌면 다시
+  // 조회하도록 설계돼 있다 → 조회 성공 → setState → 리렌더 → 새 Date → 재조회의
+  // 무한 루프. 화면은 spinner ↔ 데이터를 끝없이 오가며 깜빡이고, 주별은 한 바퀴에
+  // 8건(요약 1 + 요일별 7), 월별은 6~7건씩 요청을 쏟아낸다.
+  it.each([
+    ['주별', 'weekly-bar-chart'],
+    ['월별', 'monthly-heatmap'],
+  ])('[회귀] %s 탭은 한 번 그린 뒤 재조회를 멈춘다', async (tabLabel, chartTestId) => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    renderLogs()
+    fireEvent.click(screen.getByRole('button', { name: tabLabel }))
+    await screen.findByTestId(chartTestId)
+
+    // 첫 조회가 끝난 뒤의 호출 수를 기준으로 삼는다.
+    await new Promise((r) => setTimeout(r, 30))
+    const settled = get.mock.calls.length
+    await new Promise((r) => setTimeout(r, 60))
+
+    expect(get.mock.calls.length).toBe(settled)
+  })
+
+  it('[회귀] 드릴다운한 일별 상세도 재조회를 멈춘다', async () => {
+    get.mockResolvedValue(EMPTY_SUMMARY)
+
+    setNavQuery('tab=daily&date=2026-09-01&from=weekly')
+    renderLogs()
+    await waitFor(() => expect(get.mock.calls.length).toBeGreaterThan(0))
+
+    await new Promise((r) => setTimeout(r, 30))
+    const settled = get.mock.calls.length
+    await new Promise((r) => setTimeout(r, 60))
+
+    expect(get.mock.calls.length).toBe(settled)
+  })
+})
