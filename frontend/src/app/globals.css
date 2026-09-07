@@ -312,6 +312,11 @@ input, select, textarea {
   inset: 0;
   display: flex;
   flex-direction: column;
+  /* 자기 바탕을 직접 칠한다. position:fixed 로 문서 흐름에서 빠져 있는데 배경이
+     없으면 셸 전체가 투명해서, 흐름에 남아 있는 무엇이든(콜드 스타트 스플래시의
+     펄스 스켈레톤 등) 콘텐츠 영역 전체에 비쳐 보인다 — topbar/tab-bar 만 var(--bg)
+     를 칠하고 있어 그 사이가 통째로 뚫려 있었다. */
+  background: var(--bg);
 }
 
 .app-content {
