@@ -363,18 +363,15 @@ input, select, textarea {
   padding-bottom: env(safe-area-inset-bottom);
 }
 
+/* 켜져만 있고 점멸하지 않는다 — 이 선은 "지금 타이머가 돌고 있다"는 상태 표시지
+   경보가 아니다. 3초 주기로 opacity 0.5↔1 을 오가면 시야 가장자리에서 계속
+   움직이는 것이 보여 거슬리고, 밝기가 낮은 구간에서는 켜졌는지조차 애매해진다. */
 .tab-bar--running-line {
   position: absolute;
   top: 0; left: 0; right: 0;
   height: 2px;
   background: var(--running);
   box-shadow: 0 0 12px var(--running);
-  animation: scan-tab 3s ease infinite;
-}
-
-@keyframes scan-tab {
-  0%, 100% { opacity: 0.5; }
-  50% { opacity: 1; }
 }
 
 .tab {
