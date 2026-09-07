@@ -394,7 +394,16 @@ function WeeklyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; on
   // 남는다 — 기기 달력의 "이번 주"를 먼저 보여줬다가 논리적 주로 바뀌면(자정 직후
   // dailyResetHour 이전 방문) 오늘 강조가 그 사이 다른 주로 튄다.
   const [mondayOverride, setMondayOverride] = useState<Date | null>(null)
-  const monday = mondayOverride ?? (logicalToday ? startOfWeek(logicalToday) : null)
+  // useMemo 가 필수다 — startOfWeek()는 매번 새 Date 를 만들고, 그 값이 아래
+  // loader 들의 deps 에 들어 있다. useAsyncData 는 loader identity 가 바뀌면
+  // 재조회하도록 설계돼 있으므로(그것이 "날짜가 바뀌면 다시 부른다"의 트리거),
+  // 렌더마다 새 객체를 주면 조회 성공 → setState → 리렌더 → 새 Date → 재조회의
+  // 무한 루프가 된다. 화면은 spinner ↔ 데이터를 끝없이 오가며 깜빡이고 한 바퀴에
+  // 8건(요약 1 + 요일별 7)씩 요청이 나간다.
+  const monday = useMemo(
+    () => mondayOverride ?? (logicalToday ? startOfWeek(logicalToday) : null),
+    [mondayOverride, logicalToday],
+  )
 
   const load = useMemo(() => (monday ? () => getSummary(monday, addDays(monday, 6)) : null), [monday])
   const { data, loading, failed, reload } = useAsyncData(load)
@@ -510,7 +519,12 @@ function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memberId: number; o
   // 때까지 refDate 전체가 null로 남는다(자정~resetHour 사이엔 기기 달력의
   // "이번 달"이 논리적으로 아직 지난달일 수 있다 — 예: 매월 1일 02:00).
   const [refDateOverride, setRefDateOverride] = useState<Date | null>(null)
-  const refDate = refDateOverride ?? (logicalToday ? startOfMonth(logicalToday) : null)
+  // WeeklyTab 의 monday 와 같은 이유로 useMemo 가 필수다 — startOfMonth()가 렌더마다
+  // 새 Date 를 만들면 loader identity 가 매번 바뀌어 무한 재조회 루프가 된다.
+  const refDate = useMemo(
+    () => refDateOverride ?? (logicalToday ? startOfMonth(logicalToday) : null),
+    [refDateOverride, logicalToday],
+  )
 
   const load = useMemo(() => (refDate ? () => getSummary(startOfMonth(refDate), endOfMonth(refDate)) : null), [refDate])
   const { data, loading, failed, reload } = useAsyncData(load)
@@ -856,7 +870,11 @@ export default function LogsView() {
   const tabParam = searchParams?.get('tab')
   const activeTab: TabKey = TABS.some((tb) => tb.key === tabParam) ? (tabParam as TabKey) : 'daily'
   const dateParam = searchParams?.get('date')
-  const drillDate = dateParam ? parseLocalDate(dateParam) : null
+  // DailyTab 의 initialDate 로 내려가고, 거기서 조회 loader 의 deps 가 된다 —
+  // 렌더마다 새 Date 를 만들면 LogsView 가 다시 그려질 때마다(경계 해소·언어 전환
+  // 등) 일별 상세가 통째로 재조회된다. WeeklyTab/MonthlyTab 이 같은 결함으로
+  // 무한 루프였던 것과 뿌리가 같다.
+  const drillDate = useMemo(() => (dateParam ? parseLocalDate(dateParam) : null), [dateParam])
   const fromParam = searchParams?.get('from')
   const fromTab: DrilldownSource | null =
     (DRILLDOWN_SOURCES as readonly string[]).includes(fromParam ?? '') ? (fromParam as DrilldownSource) : null

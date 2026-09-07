@@ -139,3 +139,50 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
     expect(replace).not.toHaveBeenCalled()
   })
 })
+
+describe('ProtectedLayout — hydration', () => {
+  // 결함: 낙관적 통과 판정을 useState 초기화에서 하면, 서버(스토어·localStorage
+  // 없음 → 스켈레톤)와 클라이언트 첫 렌더(zustand persist 로 복원된 memberId →
+  // children)가 서로 다른 트리를 낸다. 그러면 hydration 이 서버가 그린 스켈레톤
+  // 노드를 **컨테이너에 그대로 남긴 채** 앱 본체를 형제로 덧붙인다.
+  //
+  // 실측(수정 전): 컨테이너 자식이 2개였다.
+  //   [0] <div> 828B  ← 펄스 스켈레톤(회색 막대 4개), 제거되지 않음
+  //   [1] <div class="app-shell">  ← 새로 붙은 앱 본체
+  // .app-shell 은 position:fixed 라 [0] 위에 겹치는데, 이때 배경이 없으면
+  // 스켈레톤이 콘텐츠 영역 전체에 비쳐 "모든 화면 뒤에서 회색 막대가 깜빡"인다.
+  // React 가 recoverable error 조차 남기지 않아 콘솔에 아무 흔적이 없다.
+  it('[회귀] hydration 후 서버 스켈레톤이 DOM 에 남지 않는다', async () => {
+    const [{ renderToString }, { hydrateRoot }, { act }] = await Promise.all([
+      import('react-dom/server'),
+      import('react-dom/client'),
+      import('react'),
+    ])
+    // restore() 결과가 화면을 바꾸지 않도록 고정 — hydration 직후 DOM 만 본다.
+    mockRefresh.mockImplementation(() => new Promise(() => {}))
+
+    const tree = (
+      <ProtectedLayout>
+        <div className="app-shell" data-testid="app-content">앱 본체</div>
+      </ProtectedLayout>
+    )
+
+    // 서버: 스토어도 localStorage 도 없다.
+    const serverHtml = renderToString(tree)
+    expect(serverHtml).toContain('pulse 1.4s ease infinite')
+
+    const container = document.createElement('div')
+    container.innerHTML = serverHtml
+    document.body.appendChild(container)
+
+    // 클라이언트: persist 가 이미 memberId 를 복원한 상태로 hydrate 를 시작한다.
+    useAuthStore.setState({ memberId: 7 })
+    await act(async () => { hydrateRoot(container, tree) })
+
+    expect(container.querySelector('.app-shell')).not.toBeNull()
+    expect(container.innerHTML).not.toContain('pulse 1.4s ease infinite')
+    expect(container.children.length).toBe(1)
+
+    container.remove()
+  })
+})

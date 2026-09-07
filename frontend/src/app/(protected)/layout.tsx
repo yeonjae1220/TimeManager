@@ -57,10 +57,20 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   // 돌고, unauthenticated로 판명되면 clearAuth()가 memberId를 지워 아래
   // `!memberId` 가드가 화면을 안전하게 닫는다(오프라인 재전송 큐와 같은 원칙:
   // 먼저 낙관적으로 반영 → 서버 응답으로 화해).
-  const [phase, setPhase] = useState<AuthPhase>(() => {
-    const state = useAuthStore.getState()
-    return state.accessToken || state.memberId ? 'ready' : 'restoring'
-  })
+  //
+  // ⚠️ 이 낙관적 판정을 useState 초기화에서 하면 안 된다. 서버에는 스토어도
+  // localStorage 도 없어 항상 'restoring'(스켈레톤)이 나오는데, 클라이언트 첫
+  // 렌더가 zustand persist 로 복원된 memberId 를 보고 'ready'(children)를 내면
+  // 서버 HTML 과 다른 트리가 된다. 이때 hydration 은 서버가 그린 스켈레톤 노드를
+  // **지우지 않고 그대로 남긴 채** 앱 본체를 형제로 덧붙인다 — 실측한 컨테이너:
+  //   [0] <div> 828B  ← 펄스 스켈레톤(회색 막대 4개), 살아남음
+  //   [1] <div class="app-shell">  ← 새로 붙은 앱 본체
+  // .app-shell 은 position:fixed 라 [0] 위에 겹치는데 그 자신이 투명하면
+  // 스켈레톤이 콘텐츠 영역 전체에 비쳐 "모든 화면 뒤에서 회색 막대가 깜빡"인다.
+  // React 가 recoverable error 조차 남기지 않아 콘솔에 아무 흔적이 없다.
+  // 첫 렌더는 서버와 똑같이 두고, 판정은 아래 마운트 effect 에서 한다
+  // (회귀 테스트: layout.test.tsx 의 'hydration 후 서버 스켈레톤이 DOM 에 남지 않는다').
+  const [phase, setPhase] = useState<AuthPhase>('restoring')
   const [retrying, setRetrying] = useState(false)
   const inFlight = useRef(false)
 
@@ -95,10 +105,15 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   // 쿠키보다 먼저 사라질 수 있어(GLOBAL-PIT-052 계열), 이를 게이트로 쓰면
   // 쿠키가 살아있어도 refresh를 시도조차 안 하고 강제 로그아웃되는 버그가 생긴다.
   useEffect(() => {
-    if (useAuthStore.getState().accessToken) {
+    const state = useAuthStore.getState()
+    // accessToken 이 있으면(앱 내 네비게이션) 확정 통과 — refresh 불필요.
+    if (state.accessToken) {
       setPhase('ready')
       return
     }
+    // memberId 만 있어도(콜드 스타트, 이 기기의 이전 세션 흔적) 먼저 열고,
+    // restore() 는 그대로 배경에서 돌려 서버 응답으로 화해한다.
+    if (state.memberId) setPhase('ready')
     void restore()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
