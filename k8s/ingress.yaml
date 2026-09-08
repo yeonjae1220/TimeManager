@@ -1,25 +1,44 @@
+# 🔴 2026-09-07 라이브에서 회수. 이 파일은 옛 개발 시절 값(host: *.local · TLS 블록 없음)으로
+#    남아 있어서, apply 하면 **공개 도메인이 통째로 끊기고 TLS 가 사라진다**.
+#    어느 CI 도 이 파일을 apply 하지 않아 지금까지 안 터졌을 뿐이다 (GLOBAL-PIT-083).
+#    `kubectl diff` 차이 0줄로 검증했다.
 apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
+  annotations:
+    cert-manager.io/cluster-issuer: letsencrypt-prod
+    nginx.ingress.kubernetes.io/ssl-redirect: 'true'
   name: timemanager-ingress
   namespace: timemanager
 spec:
   ingressClassName: nginx
   rules:
-    - host: timemanager.local
-      http:
-        paths:
-          - path: /
-            pathType: Prefix
-            backend:
-              service:
-                name: frontend
-                port:
-                  number: 80
-          - path: /api
-            pathType: Prefix
-            backend:
-              service:
-                name: backend
-                port:
-                  number: 8080
+  - host: timemanager.mungji.com
+    http:
+      paths:
+      - backend:
+          service:
+            name: frontend
+            port:
+              number: 80
+        path: /
+        pathType: Prefix
+      - backend:
+          service:
+            name: backend
+            port:
+              number: 8080
+        path: /api
+        pathType: Prefix
+      - backend:
+          service:
+            name: backend
+            port:
+              number: 8080
+        path: /admin
+        pathType: Prefix
+  tls:
+  - hosts:
+    - timemanager.mungji.com
+    secretName: timemanager-tls
+
