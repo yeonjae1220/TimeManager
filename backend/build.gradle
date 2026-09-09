@@ -51,6 +51,10 @@ dependencies {
 
 	//Web Push (VAPID)
 	implementation 'nl.martijndwars:web-push:5.1.1'
+	// PushService.send() exposes HttpResponse and JoseException, but web-push 5.1.2
+	// declares their dependencies as runtime-only. Keep its public API types on our compile path.
+	implementation 'org.apache.httpcomponents:httpcore:4.4.16'
+	implementation 'org.bitbucket.b_c:jose4j:0.7.9'
 	implementation 'org.bouncycastle:bcprov-jdk18on:1.76'
 
 	//Spring Security
