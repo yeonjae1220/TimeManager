@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation'
 import { useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
 import { useI18n } from '@/i18n/I18nProvider'
+import { NativeTimerSync } from '@/components/NativeTimerSync'
 
 type AuthPhase = 'restoring' | 'ready' | 'offline'
 
@@ -149,5 +150,5 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
   }
   if (!memberId) return null
 
-  return <>{children}</>
+  return <><NativeTimerSync memberId={memberId} />{children}</>
 }
