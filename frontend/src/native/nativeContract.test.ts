@@ -258,4 +258,63 @@ describe('Live Activity 렌더러 (iOS)', () => {
     expect(bundle).toMatch(/return smartStackWidgets/)
     expect(bundle).toMatch(/return legacyWidgets/)
   })
+
+  /**
+   * 여기부터 셋은 **워치 스마트 스택 자체**를 지킨다(TM-ADR-019).
+   *
+   * 위 검사들이 잡는 표시 결함과 달리, 워치 지원은 *지워도 아무 신호가 없다*.
+   * `.supplementalActivityFamilies([.small])` 한 줄을 빼면 컴파일도 되고
+   * `ios-build` 도 초록이며 아이폰 표시는 전혀 안 바뀐다 — 워치에서만 태그명이
+   * 사라져 ADR-019 이전 상태(시간은 흐르는데 무엇이 도는지 모름)로 조용히 돌아간다.
+   * 그 표면은 CI 가 볼 수 없고 실기 워치를 꺼내야만 보이므로 여기서 못박는다.
+   */
+  it('iOS 18 Widget 이 워치 스마트 스택 지원을 선언한다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+    const smartStack = swift.match(/struct TimerLiveActivitySmartStack: Widget \{([\s\S]*?)\n\}/)
+
+    expect(smartStack, 'TimerLiveActivitySmartStack 를 찾지 못했습니다').not.toBeNull()
+    // `.small` 이 목록에 있기만 하면 된다 — family 가 늘어나는 것 자체는 워치 지원을 깨지 않는다.
+    // `[.small]` 만 허용하면 `[.small, .medium]` 같은 정상 확장에 오탐이 난다(실측).
+    expect(smartStack![1], 'supplementalActivityFamilies 에서 .small 이 사라졌습니다 — 워치에 태그명이 안 보입니다')
+      .toMatch(/\.supplementalActivityFamilies\(\s*\[[^\]]*\.small\b/)
+
+    // 선언만으로는 부족하다. 이 Widget 이 family 를 분기하는 뷰를 그리지 않으면 —
+    // 예컨대 잠금화면 뷰를 직접 그리면 — 선언은 남은 채 **워치에 잠금화면 배치가 나온다**.
+    // 그때 AdaptiveContentView·SmartStackView 는 죽은 코드로 남는데, Swift 는 미사용
+    // private 타입을 경고하지 않아 ios-build 도 초록이다(실측: 이 단언 없이 28건 전건 통과).
+    expect(smartStack![1], 'iOS 18 Widget 이 family 분기 뷰를 안 그립니다 — 워치에 잠금화면 배치가 나옵니다')
+      .toContain('AdaptiveContentView(')
+
+    // iOS 18+ API 라 구버전 Widget 에 붙으면 배포 타깃 16.2 에서 컴파일이 깨진다.
+    const legacy = swift.match(/struct TimerLiveActivityLiveActivity: Widget \{([\s\S]*?)\n\}/)
+    expect(legacy, 'TimerLiveActivityLiveActivity 를 찾지 못했습니다').not.toBeNull()
+    expect(legacy![1], '구버전(16.2) Widget 에 iOS 18 전용 API 가 붙었습니다')
+      .not.toContain('supplementalActivityFamilies')
+  })
+
+  it('.small(워치) 분기가 워치 전용 뷰로 간다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+
+    // family 를 읽지 않으면 분기 자체가 성립하지 않는다.
+    expect(swift, '@Environment(\\.activityFamily) 가 없습니다 — 표면을 구분할 수 없습니다')
+      .toMatch(/@Environment\(\\\.activityFamily\)/)
+
+    const branch = swift.match(/case\s+\.small:([\s\S]*?)\n\s*(?:case\s|default:)/)
+    expect(branch, '.small 분기를 찾지 못했습니다').not.toBeNull()
+    expect(branch![1], '.small 이 더는 워치 전용 뷰를 그리지 않습니다 — 잠금화면 배치가 워치에 나옵니다')
+      .toContain('SmartStackView(state:')
+  })
+
+  it('워치 뷰가 태그명을 보여주고 부연 문구는 빼둔다', () => {
+    const swift = readRepoFile(LIVE_ACTIVITY_VIEW_SWIFT)
+    const view = swift.match(/private struct SmartStackView: View \{([\s\S]*?)\n\}/)
+
+    expect(view, 'SmartStackView 를 찾지 못했습니다').not.toBeNull()
+
+    // ADR-019 가 워치 지원을 넣은 이유가 이 한 줄이다 — 없으면 기능이 무의미해진다.
+    expect(view![1], '워치 뷰에서 title 이 빠졌습니다 — 무엇이 도는지 안 보입니다')
+      .toContain('state.title')
+    // 흘끗 보는 표면이라 문장을 읽게 만들지 않는다(Apple .small 지침).
+    expect(view![1], '워치 뷰에 부연 문구(text)가 들어갔습니다').not.toContain('state.text')
+  })
 })
