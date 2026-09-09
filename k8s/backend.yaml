@@ -100,6 +100,31 @@ spec:
             # 실제 ingress-nginx 파드 대역을 확인해 필요 시 갱신할 것 (CIDR 표기 지원).
             - name: TRUSTED_PROXY_IPS
               value: "127.0.0.1,::1,10.42.0.0/16"
+            - name: FRONTEND_URL
+              value: "https://timemanager.mungji.com"
+            - name: APP_TRUST_PROXY
+              value: "true"
+            # ── 아래는 라이브에서 회수한 값이다 (GLOBAL-PIT-083) ──────────────
+            # 이 앱의 CI 는 `kubectl set image` 형이라 이 매니페스트를 apply 하지 않는다
+            # (GLOBAL-PIT-036). 그래서 여기 적힌 값은 저절로 라이브에 닿지 않고,
+            # 반대로 라이브에만 있던 값은 누군가 수동 apply 하는 순간 조용히 사라진다.
+            # 2026-09-08 실측(`kubectl get deploy -o json`)으로 회수했다.
+            - name: OTEL_SDK_DISABLED
+              value: "false"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "http://otel-collector.monitoring.svc.cluster.local:4318"
+            - name: OTEL_SERVICE_NAME
+              value: "timemanager-backend"
+            - name: OTEL_RESOURCE_ATTRIBUTES
+              value: "service.name=timemanager-backend,service.namespace=timemanager,deployment.environment=production"
+            - name: OTEL_LOGS_EXPORTER
+              value: "otlp"
+            - name: OTEL_METRICS_EXPORTER
+              value: "otlp"
+            - name: OTEL_TRACES_EXPORTER
+              value: "otlp"
+            - name: JAVA_TOOL_OPTIONS
+              value: "-XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+UseG1GC"
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
