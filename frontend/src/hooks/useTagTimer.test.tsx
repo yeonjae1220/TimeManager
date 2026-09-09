@@ -12,10 +12,12 @@ vi.mock('@/native/runningSession', async (importOriginal) => ({
 }))
 
 import apiClient from '@/utils/apiClient'
-import { useTagTimer } from './useTagTimer'
+import { useTagTimer, TIMER_REFRESH_INTERVAL_MS } from './useTagTimer'
+import { reportReachable, reportUnreachable } from '@/utils/connectivity'
 import { useTagStore, type Tag } from '@/store/tagStore'
 import {
   peekPendingTimerOperations,
+  enqueuePendingTimerOperation,
   peekResetTimerMarker,
   peekTimerState,
   saveResetTimerMarker,
@@ -74,6 +76,7 @@ const reconnectAndFlush = () =>
   })
 
 beforeEach(() => {
+  reportReachable()
   localStorage.clear()
   post.mockReset()
   get.mockReset()
@@ -90,6 +93,7 @@ beforeEach(() => {
 
 afterEach(() => {
   cleanup()
+  reportReachable()
   localStorage.clear()
 })
 
@@ -596,13 +600,15 @@ describe('useTagTimer — 네이티브 표면 동기화', () => {
 // 네트워크 응답 타이밍을 직접 제어해 "왕복이 끝나기 전" 상태를 관찰한다.
 function deferred<T>() {
   let resolve!: (value: T) => void
-  const promise = new Promise<T>((res) => { resolve = res })
-  return { promise, resolve }
+  let reject!: (error: Error) => void
+  const promise = new Promise<T>((res, rej) => { resolve = res; reject = rej })
+  return { promise, resolve, reject }
 }
 
 describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 전 즉시 표시)', () => {
-  it('[캐시 시드] 태그 트리 캐시에 있으면 네트워크 응답 전에도 즉시 tag·sw 를 그린다', async () => {
+  it('[캐시 시드] 신선한 태그 트리 캐시는 네트워크 응답 전에도 즉시 tag·sw 를 그린다', async () => {
     useTagStore.setState({
+      lastFetchedAt: Date.now(),
       tagTree: [tagPayload({
         id: 1, name: 'Cached', state: true,
         latestStartTimeMs: Date.now() - 5000, latestStopTimeMs: null,
@@ -685,7 +691,7 @@ describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 �
     expect(result.current.tag?.name).toBe('Updated')
   })
 
-  it('[캐시 시드] stale 캐시가 running 이어도 네트워크가 정지로 화해하면 wake lock 을 해제한다', async () => {
+  it('[캐시 시드] 오래된 running은 서버 확인 전 경과시간과 wake lock을 표시하지 않는다', async () => {
     // 캐시가 "실행중"으로 남아 있으면(다른 기기에서 정지된 뒤 이 기기의 캐시가
     // 아직 안 따라잡은 경우) 잠정 렌더가 화면 잠금을 먼저 취득할 수 있다. 서버가
     // 정지로 화해하면 시작 버튼이 이미 "시작"으로 바뀌어 사용자가 stopStopwatch로
@@ -714,8 +720,10 @@ describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 �
       await Promise.resolve()
       await Promise.resolve()
     })
-    expect(request).toHaveBeenCalledWith('screen')
-    expect(result.current.isWakeLockActive).toBe(true)
+    expect(result.current.tag).toBeNull()
+    expect(result.current.sw.elapsedTimeCal).toBe(0)
+    expect(request).not.toHaveBeenCalled()
+    expect(result.current.isWakeLockActive).toBe(false)
 
     await act(async () => {
       gate.resolve({ data: tagPayload({ id: 1, name: 'Stale', state: false, latestStartTimeMs: null, latestStopTimeMs: Date.now() }) })
@@ -723,9 +731,111 @@ describe('useTagTimer — 콜드 스타트 캐시 시드 (네트워크 왕복 �
     })
 
     expect(result.current.isWakeLockActive).toBe(false)
-    expect(release).toHaveBeenCalled()
+    expect(release).not.toHaveBeenCalled()
 
     delete (navigator as unknown as { wakeLock?: unknown }).wakeLock
+  })
+})
+
+describe('useTagTimer — 캐시 신선도와 동시 조회', () => {
+  afterEach(() => vi.useRealTimers())
+
+  it.each([false, true])('오래된 로컬 RUNNING은 미전송 조작이 있을 때만 캐시에서 복원한다 (pending=%s)', async (pending) => {
+    vi.useFakeTimers()
+    saveTimerState({
+      tagId: 1, isRunning: true, elapsedTime: 12, latestStartTime: Date.now() - 2_000,
+      latestEndTime: null, latestStopTimeMs: null, dailyTotalTime: 0, dailyGoalTime: 0,
+    })
+    if (pending) enqueuePendingTimerOperation({ type: 'start', tagId: 1, latestStartTime: Date.now() - 2_000 })
+    vi.setSystemTime(Date.now() + 60_000)
+    useTagStore.setState({
+      // 캐시는 stopped여도 오래된 로컬 덮어쓰기가 RUNNING을 복원할 수 있다.
+      tagTree: [tagPayload({ state: false, latestStopTimeMs: Date.now() - 100_000 })] as Tag[],
+      lastFetchedAt: Date.now() - 60_000,
+    })
+    get.mockReturnValue(new Promise(() => {}))
+    const { result } = renderHook(() => useTagTimer())
+    act(() => { void result.current.loadTag(1, 7) })
+    expect(result.current.sw.isRunning).toBe(pending)
+    expect(syncNative).not.toHaveBeenCalled()
+  })
+
+  it.each(['offline', 'local', 'network-failure'])('%s 상황에서는 오래된 캐시로 실행 중 세션을 복원한다', async (mode) => {
+    const cached = tagPayload({ state: true, latestStartTimeMs: Date.now() - 5_000, latestStopTimeMs: null })
+    useTagStore.setState({ tagTree: [cached] as Tag[], lastFetchedAt: Date.now() - 60_000 })
+    if (mode === 'offline') reportUnreachable()
+    if (mode === 'local') saveTimerState({
+      tagId: 1, isRunning: true, elapsedTime: 12, latestStartTime: Date.now() - 2_000,
+      latestEndTime: null, latestStopTimeMs: null, dailyTotalTime: 0, dailyGoalTime: 0,
+    })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+    const { result } = renderHook(() => useTagTimer())
+    let request!: Promise<void>
+    act(() => { request = result.current.loadTag(1, 7) })
+    if (mode === 'network-failure') {
+      expect(result.current.tag).toBeNull()
+      await act(async () => {
+        reportUnreachable()
+        gate.reject(new Error('network unavailable'))
+        await request
+      })
+    }
+    expect(result.current.sw.isRunning).toBe(true)
+    expect(result.current.sw.elapsedTimeCal).toBeGreaterThan(0)
+    expect(syncNative).not.toHaveBeenCalled()
+  })
+
+  it('늦게 도착한 이전 태그 응답은 선택한 태그와 네이티브 표면을 덮어쓰지 않는다', async () => {
+    const old = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValueOnce(old.promise).mockResolvedValueOnce({ data: tagPayload({ id: 2, name: 'New' }) })
+    const { result } = renderHook(() => useTagTimer())
+    let oldRequest!: Promise<void>
+    act(() => { oldRequest = result.current.loadTag(1, 7) })
+    await act(async () => { await result.current.loadTag(2, 7) })
+    syncNative.mockClear()
+    await act(async () => {
+      old.resolve({ data: tagPayload({ state: true, latestStartTimeMs: Date.now() }) })
+      await oldRequest
+    })
+    expect(result.current.tag?.id).toBe(2)
+    expect(result.current.confirmedTagId).toBe(2)
+    expect(syncNative).not.toHaveBeenCalled()
+  })
+
+  it.each(['stop', 'unmount'])('조회 중 %s 후 도착한 RUNNING 응답은 알림을 부활시키지 않는다', async (action) => {
+    const { result, unmount } = await renderWithTag({ state: true, latestStartTimeMs: Date.now() - 5_000 })
+    const gate = deferred<{ data: ReturnType<typeof tagPayload> }>()
+    get.mockReturnValue(gate.promise)
+    let request!: Promise<void>
+    act(() => { request = result.current.loadTag(1, 7) })
+    if (action === 'stop') await act(async () => { await result.current.stopStopwatch() })
+    else unmount()
+    syncNative.mockClear()
+    await act(async () => {
+      gate.resolve({ data: tagPayload({ state: true, latestStartTimeMs: Date.now() }) })
+      await request
+    })
+    expect(syncNative).not.toHaveBeenCalled()
+    if (action === 'stop') expect(result.current.sw.isRunning).toBe(false)
+  })
+
+  it('화면이 보일 때 주기적 조회로 다른 기기 정지를 반영하고 숨겨지면 조회하지 않는다', async () => {
+    vi.useFakeTimers()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    const { result, unmount } = await renderWithTag({ state: true, latestStartTimeMs: Date.now() - 5_000 })
+    get.mockClear()
+    Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
+    await act(async () => { await vi.advanceTimersByTimeAsync(TIMER_REFRESH_INTERVAL_MS) })
+    expect(get).not.toHaveBeenCalled()
+    Object.defineProperty(document, 'visibilityState', { value: 'visible', configurable: true })
+    get.mockResolvedValue({ data: tagPayload({ state: false, latestStopTimeMs: Date.now() }) })
+    await act(async () => { await vi.advanceTimersByTimeAsync(TIMER_REFRESH_INTERVAL_MS) })
+    expect(get).toHaveBeenCalledTimes(1)
+    expect(result.current.sw.isRunning).toBe(false)
+    expect(lastSyncedSession()).toBeNull()
+    unmount()
+    expect(vi.getTimerCount()).toBe(0)
   })
 })
 
