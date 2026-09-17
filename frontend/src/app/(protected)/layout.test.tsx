@@ -24,7 +24,7 @@ beforeEach(() => {
   replace.mockReset()
   mockRefresh.mockReset()
   localStorage.clear()
-  useAuthStore.setState({ accessToken: null, memberId: null, role: null })
+  useAuthStore.setState({ accessToken: null, memberId: null })
 })
 
 afterEach(() => cleanup())

@@ -31,7 +31,7 @@ describe('useAuth · logout', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     authApi.logout.mockResolvedValue(undefined)
-    useAuthStore.setState({ accessToken: 'token', memberId: 1, role: 'USER' })
+    useAuthStore.setState({ accessToken: 'token', memberId: 1 })
   })
 
   it('네이티브 표면을 정리한다', async () => {

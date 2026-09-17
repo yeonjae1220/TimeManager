@@ -20,7 +20,7 @@ function axiosError(status?: number): unknown {
   return { isAxiosError: true, response: status === undefined ? undefined : { status } }
 }
 
-// 유효한 accessToken JWT는 아니어도 됨 — store는 payload 파싱 실패 시 role을 MEMBER로 둔다.
+// 유효한 accessToken JWT는 아니어도 됨 — store는 토큰 내용을 해석하지 않는다.
 function okResponse(token = 'new.access.token', memberId = 7) {
   return { data: { accessToken: token, memberId } }
 }
@@ -65,7 +65,7 @@ describe('backoffDelay', () => {
 describe('refreshAuth', () => {
   beforeEach(() => {
     // 복원 가능한 세션 상태: memberId는 persist로 남아있다고 가정
-    useAuthStore.setState({ accessToken: null, memberId: 7, role: null })
+    useAuthStore.setState({ accessToken: null, memberId: 7 })
     vi.restoreAllMocks()
   })
 
