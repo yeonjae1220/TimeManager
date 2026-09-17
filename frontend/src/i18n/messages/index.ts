@@ -1,5 +1,4 @@
 // 결정 배경: docs/adr/0001-i18n-custom-vs-library.md
-export { default as en } from './en'
 export type { MessageKey, Messages } from './en'
 
 import en from './en'
