@@ -494,15 +494,7 @@ export function useTagTimer() {
 
   const formattedElapsedTime = formatTime(sw.elapsedTimeCal)
   const formattedDailyTotalTime = formatTime(sw.dailyTotalTimeCal)
-  const formattedTagTotalTime = formatTime(sw.tagTotalTimeCal)
   const formattedTotalTime = formatTime(sw.totalTimeCal)
-  const formattedRemainingTime = formatTime(Math.max(0, sw.dailyGoalTime - sw.dailyTotalTimeCal))
-  const formattedStartTime = sw.latestStartTime
-    ? new Date(sw.latestStartTime).toLocaleTimeString()
-    : '—'
-  const formattedEndTime = sw.latestEndTime
-    ? new Date(sw.latestEndTime).toLocaleTimeString()
-    : '—'
 
   return {
     tag,
@@ -516,10 +508,6 @@ export function useTagTimer() {
     formatTime,
     formattedElapsedTime,
     formattedDailyTotalTime,
-    formattedTagTotalTime,
     formattedTotalTime,
-    formattedRemainingTime,
-    formattedStartTime,
-    formattedEndTime,
   }
 }

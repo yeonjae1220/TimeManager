@@ -168,11 +168,7 @@ vi.mock('@/hooks/useTagTimer', () => ({
       formatTime: (s: number) => `T:${s}`,
       formattedElapsedTime: '00:00:00',
       formattedDailyTotalTime: '00:00:00',
-      formattedTagTotalTime: '00:00:00',
       formattedTotalTime: '00:00:00',
-      formattedRemainingTime: '00:00:00',
-      formattedStartTime: '',
-      formattedEndTime: '',
     }
   },
   // TodayView가 포그라운드 복귀 스로틀 상수를 재사용한다(useTagTimer.ts 참조) —
