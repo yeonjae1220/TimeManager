@@ -22,9 +22,6 @@ interface AuthState {
   clearAuth: () => void
 }
 
-export const isAuthenticated = (s: AuthState) => !!s.accessToken
-export const isAdmin = (s: AuthState) => s.role === 'ADMIN'
-
 export const useAuthStore = create<AuthState>()(
   persist(
     (set) => ({
