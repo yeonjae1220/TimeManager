@@ -18,9 +18,3 @@ export function isNativeApp(): boolean {
   if (typeof window === 'undefined') return false
   return window.Capacitor?.isNativePlatform?.() === true
 }
-
-/** 네이티브 플랫폼 이름. 웹에서는 'web'. */
-export function getNativePlatform(): 'ios' | 'android' | 'web' {
-  if (typeof window === 'undefined') return 'web'
-  return window.Capacitor?.getPlatform?.() ?? 'web'
-}
