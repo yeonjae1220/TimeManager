@@ -2,7 +2,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 
 const replace = vi.fn()
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }) }))
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }), usePathname: () => '/logs' }))
 vi.mock('@/utils/refreshAuth', () => ({ refreshAuth: vi.fn() }))
 vi.mock('@/i18n/I18nProvider', () => ({ useI18n: () => ({ t: (k: string) => k }) }))
 
