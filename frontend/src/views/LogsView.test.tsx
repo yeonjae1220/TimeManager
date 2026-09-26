@@ -152,7 +152,7 @@ describe('LogsView — 조회 실패가 사용자에게 보인다', () => {
     fireEvent.click(screen.getByRole('button', { name: '다시 시도' }))
 
     await waitFor(() => expect(screen.queryByText('불러오지 못했습니다.')).toBeNull())
-    expect(screen.getByText('기록이 없습니다')).toBeTruthy()
+    await waitFor(() => expect(screen.getByText('기록이 없습니다')).toBeTruthy())
   })
 
   // 일별 탭은 원래도 실패 문구를 띄웠다. 아무 표시 없이 빈 화면이 되던 것은
