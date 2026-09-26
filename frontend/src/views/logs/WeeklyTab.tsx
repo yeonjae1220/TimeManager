@@ -130,4 +130,3 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
     </div>
   )
 }
-

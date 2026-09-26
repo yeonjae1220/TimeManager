@@ -20,7 +20,6 @@ interface DailyTabProps {
   /** "오늘"을 정하는 데만 쓴다 — 드릴다운은 URL이 준 날짜를 그대로 쓴다. */
   dayBoundary: DayBoundary
 }
-
 export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps) {
   const { t: tr, language } = useI18n()
   const logicalToday = useLogicalToday(dayBoundary)
@@ -127,4 +126,3 @@ export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }:
     </div>
   )
 }
-

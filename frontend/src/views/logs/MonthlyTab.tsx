@@ -196,4 +196,3 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
     </div>
   )
 }
-

@@ -15,7 +15,6 @@ export interface StopwatchState {
   tagTotalTimeCal: number
   totalTimeCal: number
 }
-
 export function computeStopwatchState(tagId: number, data: Tag): StopwatchState {
   const saved = peekTimerState()
   const useLocalState = saved &&
@@ -72,4 +71,3 @@ export function computeStopwatchState(tagId: number, data: Tag): StopwatchState 
     totalTimeCal: totalTime + liveDelta,
   }
 }
-
