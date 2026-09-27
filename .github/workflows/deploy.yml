@@ -16,6 +16,22 @@ on:
       - main
   workflow_dispatch:
 
+# 배포하는 run 을 트리거된 순서대로 한 줄로 세운다.
+# run 시작부터 deploy 시작까지 걸리는 시간이 매번 달라서(2026-09-27 기준 최근 5회 2m42s~4m35s)
+# 연달아 머지하면 뒤 커밋이 deploy 에 먼저 도착할 수 있다 — 2026-09-26 에는 2m44s 간격의 두 run 이
+# 실제로 겹쳤다. self-hosted 러너는 deploy 잡을 도착 순서대로만 처리하고 :latest 는 늦게 끝난 빌드가
+# 마지막에 덮어쓰므로, 그러면 앞 커밋의 매니페스트와 이미지가 최종 상태가 된다 — 에러 없이, 다음
+# 배포 때까지. 잡 단위 concurrency 는 여전히 도착 순서이고 :latest 경쟁도 그대로라 이걸 못 막는다.
+# run 전체를 묶어야 빌드부터 순서대로 돈다.
+# 기다리던 run 은 더 새 run 이 오면 취소되는데, main 은 선형이라 최신 run 이 그 변경을 모두 담는다.
+# 운영은 하나이므로 push·dispatch 는 브랜치와 무관하게 한 그룹이다. PR run 은 배포하지 않으므로
+# run 마다 고유 그룹을 줘 아무것도 기다리지 않게 한다(기존 동작 그대로).
+# ios-build 는 배포를 막지 않지만 run 이 끝나야 다음 run 이 풀리므로, 이 잡이 느려지면 뒤 run 도
+# 그만큼 기다린다(2026-09-27 기준 최근 12회 모두 deploy 보다 먼저 끝났다).
+concurrency:
+  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.run_id) || 'deploy-production' }}
+  cancel-in-progress: false
+
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ghcr.io/yeonjae1220/timemanager
