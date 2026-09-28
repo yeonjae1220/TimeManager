@@ -24,12 +24,13 @@ on:
 # 배포 때까지. 잡 단위 concurrency 는 여전히 도착 순서이고 :latest 경쟁도 그대로라 이걸 못 막는다.
 # run 전체를 묶어야 빌드부터 순서대로 돈다.
 # 기다리던 run 은 더 새 run 이 오면 취소되는데, main 은 선형이라 최신 run 이 그 변경을 모두 담는다.
-# 운영은 하나이므로 push·dispatch 는 브랜치와 무관하게 한 그룹이다. PR run 은 배포하지 않으므로
-# run 마다 고유 그룹을 줘 아무것도 기다리지 않게 한다(기존 동작 그대로).
+# 배포하는 run 은 main 의 push·dispatch 뿐이다(아래 배포 잡들의 if 와 같은 조건). 그 밖의 run —
+# PR, main 이 아닌 브랜치에서 누른 dispatch — 은 배포하지 않으므로 run 마다 고유 그룹을 줘
+# 아무것도 기다리지 않게 한다. 한 그룹에 넣으면 배포도 안 할 run 이 대기 중인 main run 을 취소한다.
 # ios-build 는 배포를 막지 않지만 run 이 끝나야 다음 run 이 풀리므로, 이 잡이 느려지면 뒤 run 도
 # 그만큼 기다린다(2026-09-27 기준 최근 12회 모두 deploy 보다 먼저 끝났다).
 concurrency:
-  group: ${{ github.event_name == 'pull_request' && format('pr-{0}', github.run_id) || 'deploy-production' }}
+  group: ${{ github.event_name != 'pull_request' && github.ref == 'refs/heads/main' && 'deploy-production' || format('ci-{0}', github.run_id) }}
   cancel-in-progress: false
 
 env:
@@ -176,7 +177,10 @@ jobs:
     name: Build and Push Docker Image
     runs-on: ubuntu-latest
     needs: build-and-test
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    # main 만 운영으로 나간다. push 는 이미 main 으로 좁혀져 있지만 dispatch 는 아무 브랜치에서나
+    # 누를 수 있어서, 이 ref 조건이 없으면 그 브랜치 코드로 :latest 를 덮어쓰고 매니페스트까지 apply 한다.
+    # 이미지 빌드·배포 세 잡 모두 같은 조건이다(concurrency 그룹 조건과도 같다).
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -231,7 +235,7 @@ jobs:
     # Dockerfile 은 npm run build 만 하고 테스트를 돌리지 않기 때문에
     # 이 needs 가 없으면 실패한 코드가 그대로 운영으로 나간다.
     needs: [build-and-test, frontend-checks]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     permissions:
       contents: read
       packages: write
@@ -272,7 +276,7 @@ jobs:
     # self-hosted runner가 lenovo에서 직접 실행 — SSH 불필요
     runs-on: [self-hosted, homelab]
     needs: [build-and-push, build-and-push-frontend]
-    if: github.event_name == 'push' || github.event_name == 'workflow_dispatch'
+    if: (github.event_name == 'push' || github.event_name == 'workflow_dispatch') && github.ref == 'refs/heads/main'
     # 아래 checkout 이 토큰을 쓰므로 다른 잡들처럼 권한을 명시한다.
     permissions:
       contents: read
