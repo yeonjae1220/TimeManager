@@ -445,9 +445,19 @@ export default function TagListView() {
           </div>
 
           {fetchError && (
-            <p className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 16 }}>
-              {t('tags.loadError')}
-            </p>
+            <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
+              <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>
+                {t('tags.loadError')}
+              </p>
+              <button
+                type="button"
+                onClick={() => void refreshTags()}
+                disabled={isRefreshing}
+                style={{ minHeight: 34, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer', opacity: isRefreshing ? 0.4 : 1 }}
+              >
+                {t('common.retry')}
+              </button>
+            </div>
           )}
 
           {addingChildOf === rootTag?.id && (
@@ -460,7 +470,9 @@ export default function TagListView() {
             </div>
           )}
 
-          {tagList.length === 0 && !isRefreshing ? (
+          {/* 조회 실패로 비어 있는 건 "태그 없음"이 아니다 — 빈 상태(첫 태그 만들기)로
+              위장하지 않고 위 실패 안내만 남긴다(GLOBAL-PIT-108). */}
+          {tagList.length === 0 && !isRefreshing && !fetchError ? (
             <div style={{ display: 'grid', gap: 12, justifyItems: 'start', padding: '28px 0' }}>
               <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('tags.empty')}</p>
               {rootTag && (

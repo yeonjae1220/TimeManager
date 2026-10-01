@@ -13,7 +13,7 @@ vi.mock('@/native/runningSession', async (importOriginal) => ({
 
 import apiClient from '@/utils/apiClient'
 import { syncNativeRunningSession } from '@/native/runningSession'
-import { useTagStore } from './tagStore'
+import { selectTagList, useTagStore } from './tagStore'
 import {
   clearTimerState,
   enqueuePendingTimerOperation,
@@ -523,5 +523,16 @@ describe('tagStore.createTag — 생성된 태그 id 반환', () => {
     await useTagStore.getState().createTag('운동', 1)
 
     expect(getFn()).toHaveBeenCalled()
+  })
+})
+
+describe('selectTagList — 셀렉터 참조 안정성', () => {
+  // zustand v5 는 셀렉터를 useSyncExternalStore 의 getSnapshot 으로 그대로 쓴다.
+  // 같은 상태에 매번 새 배열을 돌려주면 React 가 "스냅샷이 바뀌었다"며 끝없이
+  // 다시 렌더해 Maximum update depth exceeded(#185)로 화면이 통째로 죽는다.
+  it('[회귀] ROOT 가 없는(빈/조회 실패) 트리에서도 같은 상태엔 같은 참조를 돌려준다', () => {
+    const state = { ...useTagStore.getState(), tagTree: [] }
+    expect(selectTagList(state)).toBe(selectTagList(state))
+    expect(selectTagList(state)).toEqual([])
   })
 })
