@@ -420,11 +420,18 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 }))
 
 // Selectors — use these instead of inline getters to ensure reactivity
+//
+// ⚠️ 셀렉터는 같은 상태에 대해 항상 같은 참조를 돌려줘야 한다. zustand v5 는
+// 셀렉터를 useSyncExternalStore 의 getSnapshot 으로 그대로 쓰므로, 매 호출 새
+// 배열·객체를 만들면 React 가 끝없이 재렌더해 Maximum update depth exceeded(#185)로
+// 화면 전체가 에러 바운더리로 떨어진다(태그 조회 실패 + 캐시 없음 = ROOT 없는 트리).
+const EMPTY_TAG_LIST: readonly Tag[] = Object.freeze([])
+
 export const selectRootTag = (s: TagStoreState) =>
   s.tagTree.find((t) => t.type === 'ROOT') ?? null
 
-export const selectTagList = (s: TagStoreState) =>
-  selectRootTag(s)?.children ?? []
+export const selectTagList = (s: TagStoreState): readonly Tag[] =>
+  selectRootTag(s)?.children ?? EMPTY_TAG_LIST
 
 export const selectHasCachedData = (s: TagStoreState) =>
   s.tagTree.length > 0
