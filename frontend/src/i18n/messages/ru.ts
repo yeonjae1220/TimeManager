@@ -81,7 +81,9 @@ const ru: Messages = {
   'today.statTodayTag': 'Время тега сегодня',
   'today.statCurrentTagTotal': 'Итог текущего тега',
   'today.sessions': 'Сессии',
-  'today.offline': 'Офлайн — синхронизация произойдёт автоматически после восстановления связи',
+
+  'sync.offline': 'Офлайн · сохранённые данные',
+  'sync.syncing': 'Синхронизация…',
 
   'tags.eyebrow': 'теги',
   'tags.newTag': 'Новый тег',

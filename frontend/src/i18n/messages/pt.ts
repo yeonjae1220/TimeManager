@@ -81,7 +81,9 @@ const pt: Messages = {
   'today.statTodayTag': 'Tempo da tag hoje',
   'today.statCurrentTagTotal': 'Total da tag atual',
   'today.sessions': 'Sessões',
-  'today.offline': 'Offline — será sincronizado automaticamente ao voltar',
+
+  'sync.offline': 'Offline · dados salvos',
+  'sync.syncing': 'Sincronizando…',
 
   'tags.eyebrow': 'tags',
   'tags.newTag': 'Nova tag',

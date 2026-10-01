@@ -81,7 +81,9 @@ const de: Messages = {
   'today.statTodayTag': 'Heutige Tag-Zeit',
   'today.statCurrentTagTotal': 'Aktueller Tag gesamt',
   'today.sessions': 'Sitzungen',
-  'today.offline': 'Offline — wird bei Rückkehr automatisch synchronisiert',
+
+  'sync.offline': 'Offline · gespeicherte Daten',
+  'sync.syncing': 'Synchronisiere…',
 
   'tags.eyebrow': 'Tags',
   'tags.newTag': 'Neuer Tag',

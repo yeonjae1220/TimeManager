@@ -81,7 +81,9 @@ const ko: Messages = {
   'today.statTodayTag': '오늘 태그 기록시간',
   'today.statCurrentTagTotal': '현재 태그 누적',
   'today.sessions': '세션',
-  'today.offline': '오프라인 — 복귀 후 자동 동기화됩니다',
+
+  'sync.offline': '오프라인 · 저장된 기록 표시 중',
+  'sync.syncing': '동기화 중…',
 
   'tags.eyebrow': '태그',
   'tags.newTag': '새 태그',

@@ -81,7 +81,9 @@ const ja: Messages = {
   'today.statTodayTag': '今日のタグ時間',
   'today.statCurrentTagTotal': '現在タグの累計',
   'today.sessions': 'セッション',
-  'today.offline': 'オフライン — 復帰後に自動同期されます',
+
+  'sync.offline': 'オフライン · 保存済みデータを表示中',
+  'sync.syncing': '同期中…',
 
   'tags.eyebrow': 'タグ',
   'tags.newTag': '新しいタグ',

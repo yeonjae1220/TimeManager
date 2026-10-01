@@ -9,8 +9,7 @@ import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
-// 로컬 state 이름(isOnline)과 겹치므로 별칭으로 가져온다.
-import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connectivity'
+import { subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
 import { useDailyResetHour } from '@/hooks/useDailyResetHour'
@@ -62,7 +61,6 @@ export default function TodayView() {
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [showGoalSheet, setShowGoalSheet] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
-  const [isOnline, setIsOnline] = useState(true)
   // 아직 서버 요약을 한 번도 못 받았음을 "0건"과 구분하기 위해 null로 시작한다 —
   // 구분 못 하면 캐시 시드로 태그 통계만 먼저 채워진 화면에서 두 통계 타일이
   // 우연히 같은 값으로 보였다가 요약 도착 시 어긋나 보이는 회귀가 생긴다.
@@ -159,14 +157,11 @@ export default function TodayView() {
 
     loadTags(memberId)
 
-    // 배너와 재전송 트리거를 모두 connectivity 한 곳에서 받는다.
-    // window 'online'/'offline' 을 직접 듣지 않는 이유는 네이티브 WebView 에서
-    // 그 이벤트가 아예 발생하지 않기 때문이다(utils/connectivity.ts 주석 참조) —
-    // 그대로 두면 오프라인 배너가 앱에서 영원히 안 뜨고, 신호가 돌아와도 오프라인
-    // 큐가 재전송되지 않는다.
-    setIsOnline(getIsOnline())
+    // 재전송 트리거를 connectivity 에서 받는다(오프라인 표시는 AppShell 의
+    // SyncStatusPill 이 같은 신호로 그린다). window 'online'/'offline' 을 직접 듣지
+    // 않는 이유는 네이티브 WebView 에서 그 이벤트가 아예 발생하지 않기 때문이다
+    // (utils/connectivity.ts 주석 참조) — 신호가 돌아와도 오프라인 큐가 재전송되지 않는다.
     const unsubscribe = subscribeConnectivity((online) => {
-      setIsOnline(online)
       if (!online) return
       // 재전송(큐에 남은 오프라인 stop 등)이 끝난 뒤에야 요약을 조회한다 — 순서를
       // 바꾸면 아직 서버에 반영되지 않은 세션분이 통째로 빠진 값을 읽어와, 다음
@@ -307,12 +302,6 @@ export default function TodayView() {
   return (
     <AppShell isRunning={sw.isRunning} onRefresh={refreshToday}>
       <div className="page today-page" style={{ position: 'relative' }}>
-        {!isOnline && (
-          <div className="offline-banner">
-            <span className="mono">{t('today.offline')}</span>
-          </div>
-        )}
-
         <div className="topbar">
           <span className="topbar-brand">timemgr</span>
           <span className="mono" style={{ fontSize: 11, color: 'var(--text-2)' }}>{todayLabel(language)}</span>

@@ -90,7 +90,9 @@ const en = {
   'today.statTodayTag': "Today's tag time",
   'today.statCurrentTagTotal': 'Current tag total',
   'today.sessions': 'Sessions',
-  'today.offline': 'Offline — will sync automatically when back online',
+
+  'sync.offline': 'Offline · showing saved data',
+  'sync.syncing': 'Syncing…',
 
   // tags
   'tags.eyebrow': 'tags',
