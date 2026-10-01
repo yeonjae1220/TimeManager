@@ -63,6 +63,8 @@ dependencies {
 
 	//Redis
 	implementation 'org.springframework.boot:spring-boot-starter-data-redis'
+	// 실제 Redis 로 Spring Data 인덱스 정리를 검증 (Docker 없으면 해당 테스트는 건너뜀)
+	testImplementation 'org.testcontainers:junit-jupiter'
 
 	//JWT
 	implementation 'io.jsonwebtoken:jjwt-api:0.13.0'
