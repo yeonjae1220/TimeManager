@@ -2,12 +2,13 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, render, screen, waitFor } from '@testing-library/react'
 
 const replace = vi.fn()
-vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }), usePathname: () => '/logs' }))
+let pathname = '/logs'
+vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }), usePathname: () => pathname }))
 vi.mock('@/utils/refreshAuth', () => ({ refreshAuth: vi.fn() }))
 vi.mock('@/i18n/I18nProvider', () => ({ useI18n: () => ({ t: (k: string) => k }) }))
 
 import { refreshAuth } from '@/utils/refreshAuth'
-import { useAuthStore } from '@/store/authStore'
+import { OPTIMISTIC_SESSION_WINDOW_MS, useAuthStore } from '@/store/authStore'
 import ProtectedLayout from './layout'
 
 const mockRefresh = refreshAuth as unknown as ReturnType<typeof vi.fn>
@@ -24,8 +25,12 @@ beforeEach(() => {
   replace.mockReset()
   mockRefresh.mockReset()
   localStorage.clear()
-  useAuthStore.setState({ accessToken: null, memberId: null })
+  pathname = '/logs'
+  useAuthStore.setState({ accessToken: null, memberId: null, lastAuthOkAt: null })
 })
+
+// 이 기기에서 최근에 인증에 성공한 세션 흔적 — 낙관적 진입의 조건이다.
+const recentSession = () => ({ memberId: 7, lastAuthOkAt: Date.now() - 60_000 })
 
 afterEach(() => cleanup())
 
@@ -92,9 +97,9 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
     return { resolve: (v: Awaited<ReturnType<typeof refreshAuth>>) => resolve(v) }
   }
 
-  it('[신규] memberId 흔적이 있으면 refresh 가 끝나기 전에도 즉시 앱 본체를 연다', () => {
+  it('[신규] 최근 세션 흔적이 있으면 refresh 가 끝나기 전에도 즉시 앱 본체를 연다', () => {
     // 콜드 스타트에서 스켈레톤이 화면 전체(타이머 시작 버튼 포함)를 막던 것을 제거한다.
-    useAuthStore.setState({ memberId: 7 })
+    useAuthStore.setState(recentSession())
     deferredRefresh()
 
     renderLayout()
@@ -113,7 +118,7 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
   })
 
   it('[신규] 낙관적으로 연 뒤 unauthenticated 로 판명되면 화면을 다시 닫고 로그인으로 보낸다', async () => {
-    useAuthStore.setState({ memberId: 7 })
+    useAuthStore.setState(recentSession())
     const gate = deferredRefresh()
 
     renderLayout()
@@ -126,7 +131,7 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
   })
 
   it('[신규] 낙관적으로 연 뒤 offline 로 판명되어도(memberId 보존) 화면은 계속 열려 있다', async () => {
-    useAuthStore.setState({ memberId: 7 })
+    useAuthStore.setState(recentSession())
     const gate = deferredRefresh()
 
     renderLayout()
@@ -136,6 +141,70 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
 
     await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
     expect(screen.getByTestId('app-content')).toBeDefined()
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('memberId 가 있어도 인증 성공이 오래됐으면 refresh 결과를 기다린다(열었다가 튕기지 않게)', () => {
+    useAuthStore.setState({ memberId: 7, lastAuthOkAt: Date.now() - OPTIMISTIC_SESSION_WINDOW_MS - 1 })
+    deferredRefresh()
+
+    renderLayout()
+
+    expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+
+  it('인증 성공 기록이 없는 옛 세션 흔적도 refresh 결과를 기다린다', () => {
+    useAuthStore.setState({ memberId: 7, lastAuthOkAt: null })
+    deferredRefresh()
+
+    renderLayout()
+
+    expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+})
+
+describe('ProtectedLayout — 캐시된 회원과 쿠키의 회원이 다를 때', () => {
+  it('refresh 가 다른 회원으로 복원되면 URL 의 회원 id 를 바로잡는다', async () => {
+    // 낙관적으로 /members/7 을 열었는데 쿠키는 9번 회원의 것이었다. 그대로 두면
+    // 9번의 토큰으로 7번의 자원을 요청해 403 이 쏟아진다.
+    pathname = '/members/7/today'
+    useAuthStore.setState(recentSession())
+    mockRefresh.mockImplementation(async () => {
+      useAuthStore.setState({ accessToken: 'tok', memberId: 9, lastAuthOkAt: Date.now() })
+      return { status: 'authenticated', token: 'tok' }
+    })
+
+    renderLayout()
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/members/9/today'))
+  })
+
+  it('회원 id 가 URL 에 없는 화면이면 그대로 둔다', async () => {
+    pathname = '/logs'
+    useAuthStore.setState(recentSession())
+    mockRefresh.mockImplementation(async () => {
+      useAuthStore.setState({ accessToken: 'tok', memberId: 9, lastAuthOkAt: Date.now() })
+      return { status: 'authenticated', token: 'tok' }
+    })
+
+    renderLayout()
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled())
+    await waitFor(() => expect(screen.getByTestId('app-content')).toBeDefined())
+    expect(replace).not.toHaveBeenCalled()
+  })
+
+  it('같은 회원이면 URL 을 건드리지 않는다', async () => {
+    pathname = '/members/7/today'
+    useAuthStore.setState(recentSession())
+    mockRefresh.mockImplementation(async () => {
+      useAuthStore.setState({ accessToken: 'tok', memberId: 7, lastAuthOkAt: Date.now() })
+      return { status: 'authenticated', token: 'tok' }
+    })
+
+    renderLayout()
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalled())
     expect(replace).not.toHaveBeenCalled()
   })
 })
@@ -176,7 +245,7 @@ describe('ProtectedLayout — hydration', () => {
     document.body.appendChild(container)
 
     // 클라이언트: persist 가 이미 memberId 를 복원한 상태로 hydrate 를 시작한다.
-    useAuthStore.setState({ memberId: 7 })
+    useAuthStore.setState(recentSession())
     await act(async () => { hydrateRoot(container, tree) })
 
     expect(container.querySelector('.app-shell')).not.toBeNull()

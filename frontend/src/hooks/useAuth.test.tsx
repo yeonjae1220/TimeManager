@@ -16,6 +16,9 @@ const authApi = vi.hoisted(() => ({
 }))
 vi.mock('@/api/auth', () => ({ authApi }))
 
+const waitForPendingRefresh = vi.hoisted(() => vi.fn(async () => null))
+vi.mock('@/utils/refreshAuth', () => ({ waitForPendingRefresh }))
+
 vi.mock('@/native/runningSession', () => ({
   syncNativeRunningSession: vi.fn().mockResolvedValue(undefined),
 }))
@@ -49,6 +52,20 @@ describe('useAuth · logout', () => {
     await result.current.logout()
 
     expect(syncNative).toHaveBeenCalledWith(null)
+  })
+
+  it('진행 중인 refresh 가 끝난 뒤(상한 내) 서버 로그아웃을 보낸다', async () => {
+    // 동시에 보내면 refresh 의 회전이 로그아웃의 삭제 뒤에 저장돼 세션이 되살아나고,
+    // 늦게 온 Set-Cookie 가 지운 쿠키를 다시 심는다.
+    const order: string[] = []
+    waitForPendingRefresh.mockImplementationOnce(async () => { order.push('wait'); return null })
+    authApi.logout.mockImplementationOnce(async () => { order.push('logout') })
+    const { result } = renderHook(() => useAuth())
+
+    await result.current.logout()
+
+    expect(order).toEqual(['wait', 'logout'])
+    expect(waitForPendingRefresh).toHaveBeenCalledWith(expect.any(Number))
   })
 
   it('세션을 비우고 로그인 화면으로 보낸다', async () => {

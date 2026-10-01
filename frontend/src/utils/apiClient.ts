@@ -2,7 +2,7 @@
 
 import axios from 'axios'
 import { useAuthStore } from '@/store/authStore'
-import { refreshAuth } from '@/utils/refreshAuth'
+import { refreshAuth, waitForPendingRefresh } from '@/utils/refreshAuth'
 import { reportReachable, reportUnreachable } from '@/utils/connectivity'
 
 // 응답이 영영 오지 않으면(네트워크 hang) 이 프라미스는 resolve도 reject도 되지
@@ -17,8 +17,29 @@ const apiClient = axios.create({
   timeout: REQUEST_TIMEOUT_MS,
 })
 
-apiClient.interceptors.request.use((config) => {
-  const token = useAuthStore.getState().accessToken
+const AUTH_PATH_PREFIX = '/api/v1/auth/'
+
+/**
+ * 진행 중인 refresh 를 요청이 기다리는 상한. 이 대기는 axios timeout 이 시작되기 전이라
+ * 그 15초에 포함되지 않는다 — 상한이 없으면 나쁜 망에서 refresh 재시도 사슬 전체
+ * (수십 초) 동안 화면 요청과 타이머 조작이 실패 처리·오프라인 큐로 가지도 못한다.
+ * 상한을 넘기면 토큰 없이 보내고, 401 이 오면 기존 경로가 같은 refresh 를 다시 기다린다.
+ */
+export const PENDING_REFRESH_WAIT_MS = 4_000
+
+apiClient.interceptors.request.use(async (config) => {
+  let token = useAuthStore.getState().accessToken
+
+  // 콜드 스타트에서는 화면을 refresh 보다 먼저 연다. 그 화면의 첫 요청들이 토큰 없이
+  // 나가면 전부 401 → refresh 대기 → 재요청으로 왕복이 두 배가 되므로, 이미 진행 중인
+  // refresh 가 있으면 그 결과를 (상한까지) 기다렸다가 토큰을 싣는다. 실패(offline·unauthenticated)
+  // 여도 요청은 그대로 보낸다 — 판단은 기존 401 경로가 한다.
+  // 인증 엔드포인트(login·logout 등)는 refresh 와 무관하므로 기다리지 않는다.
+  if (!token && !config.url?.startsWith(AUTH_PATH_PREFIX)) {
+    const result = await waitForPendingRefresh(PENDING_REFRESH_WAIT_MS)
+    if (result?.status === 'authenticated') token = result.token
+  }
+
   if (token) config.headers['Authorization'] = `Bearer ${token}`
   return config
 })
