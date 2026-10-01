@@ -5,6 +5,7 @@ import {
   classifyRefreshError,
   backoffDelay,
   getPendingRefresh,
+  getRecentRefreshOutcome,
   waitForPendingRefresh,
   REFRESH_TIMEOUT_MS,
 } from './refreshAuth'
@@ -221,6 +222,50 @@ describe('refreshAuth', () => {
     expect(result).toEqual({ status: 'unauthenticated' })
     expect(post).toHaveBeenCalledTimes(1)
     expect(useAuthStore.getState().accessToken).toBeNull()
+  })
+})
+
+describe('getRecentRefreshOutcome', () => {
+  beforeEach(() => {
+    useAuthStore.setState({ accessToken: null, memberId: 7 })
+    vi.restoreAllMocks()
+  })
+
+  afterEach(() => vi.useRealTimers())
+
+  it('방금 끝난 refresh 의 결과를 돌려준다 — 랜딩이 받은 offline 을 레이아웃이 다시 돌리지 않게', async () => {
+    vi.spyOn(axios, 'post').mockRejectedValueOnce(axiosError(429))
+    await refreshAuth()
+
+    expect(getRecentRefreshOutcome(5_000)).toEqual({ status: 'offline' })
+  })
+
+  it('상한보다 오래된 결과는 돌려주지 않는다', async () => {
+    vi.spyOn(axios, 'post').mockRejectedValueOnce(axiosError(429))
+    await refreshAuth()
+
+    expect(getRecentRefreshOutcome(5_000, Date.now() + 5_001)).toBeNull()
+  })
+
+  it('진행 중인 refresh 가 있으면 지난 결과는 의미가 없다 — null', async () => {
+    vi.spyOn(axios, 'post').mockRejectedValueOnce(axiosError(429))
+    await refreshAuth()
+    let respond!: (value: unknown) => void
+    vi.spyOn(axios, 'post').mockReturnValueOnce(new Promise((resolve) => { respond = resolve }))
+    const inFlight = refreshAuth()
+
+    expect(getRecentRefreshOutcome(5_000)).toBeNull()
+
+    // 다음 테스트로 진행 중 상태가 새지 않게 끝낸다.
+    respond(okResponse('tok', 7))
+    await inFlight
+  })
+
+  it('미래 시각에 기록된 결과(기기 시계가 뒤로 감)는 믿지 않는다', async () => {
+    vi.spyOn(axios, 'post').mockResolvedValueOnce(okResponse('tok', 7))
+    await refreshAuth()
+
+    expect(getRecentRefreshOutcome(5_000, Date.now() - 1_000)).toBeNull()
   })
 })
 

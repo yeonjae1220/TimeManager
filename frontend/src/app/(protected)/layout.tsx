@@ -3,13 +3,16 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
 import { canOpenOptimistically, useAuthStore } from '@/store/authStore'
-import { refreshAuth } from '@/utils/refreshAuth'
+import { getRecentRefreshOutcome, refreshAuth } from '@/utils/refreshAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 import { NativeTimerSync } from '@/components/NativeTimerSync'
 
 type AuthPhase = 'restoring' | 'ready' | 'offline'
 
 const MEMBER_PATH = /^\/members\/(\d+)(?=\/|$)/
+
+/** 랜딩에서 이 레이아웃까지의 라우팅 시간만 덮으면 된다 — 길면 진짜 재시도를 막는다. */
+const RECENT_REFRESH_REUSE_MS = 5_000
 
 /**
  * URL 의 회원 id 가 인증된 회원과 다르면 고친 경로를, 같거나 URL 에 회원 id 가 없으면 null.
@@ -130,6 +133,13 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
     // 배경에서 돌려 서버 응답으로 화해한다. 흔적이 오래됐으면(서버 세션이 이미 만료됐을
     // 수 있음) 열었다가 로그인으로 튕기는 대신 결과를 기다린다.
     if (canOpenOptimistically(state, Date.now())) setPhase('ready')
+    // 랜딩이 방금 refresh 사슬을 다 돌고 offline 을 받아 이리 보냈다면 같은 사슬을 다시
+    // 돌리지 않는다 — 그동안 스켈레톤이 화면을 막는다. refresh 를 건너뛰는 게 아니라
+    // 방금 끝난 시도의 결과를 쓰는 것이고, 다음 시도는 연결 복구 신호(아래 effect)가 맡는다.
+    else if (getRecentRefreshOutcome(RECENT_REFRESH_REUSE_MS)?.status === 'offline') {
+      setPhase('offline')
+      return
+    }
     void restore()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

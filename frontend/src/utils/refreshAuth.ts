@@ -135,6 +135,24 @@ export function getPendingRefresh(): Promise<RefreshOutcome> | null {
   return pending
 }
 
+/** 마지막으로 끝난 refresh 의 결과와 그 시각. */
+let lastSettled: { outcome: RefreshOutcome; at: number } | null = null
+
+/**
+ * maxMs 안에 끝난 refresh 의 결과. 진행 중인 refresh 가 있거나, 없었거나, 오래됐으면 null.
+ *
+ * 콜드 스타트에서 랜딩이 재시도 사슬을 다 돌고 offline 을 받은 직후 보호 레이아웃이
+ * 마운트되면, 레이아웃이 같은 사슬을 처음부터 다시 돌며 그동안 스켈레톤으로 화면을
+ * 막는다(응답 없는 망에선 시도당 최대 REFRESH_TIMEOUT_MS). 방금 받은 결과를 재사용해
+ * 이를 막는다. 상한은 짧게 둔다 — 그 뒤의 재시도는 연결 복구 신호가 맡는다.
+ */
+export function getRecentRefreshOutcome(maxMs: number, now = Date.now()): RefreshOutcome | null {
+  if (pending || !lastSettled) return null
+  const age = now - lastSettled.at
+  // 미래 시각(기기 시계가 뒤로 감)은 나이를 알 수 없으므로 믿지 않는다.
+  return age >= 0 && age <= maxMs ? lastSettled.outcome : null
+}
+
 /**
  * 진행 중인 refresh 를 최대 maxMs 까지만 기다린다. 없거나 상한을 넘기면 null.
  * 상한을 넘겨도 refresh 자체는 계속 돈다 — 기다리는 쪽만 손을 뗀다.
@@ -158,8 +176,13 @@ export async function waitForPendingRefresh(maxMs: number): Promise<RefreshOutco
  */
 export async function refreshAuth(): Promise<RefreshOutcome> {
   if (pending) return pending
-  pending = attemptRefresh().finally(() => {
-    pending = null
-  })
+  pending = attemptRefresh()
+    .then((outcome) => {
+      lastSettled = { outcome, at: Date.now() }
+      return outcome
+    })
+    .finally(() => {
+      pending = null
+    })
   return pending
 }

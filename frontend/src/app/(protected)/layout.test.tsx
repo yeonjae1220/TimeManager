@@ -4,14 +4,15 @@ import { cleanup, render, screen, waitFor } from '@testing-library/react'
 const replace = vi.fn()
 let pathname = '/logs'
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace }), usePathname: () => pathname }))
-vi.mock('@/utils/refreshAuth', () => ({ refreshAuth: vi.fn() }))
+vi.mock('@/utils/refreshAuth', () => ({ refreshAuth: vi.fn(), getRecentRefreshOutcome: vi.fn() }))
 vi.mock('@/i18n/I18nProvider', () => ({ useI18n: () => ({ t: (k: string) => k }) }))
 
-import { refreshAuth } from '@/utils/refreshAuth'
+import { getRecentRefreshOutcome, refreshAuth } from '@/utils/refreshAuth'
 import { OPTIMISTIC_SESSION_WINDOW_MS, useAuthStore } from '@/store/authStore'
 import ProtectedLayout from './layout'
 
 const mockRefresh = refreshAuth as unknown as ReturnType<typeof vi.fn>
+const mockRecentOutcome = getRecentRefreshOutcome as unknown as ReturnType<typeof vi.fn>
 
 function renderLayout() {
   return render(
@@ -24,6 +25,7 @@ function renderLayout() {
 beforeEach(() => {
   replace.mockReset()
   mockRefresh.mockReset()
+  mockRecentOutcome.mockReset().mockReturnValue(null)
   localStorage.clear()
   pathname = '/logs'
   useAuthStore.setState({ accessToken: null, memberId: null, lastAuthOkAt: null })
@@ -160,6 +162,43 @@ describe('ProtectedLayout — 콜드 스타트 낙관적 렌더 (refresh 왕복�
     renderLayout()
 
     expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+})
+
+describe('ProtectedLayout — 직전 refresh 결과 재사용 (재시도 사슬을 두 번 돌지 않는다)', () => {
+  // 흔적이 오래됐거나 없으면 랜딩이 refresh 사슬을 다 돌고 offline 을 받은 뒤에야 이리 온다.
+  // 여기서 또 restore() 를 돌리면 같은 사슬을 처음부터 다시 돌며 스켈레톤으로 막는다.
+  const staleSession = () => ({ memberId: 7, lastAuthOkAt: Date.now() - OPTIMISTIC_SESSION_WINDOW_MS - 1 })
+
+  it('방금 offline 으로 끝난 refresh 가 있으면 다시 돌리지 않고 로컬 캐시로 바로 연다', () => {
+    useAuthStore.setState(staleSession())
+    mockRecentOutcome.mockReturnValue({ status: 'offline' })
+
+    renderLayout()
+
+    expect(screen.getByTestId('app-content')).toBeDefined()
+    expect(mockRefresh).not.toHaveBeenCalled()
+  })
+
+  it('재사용한 뒤에도 연결 복구 신호가 오면 다시 시도한다', async () => {
+    useAuthStore.setState(staleSession())
+    mockRecentOutcome.mockReturnValue({ status: 'offline' })
+    mockRefresh.mockResolvedValue({ status: 'authenticated', token: 'tok' })
+
+    renderLayout()
+    window.dispatchEvent(new Event('online'))
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
+  })
+
+  it('직전 결과가 offline 이 아니면 재사용하지 않고 refresh 를 시도한다', async () => {
+    useAuthStore.setState(staleSession())
+    mockRecentOutcome.mockReturnValue({ status: 'unauthenticated' })
+    mockRefresh.mockResolvedValue({ status: 'authenticated', token: 'tok' })
+
+    renderLayout()
+
+    await waitFor(() => expect(mockRefresh).toHaveBeenCalledTimes(1))
   })
 })
 
