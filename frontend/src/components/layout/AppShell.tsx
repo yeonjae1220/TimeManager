@@ -3,6 +3,7 @@
 import { useCallback, useState } from 'react'
 import TabBar from './TabBar'
 import PullToRefresh from './PullToRefresh'
+import SyncStatusPill from './SyncStatusPill'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -37,6 +38,7 @@ export default function AppShell({ children, isRunning = false, onRefresh }: App
 
   return (
     <div className="app-shell">
+      <SyncStatusPill />
       <PullToRefresh onRefresh={handleRefresh}>
         <div key={onRefresh ? 'static' : refreshKey}>{children}</div>
       </PullToRefresh>

@@ -81,7 +81,9 @@ const fr: Messages = {
   'today.statTodayTag': 'Temps du tag aujourd’hui',
   'today.statCurrentTagTotal': 'Total du tag actuel',
   'today.sessions': 'Sessions',
-  'today.offline': 'Hors ligne — la synchronisation se fera automatiquement au retour',
+
+  'sync.offline': 'Hors ligne · données enregistrées',
+  'sync.syncing': 'Synchronisation…',
 
   'tags.eyebrow': 'tags',
   'tags.newTag': 'Nouveau tag',

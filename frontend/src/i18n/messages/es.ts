@@ -81,7 +81,9 @@ const es: Messages = {
   'today.statTodayTag': 'Tiempo de etiqueta hoy',
   'today.statCurrentTagTotal': 'Total de etiqueta actual',
   'today.sessions': 'Sesiones',
-  'today.offline': 'Sin conexión — se sincronizará automáticamente al volver',
+
+  'sync.offline': 'Sin conexión · datos guardados',
+  'sync.syncing': 'Sincronizando…',
 
   'tags.eyebrow': 'etiquetas',
   'tags.newTag': 'Nueva etiqueta',

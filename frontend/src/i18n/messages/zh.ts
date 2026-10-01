@@ -81,7 +81,9 @@ const zh: Messages = {
   'today.statTodayTag': '今日标签时间',
   'today.statCurrentTagTotal': '当前标签累计',
   'today.sessions': '会话',
-  'today.offline': '离线 — 恢复后将自动同步',
+
+  'sync.offline': '离线 · 显示已保存数据',
+  'sync.syncing': '同步中…',
 
   'tags.eyebrow': '标签',
   'tags.newTag': '新建标签',

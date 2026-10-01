@@ -404,14 +404,55 @@ input, select, textarea {
 }
 
 /* Offline banner */
-.offline-banner {
+/* 연결·동기화 상태 표시(SyncStatusPill). topbar(min-height 52px) 바로 아래에 띄운다 —
+   topbar 안 가운데에 두면 좁은 폰에서 brand·날짜와 겹친다. 흐름 밖(fixed)이라
+   나타나고 사라져도 콘텐츠를 밀지 않고, 터치를 가로채지 않는다. */
+.sync-pill {
+  position: fixed;
+  top: calc(env(safe-area-inset-top) + 58px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 150;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
   background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
-  padding: 8px 20px;
-  text-align: center;
-  font-size: 11px;
+  border: 1px solid var(--border);
   color: var(--text-2);
-  margin: 0 -20px;
+  font-size: 10px;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  pointer-events: none;
+  animation: sync-pill-in 0.2s ease;
+}
+
+.sync-pill-dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--text-3);
+}
+
+.sync-pill--syncing .sync-pill-dot {
+  background: var(--accent);
+  animation: sync-pill-pulse 1.2s ease infinite;
+}
+
+@keyframes sync-pill-in {
+  from { opacity: 0; transform: translate(-50%, -4px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+
+@keyframes sync-pill-pulse {
+  0%, 100% { opacity: 0.35; }
+  50% { opacity: 1; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sync-pill,
+  .sync-pill--syncing .sync-pill-dot { animation: none; }
 }
 
 /* Spinner */
