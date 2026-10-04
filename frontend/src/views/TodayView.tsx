@@ -1,7 +1,7 @@
 'use client'
 
 import { useState, useEffect, useCallback, useRef } from 'react'
-import { useParams, useRouter, useSearchParams } from 'next/navigation'
+import { usePathname, useRouter, useSearchParams } from 'next/navigation'
 import AppShell from '@/components/layout/AppShell'
 import TagPickerModal from '@/components/TagPickerModal'
 import DailyGoalSheet from '@/components/DailyGoalSheet'
@@ -30,12 +30,13 @@ const TODAY_RECENT_TAG_LIMIT = 6
 // 보고 있는 동안 타이머가 스스로 시작되는 것처럼 보인다(회귀).
 const AUTOSTART_STALE_MS = 10_000
 
-export default function TodayView() {
-  const params = useParams()
+// 회원 id 는 경로가 정한다 — /members/[id]/today 는 URL 에서, /today(앱 시작 화면)는
+// 인증 스토어에서 읽어 넘긴다.
+export default function TodayView({ memberId }: { memberId: number }) {
   const router = useRouter()
+  const pathname = usePathname()
   const searchParams = useSearchParams()
   const { t, language } = useI18n()
-  const memberId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
   const handleOnline = useTagStore((s) => s.handleOnline)
@@ -143,7 +144,8 @@ export default function TodayView() {
             pendingAutoStartRequestedAtRef.current = Date.now()
             // 소비 즉시 URL에서 지운다 — 남겨두면 새로고침이나 재진입 시
             // 이미 정지한 세션을 다시 자동 시작시킬 수 있다.
-            router.replace(`/members/${memberId}/today?tagId=${tagId}`)
+            // 지금 경로에 그대로 머문다 — /today 에서 회원 경로로 바꾸면 같은 화면이 remount 된다.
+            router.replace(`${pathname}?tagId=${tagId}`)
           }
           loadTag(tagId, memberId).then(() => addRecentTag(tagId)).catch(() => {})
         }

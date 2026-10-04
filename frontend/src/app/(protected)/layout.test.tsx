@@ -70,6 +70,17 @@ describe('ProtectedLayout — 오프라인 접근 게이트', () => {
     expect(screen.queryByTestId('app-content')).toBeNull()
   })
 
+  it('앱 시작 화면(/today)으로 열었는데 로그인이 안 돼 있으면 로그인으로 보낸다', async () => {
+    // 홈 화면 앱은 랜딩을 거치지 않고 /today 로 바로 열린다 — 로그아웃 상태의 행선지는 /login 이다.
+    pathname = '/today'
+    mockRefresh.mockResolvedValue({ status: 'unauthenticated' })
+
+    renderLayout()
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/login'))
+    expect(screen.queryByTestId('app-content')).toBeNull()
+  })
+
   it('[EC10] memberId 유무와 무관하게 refresh 를 항상 먼저 시도한다', async () => {
     // 로컬 캐시 필드를 게이트로 쓰면 쿠키가 살아있어도 복원을 시도조차 못 한다(PIT-053).
     mockRefresh.mockResolvedValue({ status: 'authenticated', token: 't' })
