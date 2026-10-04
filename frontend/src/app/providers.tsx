@@ -5,6 +5,7 @@ import type { UiLanguage } from '@/i18n/messages/index'
 import { ThemeProvider } from '@/theme/ThemeProvider'
 import { NativeShell } from '@/components/NativeShell'
 import { ConnectivityWatcher } from '@/components/ConnectivityWatcher'
+import { RenderWatchdog } from '@/components/RenderWatchdog'
 
 export function Providers({
   children,
@@ -19,6 +20,7 @@ export function Providers({
         {children}
         <NativeShell />
         <ConnectivityWatcher />
+        <RenderWatchdog />
       </I18nProvider>
     </ThemeProvider>
   )

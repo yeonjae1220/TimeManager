@@ -36,6 +36,37 @@ export interface Tag {
 
 const cacheKey = (memberId: number) => `tags-${memberId}`
 
+/**
+ * IndexedDB 캐시 읽기의 상한. iOS WebKit 은 앱이 백그라운드에서 돌아온 뒤 IndexedDB 요청이
+ * 끝나지 않는(resolve·reject 둘 다 없는) 경우가 있다 — 상한이 없으면 그 뒤의 서버 조회까지
+ * 영영 시작되지 않는다. 캐시는 서버 값을 기다리는 동안의 보조이므로 넘기면 캐시 없음으로 본다.
+ */
+export const IDB_TIMEOUT_MS = 2_000
+
+async function readTagCache(memberId: number): Promise<Tag[] | undefined> {
+  let timer: ReturnType<typeof setTimeout> | undefined
+  const giveUp = new Promise<undefined>((resolve) => {
+    timer = setTimeout(() => {
+      console.warn('IndexedDB cache read timed out')
+      resolve(undefined)
+    }, IDB_TIMEOUT_MS)
+  })
+  try {
+    return await Promise.race([idbGet(cacheKey(memberId)) as Promise<Tag[] | undefined>, giveUp])
+  } finally {
+    clearTimeout(timer)
+  }
+}
+
+/**
+ * 캐시 저장은 기다리지 않는다. 서버 값은 이미 화면에 반영됐고 저장은 다음 콜드 스타트용이다 —
+ * 기다리면 저장이 끝나지 않을 때(위 iOS 문제) isRefreshing 이 영영 풀리지 않아 "동기화 중"이
+ * 고착되고, 그 뒤의 새로고침은 전부 대기열에만 쌓인다.
+ */
+function writeTagCache(memberId: number, tagTree: Tag[], label: string): void {
+  idbSet(cacheKey(memberId), tagTree).catch((e) => console.warn(`${label}:`, e))
+}
+
 let _refreshDebounceTimer: ReturnType<typeof setTimeout> | null = null
 let _retryPromise: Promise<void> | null = null
 
@@ -205,7 +236,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     }
 
     try {
-      const cached = await idbGet(cacheKey(memberId)) as Tag[] | undefined
+      const cached = await readTagCache(memberId)
       if (cached) set({ tagTree: cached })
     } catch (e) {
       console.warn('IndexedDB cache read failed:', e)
@@ -260,18 +291,13 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       tagTree = applyLocalTimerOverrides(tagTree)
 
       set({ tagTree })
-
-      try {
-        await idbSet(cacheKey(memberId), tagTree)
-      } catch (e) {
-        console.warn('IndexedDB cache save failed:', e)
-      }
+      writeTagCache(memberId, tagTree, 'IndexedDB cache save failed')
     } catch (error) {
       console.error('Tag fetch failed:', error)
       if (!selectHasCachedData(get())) set({ fetchError: true })
       if (get().tagTree.length === 0) {
         try {
-          const cached = await idbGet(cacheKey(memberId)) as Tag[] | undefined
+          const cached = await readTagCache(memberId)
           if (cached) set({ tagTree: cached })
         } catch (e) {
           console.warn('IndexedDB recovery failed:', e)
@@ -294,11 +320,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       target.state = state
       set({ tagTree, lastFetchedAt: Date.now() })
       const activeMemberId = get()._activeMemberId
-      if (activeMemberId) {
-        idbSet(cacheKey(activeMemberId), tagTree).catch((e) =>
-          console.warn('IndexedDB optimistic update failed:', e)
-        )
-      }
+      if (activeMemberId) writeTagCache(activeMemberId, tagTree, 'IndexedDB optimistic update failed')
     }
   },
 
