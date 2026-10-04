@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import type { AxiosAdapter } from 'axios'
+import { AxiosError, type AxiosAdapter, type InternalAxiosRequestConfig } from 'axios'
 
 vi.mock('@/utils/connectivity', () => ({
   reportReachable: vi.fn(),
@@ -13,6 +13,7 @@ vi.mock('@/utils/refreshAuth', () => ({
 import apiClient, { PENDING_REFRESH_WAIT_MS } from './apiClient'
 import { waitForPendingRefresh, refreshAuth } from '@/utils/refreshAuth'
 import { useAuthStore } from '@/store/authStore'
+import { hasInflightWrites } from '@/utils/inflightWrites'
 
 const mockPending = waitForPendingRefresh as unknown as ReturnType<typeof vi.fn>
 const mockRefresh = refreshAuth as unknown as ReturnType<typeof vi.fn>
@@ -90,5 +91,83 @@ describe('apiClient — 진행 중인 refresh 대기', () => {
     const res = await apiClient.post('/api/v1/auth/logout', undefined, { adapter: echoAuthHeader })
 
     expect(res.status).toBe(200)
+  })
+})
+
+describe('apiClient — 진행 중인 쓰기 요청 추적', () => {
+  // 화면 정지 복구(RenderWatchdog)는 쓰기 요청이 응답을 받기 전에는 새로고침하지 않는다.
+  // 끊긴 타이머 조작은 오프라인 큐에도 서버에도 남지 않기 때문이다.
+
+  /** 직접 끝낼 수 있는 어댑터 — 요청이 날아가 있는 동안의 상태를 본다. */
+  function deferredAdapter() {
+    let finish: (status: number) => void = () => {}
+    const adapter: AxiosAdapter = (config) =>
+      new Promise((resolve, reject) => {
+        finish = (status) => {
+          const response = { data: null, status, statusText: '', headers: {}, config }
+          if (status < 400) resolve(response)
+          else reject(new AxiosError('fail', String(status), config, null, response))
+        }
+      })
+    return { adapter, finish: (status: number) => finish(status) }
+  }
+
+  it('쓰기 요청이 응답을 기다리는 동안 진행 중으로 보고, 응답이 오면 해소한다', async () => {
+    const { adapter, finish } = deferredAdapter()
+
+    const req = apiClient.post('/api/v1/tags/1/start', undefined, { adapter })
+    await vi.waitFor(() => expect(hasInflightWrites()).toBe(true))
+    finish(200)
+    await req
+
+    expect(hasInflightWrites()).toBe(false)
+  })
+
+  it('실패한 쓰기 요청도 해소한다', async () => {
+    const { adapter, finish } = deferredAdapter()
+
+    const req = apiClient.post('/api/v1/tags/1/stop', undefined, { adapter })
+    await vi.waitFor(() => expect(hasInflightWrites()).toBe(true))
+    finish(500)
+    await expect(req).rejects.toBeInstanceOf(AxiosError)
+
+    expect(hasInflightWrites()).toBe(false)
+  })
+
+  it('읽기 요청은 세지 않는다', async () => {
+    const { adapter, finish } = deferredAdapter()
+
+    const req = apiClient.get('/api/v1/tags', { adapter })
+    await new Promise((r) => setTimeout(r, 0))
+    expect(hasInflightWrites()).toBe(false)
+    finish(200)
+    await req
+  })
+
+  it('401 뒤 재요청이 끝날 때까지 진행 중으로 보고, 끝나면 한 번만 해소한다', async () => {
+    useAuthStore.setState({ accessToken: 'old' })
+    mockRefresh.mockResolvedValue({ status: 'authenticated', token: 'new' })
+    let calls = 0
+    let finishRetry: () => void = () => {}
+    const adapter: AxiosAdapter = (config: InternalAxiosRequestConfig) => {
+      calls += 1
+      const response = { data: null, status: 200, statusText: '', headers: {}, config }
+      if (calls === 1) {
+        return Promise.reject(
+          new AxiosError('unauthorized', '401', config, null, { ...response, status: 401 }),
+        )
+      }
+      return new Promise((resolve) => {
+        finishRetry = () => resolve(response)
+      })
+    }
+
+    const req = apiClient.post('/api/v1/tags/1/start', undefined, { adapter })
+    await vi.waitFor(() => expect(calls).toBe(2))
+    expect(hasInflightWrites()).toBe(true)
+    finishRetry()
+    await req
+
+    expect(hasInflightWrites()).toBe(false)
   })
 })
