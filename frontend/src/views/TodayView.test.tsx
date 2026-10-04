@@ -10,7 +10,7 @@ import { useState } from 'react'
 const push = vi.fn()
 const replace = vi.fn()
 vi.mock('next/navigation', () => ({
-  useParams: () => ({ id: '1' }),
+  usePathname: () => mockPathname,
   useRouter: () => ({ push, replace, back: vi.fn() }),
   useSearchParams: () => new URLSearchParams(mockSearch),
 }))
@@ -183,11 +183,12 @@ import TodayView from './TodayView'
 const getApiClientGet = () => apiGet
 
 let mockSearch = ''
+let mockPathname = '/members/1/today'
 
 function renderToday() {
   return render(
     <I18nProvider initialLanguage="ko">
-      <TodayView />
+      <TodayView memberId={1} />
     </I18nProvider>,
   )
 }
@@ -201,6 +202,7 @@ function deferred<T>() {
 
 beforeEach(() => {
   mockSearch = ''
+  mockPathname = '/members/1/today'
   mockLoadedTagPresets.clear()
   autoConfirm = true
   pendingConfirm = null
@@ -268,6 +270,17 @@ describe('TodayView — 태그 탭 시작 버튼(autostart) 오케스트레이�
     renderToday()
 
     await waitFor(() => expect(replace).toHaveBeenCalledWith('/members/1/today?tagId=42'))
+  })
+
+  it('[회귀] /today(앱 시작 화면)에서 autostart 를 소비하면 /today 에 머문다', async () => {
+    // 회원 경로로 바꿔 치우면 같은 화면이 다른 경로로 다시 열려 타이머 화면이 remount 된다.
+    mockPathname = '/today'
+    mockSearch = 'tagId=42&autostart=1'
+    mockLoadedTagPresets.set(42, { name: '독서', isRunning: false })
+
+    renderToday()
+
+    await waitFor(() => expect(replace).toHaveBeenCalledWith('/today?tagId=42'))
   })
 
   it('[회귀] 이미 실행 중인 태그를 autostart로 열면 다시 시작하지 않는다', async () => {

@@ -9,7 +9,15 @@ export default function manifest(): MetadataRoute.Manifest {
     name: 'TimeManager',
     short_name: 'timemgr',
     description: 'A time tracking app — capture every moment with a per-tag stopwatch.',
-    start_url: '/',
+    // 홈 화면 앱은 랜딩(/)을 거치지 않고 타이머 화면으로 바로 연다 — 랜딩에서 다시
+    // /members/{id}/today 로 이동하면 서버 왕복이 하나 더 붙어 콜드 스타트마다 스켈레톤이
+    // 그만큼 길어진다. 로그아웃 상태면 보호 레이아웃이 /login 으로 보낸다.
+    // ⚠️ iOS 는 홈 화면에 추가하는 순간의 start_url 을 저장해 두므로, 이미 추가한 아이콘은
+    // 지우고 다시 추가해야 바뀐다.
+    start_url: '/today',
+    // id 를 생략하면 start_url 이 곧 앱 정체성이 된다. 예전 값('/')으로 고정해 두지 않으면
+    // 이미 설치된 앱(Android·데스크톱 Chrome)이 다른 앱으로 취급돼 매니페스트 갱신을 못 받는다.
+    id: '/',
     scope: '/',
     display: 'standalone',
     orientation: 'portrait',

@@ -20,6 +20,10 @@ const config: CapacitorConfig = {
     // 번들 안의 정적 파일을 띄운다. errorPath 는 webDir 기준 경로라 url 과 병행 가능하다.
     // 흰 화면은 App Store 2.1(Performance) 리젝의 대표 사유다.
     errorPath: 'offline.html',
+    // 웹 PWA 의 start_url 과 같은 이유로 랜딩을 건너뛰고 타이머 화면으로 연다.
+    // ⚠️ 앞의 '/' 를 빼면 안 된다 — Android 는 url 뒤에 문자열을 그대로 이어 붙여
+    // 'https://timemanager.mungji.comtoday' 가 된다(iOS 는 경로로 붙여 둘 다 동작).
+    appStartPath: '/today',
   },
   ios: {
     // ⚠️ true 필수 — Apple은 WKWebView에서 Service Worker·일부 스토리지 API를
