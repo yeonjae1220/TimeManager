@@ -27,7 +27,7 @@ import java.util.List;
 @Slf4j
 @RestController
 @RequiredArgsConstructor
-@RequestMapping("/api/v1/records")
+@RequestMapping({"/api/v1/records", "/api/v1/manual-records"})
 public class RecordApiController {
 
     private final GetRecordListQuery getRecordListQuery;
@@ -58,7 +58,7 @@ public class RecordApiController {
             throw new DomainException("접근 권한이 없습니다");
         }
         return ResponseEntity.status(201).body(createRecordUseCase.createRecord(
-                new CreateRecordCommand(request.getTagId(), request.getNewStartTime(), request.getNewEndTime(), request.isForceOverwrite())
+                new CreateRecordCommand(request.getTagId(), request.getNewStartTime(), request.getNewEndTime(), request.isForceOverwrite(), request.getOverlapToken())
         ));
     }
 
@@ -67,7 +67,7 @@ public class RecordApiController {
                                                  @AuthenticationPrincipal Long memberId,
                                                  @Valid @RequestBody EditRecordTimeRequest request) {
         return ResponseEntity.ok(editRecordTimeUseCase.editRecordTime(
-                new EditRecordTimeCommand(recordId, request.getNewStartTime(), request.getNewEndTime(), memberId, request.isForceOverwrite(), request.getNewTagId())
+                new EditRecordTimeCommand(recordId, request.getNewStartTime(), request.getNewEndTime(), memberId, request.isForceOverwrite(), request.getNewTagId(), request.getOverlapToken(), request.getRecordToken())
         ));
     }
 

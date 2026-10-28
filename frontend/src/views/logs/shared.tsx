@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo } from 'react'
+import { useMemo, useEffect, useState } from 'react'
 import apiClient from '@/utils/apiClient'
 import { type DailyResetHourState } from '@/hooks/useDailyResetHour'
 import { resolveTodaySummaryDateParam } from '@/views/todayRecordTotal'
@@ -11,6 +11,7 @@ import { useI18n } from '@/i18n/I18nProvider'
 // ────────────────────────────────────────────────────────────
 
 export interface SessionDetail {
+  recordId?: number
   startTime: string
   endTime: string
   durationSeconds: number
@@ -227,10 +228,17 @@ export function LoadError({ onRetry }: { onRetry: () => void }) {
  */
 export function useLogicalToday(dayBoundary: DayBoundary): Date | null {
   const { resetHour, timezone } = dayBoundary
+  const [now, setNow] = useState(() => Date.now())
+  useEffect(() => {
+    const update = () => setNow(Date.now())
+    const interval = setInterval(update, 30_000)
+    document.addEventListener('visibilitychange', update)
+    return () => { clearInterval(interval); document.removeEventListener('visibilitychange', update) }
+  }, [])
+  const key = resolveTodaySummaryDateParam(new Date(now), resetHour, timezone)
   return useMemo(() => {
-    const key = resolveTodaySummaryDateParam(new Date(), resetHour, timezone)
     return key ? parseLocalDate(key) : null
-  }, [resetHour, timezone])
+  }, [key])
 }
 
 /**

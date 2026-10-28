@@ -45,12 +45,18 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
 
+        loadTagPort.lockMember(tag.getMemberId().value());
         TimeRange timeRange = new TimeRange(command.startTime(), command.endTime());
 
         // 중복 검사 — 같은 회원의 모든 태그에 걸쳐 시간대가 겹치는지 확인
         List<OverlapResult> overlaps = findOverlappingRecordsPort.findOverlappingRecords(
                 tag.getMemberId().value(), command.startTime(), command.endTime(), null);
-        if (!overlaps.isEmpty() && !command.forceOverwrite()) {
+        if (overlaps.size() == 1) {
+            OverlapResult existing = overlaps.get(0);
+            if (existing.tagId().equals(command.tagId()) && existing.startTime().toInstant().equals(command.startTime().toInstant())
+                    && existing.endTime().toInstant().equals(command.endTime().toInstant())) return existing.recordId();
+        }
+        if (!overlaps.isEmpty() && (!command.forceOverwrite() || !RecordOverlapException.token(overlaps).equals(command.overlapToken()))) {
             throw new RecordOverlapException(overlaps);
         }
         Set<Long> affectedTagIds = new HashSet<>();
@@ -72,6 +78,7 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
 
     @Override
     public Long editRecordTime(EditRecordTimeCommand command) {
+        loadTagPort.lockMember(command.memberId());
         Record record = loadRecordPort.loadRecord(command.recordId())
                 .orElseThrow(() -> new DomainException("Record not found: " + command.recordId()));
 
@@ -82,6 +89,14 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
             throw new DomainException("접근 권한이 없습니다");
         }
 
+        String currentToken = record.getId().value() + ":" + record.getTagId().value() + ":"
+                + record.getTimeRange().start().toInstant().toEpochMilli() + ":" + record.getTimeRange().end().toInstant().toEpochMilli();
+        boolean sameRange = record.getTimeRange().start().toInstant().equals(command.newStartTime().toInstant())
+                && record.getTimeRange().end().toInstant().equals(command.newEndTime().toInstant());
+        if (command.recordToken() != null && !command.recordToken().equals(currentToken)) {
+            if (sameRange && (command.newTagId() == null || command.newTagId().equals(record.getTagId().value()))) return command.recordId();
+            throw new project.TimeManager.domain.exception.RecordChangedException();
+        }
         long oldTotalTime = record.getTotalTime();
         Long oldTagId = record.getTagId().value();
         TimeRange newRange = new TimeRange(command.newStartTime(), command.newEndTime());
@@ -99,7 +114,7 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
         // 중복 검사 — 자기 자신(excludeRecordId)은 제외하고 검사
         List<OverlapResult> overlaps = findOverlappingRecordsPort.findOverlappingRecords(
                 tag.getMemberId().value(), command.newStartTime(), command.newEndTime(), command.recordId());
-        if (!overlaps.isEmpty() && !command.forceOverwrite()) {
+        if (!overlaps.isEmpty() && (!command.forceOverwrite() || !RecordOverlapException.token(overlaps).equals(command.overlapToken()))) {
             throw new RecordOverlapException(overlaps);
         }
         Set<Long> affectedTagIds = new HashSet<>();
@@ -137,6 +152,7 @@ public class RecordCommandService implements CreateRecordUseCase, EditRecordTime
 
     @Override
     public boolean deleteRecord(Long recordId, Long memberId) {
+        loadTagPort.lockMember(memberId);
         Optional<Record> recordOpt = loadRecordPort.loadRecord(recordId);
         if (recordOpt.isEmpty()) return false;
 

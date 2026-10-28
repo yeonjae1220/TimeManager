@@ -13,8 +13,8 @@
  * 것처럼 보이는가"이고, 그 시계는 브라우저 로컬 자정에서 되감긴다. 시계와 꼬리표가
  * 같은 시간대·같은 경계 위에 있어야 서로를 설명할 수 있다.
  */
-export function dayOffsetSuffix(start: Date, end: Date): string | null {
-  const days = calendarDayDiff(start, end)
+export function dayOffsetSuffix(start: Date, end: Date, timezone?: string): string | null {
+  const days = timezone ? Math.round((Date.parse(end.toLocaleDateString('sv-SE', { timeZone: timezone })) - Date.parse(start.toLocaleDateString('sv-SE', { timeZone: timezone }))) / 86_400_000) : calendarDayDiff(start, end)
   return days > 0 ? `(+${days})` : null
 }
 

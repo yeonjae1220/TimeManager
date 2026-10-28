@@ -60,7 +60,7 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
             grandTotal += tagTotal;
 
             List<SessionDetail> sessions = tagRecords.stream()
-                    .map(r -> new SessionDetail(r.getStartTime(), r.getEndTime(), r.getTotalTime()))
+                    .map(r -> new SessionDetail(r.getId(), r.getStartTime(), r.getEndTime(), r.getTotalTime()))
                     .collect(Collectors.toList());
 
             tagSummaries.add(new TagSummary(entry.getKey(), tagName, parentTagName, tagTotal, tagRecords.size(), sessions));

@@ -62,6 +62,18 @@ describe('tagStore.retryPendingTimerOp — 오프라인 큐 재생 정합성', (
 
   // ── 일반 유스케이스 (온라인/오프라인 정상 흐름) ────────────────────────────
 
+  it('an older replay response must preserve a newer stopped snapshot', async () => {
+    const start = Date.now() - 10000
+    enqueuePendingTimerOperation({ type: 'stop', tagId: 1, latestStartTime: start, latestEndTime: start + 1000, elapsedTime: 1 })
+    let resolve!: (value: unknown) => void
+    post.mockReturnValueOnce(new Promise((r) => { resolve = r }))
+    const replay = useTagStore.getState().retryPendingTimerOp()
+    saveTimerState(activeTimer({ isRunning: false, latestStartTime: start + 2000, latestEndTime: start + 3000, latestStopTimeMs: start + 3000 }))
+    resolve({ data: 1 })
+    await replay
+    expect(peekTimerState()?.latestEndTime).toBe(start + 3000)
+  })
+
   it('[정상·러닝유지] 실행 중 오프라인 start는 재접속 시 재전송되어 running이 유지된다', async () => {
     // 로컬 진실: 여전히 실행 중
     saveTimerState(activeTimer({ isRunning: true }))

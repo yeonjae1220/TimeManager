@@ -23,4 +23,5 @@ public class CreateRecordRequest {
 
     /** 중복 시간대가 있을 때 기존 기록을 삭제하고 강제 저장할지 여부 (2단계 확인 후 true로 전송) */
     private boolean forceOverwrite = false;
+    private String overlapToken;
 }

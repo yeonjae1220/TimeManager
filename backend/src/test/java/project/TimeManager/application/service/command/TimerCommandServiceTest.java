@@ -149,7 +149,7 @@ class TimerCommandServiceTest {
     void startTimer_doesNotAutoStopItself() {
         Tag target = runningTagOwnedBy(10L, 1L, START.minusMinutes(1));
         given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
-        given(loadTagPort.findRunningTagsByMemberId(1L)).willReturn(List.of(target));
+
 
         timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
 
@@ -182,6 +182,7 @@ class TimerCommandServiceTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("접근 권한이 없습니다");
 
+        then(loadTagPort).should().lockMember(1L);
         then(loadTagPort).shouldHaveNoMoreInteractions();
         then(saveTagPort).shouldHaveNoInteractions();
         then(createRecordUseCase).shouldHaveNoInteractions();
@@ -196,6 +197,7 @@ class TimerCommandServiceTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("접근 권한이 없습니다");
 
+        then(loadTagPort).should().lockMember(1L);
         then(loadTagPort).shouldHaveNoMoreInteractions();
         then(saveTagPort).shouldHaveNoInteractions();
         then(createRecordUseCase).shouldHaveNoInteractions();
@@ -210,6 +212,7 @@ class TimerCommandServiceTest {
                 .isInstanceOf(DomainException.class)
                 .hasMessageContaining("접근 권한이 없습니다");
 
+        then(loadTagPort).should().lockMember(1L);
         then(loadTagPort).shouldHaveNoMoreInteractions();
         then(saveTagPort).shouldHaveNoInteractions();
         then(createRecordUseCase).shouldHaveNoInteractions();
@@ -366,5 +369,30 @@ class TimerCommandServiceTest {
         assertThat(running.getLatestStopTime()).isEqualTo(END);
         then(saveTagPort).should().saveTag(running);
         then(createRecordUseCase).should().createRecord(any(CreateRecordCommand.class));
+    }
+
+    @Test
+    void switchStopsPreviousSessionAtTheRequestedStartNotReplayTime() {
+        Tag target = tagOwnedBy(10L, 1L);
+        Tag previous = runningTagOwnedBy(20L, 1L, START.minusMinutes(15));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(target));
+        given(loadTagPort.findRunningTagsByMemberId(1L)).willReturn(List.of(previous));
+        timerCommandService.startTimer(new StartTimerCommand(10L, START, 1L));
+        ArgumentCaptor<CreateRecordCommand> record = ArgumentCaptor.forClass(CreateRecordCommand.class);
+        then(createRecordUseCase).should().createRecord(record.capture());
+        assertThat(record.getValue().endTime()).isEqualTo(START);
+        assertThat(target.getLatestStartTime()).isEqualTo(START);
+        assertThat(previous.getLatestStopTime()).isEqualTo(START);
+    }
+
+    @Test
+    void historicalReplayPreservesALaterRunningSession() {
+        Tag running = runningTagOwnedBy(10L, 1L, END.plusMinutes(10));
+        given(loadTagPort.loadTag(10L)).willReturn(Optional.of(running));
+        timerCommandService.stopTimer(new StopTimerCommand(10L, 3600L, START, END, 1L, true));
+        assertThat(running.getTimerState()).isEqualTo(TimerState.RUNNING);
+        assertThat(running.getLatestStartTime()).isEqualTo(END.plusMinutes(10));
+        then(saveTagPort).shouldHaveNoInteractions();
+        then(createRecordUseCase).should().createRecord(new CreateRecordCommand(10L, START, END, false));
     }
 }

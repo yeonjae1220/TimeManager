@@ -1,12 +1,17 @@
 'use client'
 
 import { useCallback, useState } from 'react'
+import PendingRecords from '@/components/PendingRecords'
+import MiniTimer from '@/components/MiniTimer'
+import { useRunningTimerStore } from '@/store/runningTimerStore'
+import { useI18n } from '@/i18n/I18nProvider'
 import TabBar from './TabBar'
 import PullToRefresh from './PullToRefresh'
 
 interface AppShellProps {
   children: React.ReactNode
   isRunning?: boolean
+  selectedTagId?: number
   // 뷰 자신의 데이터 조회 effect는 그 뷰 컴포넌트(AppShell을 호출하는 쪽)에
   // 있으므로, AppShell이 children만 remount해선 그 effect에 닿지 않는다
   // (LogsView 예외 — 아래 참조). 진짜로 재조회시키려면 뷰가 자신의 reload
@@ -20,7 +25,10 @@ interface AppShellProps {
 // 느껴진다.
 const MIN_REFRESH_VISIBLE_MS = 400
 
-export default function AppShell({ children, isRunning = false, onRefresh }: AppShellProps) {
+export default function AppShell({ children, isRunning = false, selectedTagId, onRefresh }: AppShellProps) {
+  const session = useRunningTimerStore((s) => s.session)
+  const timerError = useRunningTimerStore((s) => s.error)
+  const { t } = useI18n()
   const [refreshKey, setRefreshKey] = useState(0)
 
   // onRefresh가 있으면 그 뷰의 실제 reload 함수를 부른다. 없으면(LogsView처럼
@@ -36,11 +44,15 @@ export default function AppShell({ children, isRunning = false, onRefresh }: App
   }, [onRefresh])
 
   return (
-    <div className="app-shell">
+    <div className={`app-shell${session ? ' has-running-timer' : ''}`}>
       <PullToRefresh onRefresh={handleRefresh}>
-        <div key={onRefresh ? 'static' : refreshKey}>{children}</div>
+        <div key={onRefresh ? 'static' : refreshKey}>
+          {timerError && <p role="alert" className="timer-error">{t('record.saveUncertain')} <button onClick={() => { useRunningTimerStore.setState({ error: false }); void handleRefresh() }}>{t('common.retry')}</button></p>}
+          <PendingRecords />{children}
+        </div>
       </PullToRefresh>
-      <TabBar isRunning={isRunning} />
+      <MiniTimer selectedTagId={selectedTagId} />
+      <TabBar isRunning={isRunning || !!session} />
     </div>
   )
 }

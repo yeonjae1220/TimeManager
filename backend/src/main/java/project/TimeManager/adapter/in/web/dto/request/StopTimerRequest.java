@@ -12,7 +12,8 @@ public record StopTimerRequest(
 
         @NotNull(message = "timestamps는 필수입니다")
         @Valid
-        Timestamps timestamps
+        Timestamps timestamps,
+        boolean replay
 ) {
     public record Timestamps(
             @NotNull(message = "startTime은 필수입니다")

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useTagPreferences } from '@/hooks/useTagPreferences'
 import AppShell from '@/components/layout/AppShell'
 import AddTagForm from '@/components/AddTagForm'
 import { useTagStore, selectTagList, type Tag } from '@/store/tagStore'
@@ -160,6 +161,8 @@ function EditTagModal({ tag, tagTree, onClose, onRename, onMove, onDiscard }: Ed
 // ────────────────────────────────────────────────────────────
 
 interface TagRowProps {
+  query?: string
+  filtering?: boolean
   tag: Tag
   depth: number
   memberId: number
@@ -183,18 +186,23 @@ interface DragState {
 }
 
 function TagRow({
-  tag, depth, memberId, tagTree, discardedId, dragState,
+  tag, depth, memberId, tagTree, discardedId, dragState, query = '', filtering = false,
   onDragStart, onDragOver, onDrop, onDragEnd,
   onEditOpen, onAddChildOpen,
 }: TagRowProps) {
   const router = useRouter()
   const { t } = useI18n()
+  const prefs = useTagPreferences(memberId)
+  const [menu, setMenu] = useState(false)
+  const matches = (node: Tag): boolean => node.name.toLowerCase().includes(query) || node.children.some(matches)
   const isRunning = tag.state
   const isDragging = dragState.draggingId === tag.id
   const isOver = dragState.overId === tag.id
 
   const visibleChildren = tag.children.filter((c) => c.type !== 'DISCARDED')
   const isLeaf = visibleChildren.length === 0
+
+  if (query && !matches(tag)) return null
 
   function goToTag() {
     if (isLeaf) {
@@ -213,7 +221,7 @@ function TagRow({
   return (
     <div>
       <div
-        draggable
+        draggable={!filtering}
         onDragStart={(e) => onDragStart(e, tag)}
         onDragOver={(e) => onDragOver(e, tag)}
         onDrop={(e) => onDrop(e, tag)}
@@ -249,12 +257,13 @@ function TagRow({
         <span style={{ width: 6, height: 6, borderRadius: '50%', background: isRunning ? 'var(--running)' : 'var(--border)', flexShrink: 0, boxShadow: isRunning ? '0 0 6px var(--running)' : undefined }} />
 
         {/* Name — leaf tags navigate to Today (시작하지 않고 보러만 간다) */}
-        <span
-          onClick={goToTag}
-          style={{ flex: 1, fontSize: 13, color: 'var(--text)', cursor: isLeaf ? 'pointer' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
+        <button
+          onClick={isLeaf ? goToTag : () => prefs.toggle('collapsed', tag.id)}
+          aria-expanded={!isLeaf ? !prefs.collapsed.includes(tag.id) || !!query : undefined}
+          style={{ background: 'none', border: 'none', textAlign: 'left', padding: 0, flex: 1, fontSize: 13, color: 'var(--text)', cursor: isLeaf ? 'pointer' : 'default', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}
         >
-          {tag.name}
-        </span>
+          {!isLeaf && (query || !prefs.collapsed.includes(tag.id) ? '▾ ' : '▸ ')}{tag.name}
+        </button>
 
         {isRunning && (
           <span className="mono" style={{ fontSize: 9, color: 'var(--running)', letterSpacing: '0.15em' }}>LIVE</span>
@@ -279,33 +288,22 @@ function TagRow({
           </button>
         )}
 
-        {/* Add child */}
-        <button
-          onClick={() => onAddChildOpen(tag.id)}
-          title={t('tags.addChildTitle')}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0, opacity: 0.75 }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M6 2v8M2 6h8" stroke="currentColor" strokeWidth="1.3" strokeLinecap="round"/>
-          </svg>
-        </button>
-
-        {/* Edit */}
-        <button
-          onClick={() => onEditOpen(tag)}
-          title={t('tags.editTitle')}
-          style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0, opacity: 0.75 }}
-        >
-          <svg width="12" height="12" viewBox="0 0 12 12" fill="none">
-            <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
-          </svg>
-        </button>
+        <button aria-label={`${t('tags.favorites')} · ${tag.name}`} aria-pressed={prefs.favorites.includes(tag.id)} onClick={() => prefs.toggle('favorites', tag.id)} style={{ minWidth: 44, background: 'none', border: 0, color: 'var(--accent)' }}>{prefs.favorites.includes(tag.id) ? '★' : '☆'}</button>
+        <div style={{ position: 'relative' }}>
+          <button aria-label={`${t('tags.more')} · ${tag.name}`} aria-expanded={menu} onClick={() => setMenu(!menu)} style={{ minWidth: 44 }}>⋯</button>
+          {menu && <div onKeyDown={(e) => { if (e.key === 'Escape') setMenu(false) }} style={{ position: 'absolute', right: 0, top: 44, zIndex: 10, background: 'var(--surface)', border: '1px solid var(--border)', padding: 8, minWidth: 160 }}>
+            <button onClick={() => { setMenu(false); onAddChildOpen(tag.id) }}>{t('tags.addChildTitle')}</button>
+            <button onClick={() => { setMenu(false); onEditOpen(tag) }}>{t('tags.editTitle')}</button>
+          </div>}
+        </div>
       </div>
 
       {/* Children */}
-      {visibleChildren.map((child) => (
+      {(query || !prefs.collapsed.includes(tag.id)) && visibleChildren.map((child) => (
         <TagRow
+          filtering={filtering}
           key={child.id}
+          query={tag.name.toLowerCase().includes(query) ? '' : query}
           tag={child}
           depth={depth + 1}
           memberId={memberId}
@@ -339,6 +337,9 @@ export default function TagListView() {
   const tagList = useTagStore(selectTagList)
   const { loadTags, fetchError, isRefreshing, createTag, renameTag, moveTag, reorderTags, discardTag } = useTagStore()
 
+  const [query, setQuery] = useState('')
+  const prefs = useTagPreferences(memberId)
+  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const discardedId = findDiscardedId(tagTree)
 
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
@@ -444,6 +445,8 @@ export default function TagListView() {
             )}
           </div>
 
+          <input type="search" aria-label={t('tags.search')} placeholder={t('tags.search')} value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: '100%', minHeight: 44, marginBottom: 12, padding: 12, background: 'var(--input-bg)', color: 'var(--text)', border: '1px solid var(--border)' }} />
+          <button aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}>{t('tags.favorites')} ★</button>
           {fetchError && (
             <p className="mono" style={{ fontSize: 11, color: 'var(--danger)', marginBottom: 16 }}>
               {t('tags.loadError')}
@@ -477,10 +480,12 @@ export default function TagListView() {
             </div>
           ) : (
             <div>
-              {tagList.map((tag) => (
+              {(favoritesOnly ? tagList.flatMap(function flatten(tag): Tag[] { return tag.type === 'DISCARDED' ? [] : [tag, ...tag.children.flatMap(flatten)] }).filter((tag) => prefs.favorites.includes(tag.id)) : tagList).map((tag) => (
                 <div key={tag.id}>
                   <TagRow
                     tag={tag}
+                    filtering={!!query.trim() || favoritesOnly}
+                    query={query.trim().toLowerCase()}
                     depth={0}
                     memberId={memberId}
                     tagTree={tagTree}

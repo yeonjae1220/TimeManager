@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useParams, useRouter } from 'next/navigation'
+import { useDailyResetHour } from '@/hooks/useDailyResetHour'
+import { useAuthStore } from '@/store/authStore'
 import AppShell from '@/components/layout/AppShell'
 import EditRecordModal from '@/components/EditRecordModal'
 import AddRecordModal from '@/components/AddRecordModal'
@@ -67,6 +69,8 @@ function UndoToast({ onUndo, onDismiss }: UndoToastProps) {
 
 export default function RecordListView() {
   const params = useParams()
+  const authMemberId = useAuthStore((s) => s.memberId)
+  const { timezone, resetHour } = useDailyResetHour(authMemberId)
   const router = useRouter()
   const { t, language } = useI18n()
   const tagId = Number(params?.id)
@@ -110,7 +114,7 @@ export default function RecordListView() {
     }
   }, [tagId])
 
-  useEffect(() => { fetchRecords() }, [fetchRecords])
+  useEffect(() => { fetchRecords(); window.addEventListener('records-changed', fetchRecords); return () => window.removeEventListener('records-changed', fetchRecords) }, [fetchRecords])
 
   // Load tagTree for modals
   useEffect(() => {
@@ -181,7 +185,7 @@ export default function RecordListView() {
               {tag?.name ?? t('records.title')}
             </h1>
             <button
-              onClick={() => setShowAdd(true)}
+              disabled={resetHour === null} onClick={() => setShowAdd(true)}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}
             >
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -253,6 +257,7 @@ export default function RecordListView() {
       {editingRecord && (
         <EditRecordModal
           record={editingRecord}
+          timezone={timezone}
           tagTree={tagTree}
           currentTagId={tagId}
           onClose={() => setEditingRecord(null)}
@@ -262,6 +267,7 @@ export default function RecordListView() {
 
       {showAdd && (
         <AddRecordModal
+          timezone={timezone}
           tagTree={tagTree}
           defaultTagId={tagId}
           onClose={() => setShowAdd(false)}

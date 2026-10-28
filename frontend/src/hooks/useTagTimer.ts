@@ -1,6 +1,8 @@
 'use client'
 
 import { useState, useRef, useCallback, useEffect } from 'react'
+import { startTimer, stopTimer } from '@/utils/timerActions'
+import { useRunningTimerStore } from '@/store/runningTimerStore'
 import apiClient from '@/utils/apiClient'
 import {
   clearTimerState,
@@ -10,7 +12,6 @@ import {
   peekTimerState,
   serverTimerChangedAt,
   saveResetTimerMarker,
-  saveTimerState,
 } from '@/utils/timerPersistence'
 import { useTagStore, type Tag } from '@/store/tagStore'
 import { computeStopwatchState, type StopwatchState } from '@/utils/stopwatchState'
@@ -223,7 +224,9 @@ export function useTagTimer() {
       // 돌리고, newSw 는 그 결과를 로컬 스냅샷·리셋 마커와 화해시킨 값이다. 즉 여기가
       // "지금 정말로 실행 중인가" 에 가장 가까운 답이라, 다른 기기에서 정지된 세션의
       // 유령 알림도 여기서 정리된다.
-      void syncNativeRunningSession(
+      const activeSession = useRunningTimerStore.getState().session
+      const activeLocal = peekTimerState()
+      if (newSw.isRunning || activeSession?.tagId === tagId || (!activeSession && !(activeLocal?.isRunning && activeLocal.tagId !== tagId))) void syncNativeRunningSession(
         newSw.isRunning
           ? {
               tagId,
@@ -281,121 +284,24 @@ export function useTagTimer() {
   const startStopwatch = useCallback(async () => {
     if (!tag || sw.isRunning) return
     loadVersionRef.current++
-    const startTime = Date.now()
-    const newSw = { ...sw, isRunning: true, latestStartTime: startTime }
-    setSw(newSw)
-    useTagStore.getState().setTagState(tag.id, true)
-
-    saveTimerState({
-      tagId: tag.id,
-      isRunning: true,
-      elapsedTime: sw.elapsedTime,
-      latestStartTime: startTime,
-      latestEndTime: sw.latestEndTime,
-      latestStopTimeMs: null,
-      dailyTotalTime: sw.dailyTotalTime,
-      dailyGoalTime: sw.dailyGoalTime,
+    await startTimer(tag, sw, (at) => {
+      setSw({ ...sw, isRunning: true, latestStartTime: at })
+      void requestWakeLock()
     })
-    requestWakeLock()
-
-    // API 호출 **전**에 건다. 오프라인이면 start 는 큐로 가지만 로컬 타이머는 이미 돌고
-    // 있으므로, 알림까지 취소하면 오프라인 사용자만 알림을 못 받는 퇴행이 된다.
-    void syncNativeRunningSession({
-      tagId: tag.id,
-      tagName: tag.name,
-      startedAtMs: startTime,
-      baseElapsedSec: sw.elapsedTime,
-      dailyBaseSec: sw.dailyTotalTime,
-      dailyGoalSec: sw.dailyGoalTime,
-    })
-
-    try {
-      await apiClient.post(`/api/v1/tags/${tag.id}/timer/start`, {
-        startTime: new Date(startTime).toISOString(),
-      })
-    } catch (e) {
-      enqueuePendingTimerOperation({
-        type: 'start',
-        tagId: tag.id,
-        latestStartTime: startTime,
-      })
-      console.warn('Start API failed (offline?):', e)
-    }
   }, [tag, sw, requestWakeLock])
 
-  // onSegment는 네트워크 POST 전, setSw와 같은 동기 구간에서 호출된다. 호출부(TodayView)가
-  // "오늘 기록시간"을 낙관적으로 갱신하는 데 쓰는데, POST의 await 이후(반환값으로만) 갱신하면
-  // 그 사이 한 번의 렌더가 isRunning=false·러닝 델타=0 인 상태로 화면에 노출돼 총합이 잠깐
-  // 실제보다 작게 보였다가(POST 완료 시) 되돌아오는 깜빡임이 생긴다(GLOBAL-PIT류 회귀).
   const stopStopwatch = useCallback(async (onSegment?: (segment: number) => void) => {
     if (!tag || !sw.isRunning) return
     loadVersionRef.current++
-    const endTime = Date.now()
-    // 시계 역행 등으로 구간이 음수가 되면 그 구간은 0으로 클램프(누적 elapsed는 보존).
-    const segment = Math.max(0, Math.floor((endTime - sw.latestStartTime) / 1000))
-    const elapsed = segment + sw.elapsedTime
-    // 이 세그먼트를 daily/tag/total base에 접어넣는다. 서버는 stop 시 [start,end] 구간으로
-    // Record를 만들어 이 파생값들을 +segment 하므로(TimerCommandService.stopTimer) 정확히 일치한다.
-    // base를 갱신하지 않으면 재시작 tick이 `prev.dailyTotalTime + delta`를 로드 시점 base로 다시
-    // 계산해, 직전 세션분을 잃고 이전 값으로 떨어진다(리로드 전까지). elapsedTime과 동일한 누적 방식.
-    const newSw = {
-      ...sw,
-      isRunning: false,
-      latestEndTime: endTime,
-      elapsedTime: elapsed,
-      elapsedTimeCal: elapsed,
-      dailyTotalTime: sw.dailyTotalTime + segment,
-      dailyTotalTimeCal: sw.dailyTotalTime + segment,
-      tagTotalTime: sw.tagTotalTime + segment,
-      tagTotalTimeCal: sw.tagTotalTime + segment,
-      totalTime: sw.totalTime + segment,
-      totalTimeCal: sw.totalTime + segment,
-    }
-    setSw(newSw)
-    useTagStore.getState().setTagState(tag.id, false)
-    releaseWakeLock()
-
-    saveTimerState({
-      tagId: tag.id,
-      isRunning: false,
-      elapsedTime: elapsed,
-      latestStartTime: sw.latestStartTime,
-      latestEndTime: endTime,
-      latestStopTimeMs: endTime,
-      dailyTotalTime: sw.dailyTotalTime,
-      dailyGoalTime: sw.dailyGoalTime,
+    return stopTimer({ tagId: tag.id, tagName: tag.name, startedAtMs: sw.latestStartTime, baseElapsedSec: sw.elapsedTime, dailyBaseSec: sw.dailyTotalTime, dailyGoalSec: sw.dailyGoalTime }, (segment, endTime) => {
+      setSw({ ...sw, isRunning: false, latestEndTime: endTime,
+        elapsedTime: sw.elapsedTime + segment, elapsedTimeCal: sw.elapsedTime + segment,
+        dailyTotalTime: sw.dailyTotalTime + segment, dailyTotalTimeCal: sw.dailyTotalTime + segment,
+        tagTotalTime: sw.tagTotalTime + segment, tagTotalTimeCal: sw.tagTotalTime + segment,
+        totalTime: sw.totalTime + segment, totalTimeCal: sw.totalTime + segment })
+      void releaseWakeLock()
+      onSegment?.(segment)
     })
-
-    // 정지도 API 전에. 로컬이 이미 멈췄으므로 오프라인이어도 알림은 즉시 사라져야 한다.
-    void syncNativeRunningSession(null)
-
-    // setSw(newSw)와 동일한 동기 구간 — 아래 await 로 넘어가기 전에 반드시 불러야
-    // 위 주석의 깜빡임이 안 생긴다.
-    onSegment?.(segment)
-
-    try {
-      await apiClient.post(`/api/v1/tags/${tag.id}/timer/stop`, {
-        elapsedTime: elapsed,
-        timestamps: {
-          startTime: new Date(sw.latestStartTime).toISOString(),
-          endTime: new Date(endTime).toISOString(),
-        },
-      })
-      clearTimerState()
-    } catch (e) {
-      enqueuePendingTimerOperation({
-        type: 'stop',
-        tagId: tag.id,
-        elapsedTime: elapsed,
-        latestStartTime: sw.latestStartTime,
-        latestEndTime: endTime,
-      })
-      console.warn('Stop API failed (offline?):', e)
-    }
-
-    // 방금 끝낸 세그먼트를 호출부(TodayView)가 "오늘 기록시간"에 낙관적으로 더할 수 있게 반환한다.
-    // 오프라인이어도 세션은 큐에 남아 재전송되므로 반환값은 동일하게 유효하다.
-    return segment
   }, [tag, sw, releaseWakeLock])
 
   const resetStopwatch = useCallback(async () => {
@@ -404,8 +310,8 @@ export function useTagTimer() {
     const hasPendingTimerOperation = peekPendingTimerOperation() !== null
     setSw((prev) => ({ ...prev, elapsedTime: 0, elapsedTimeCal: 0 }))
     saveResetTimerMarker(tag.id)
-    clearTimerState()
-    void syncNativeRunningSession(null)
+    if (peekTimerState()?.tagId === tag.id) clearTimerState()
+    if (!useRunningTimerStore.getState().session || useRunningTimerStore.getState().session?.tagId === tag.id) void syncNativeRunningSession(null)
 
     const tagStore = useTagStore.getState()
 
@@ -434,6 +340,14 @@ export function useTagTimer() {
       console.warn('Reset API failed (offline?):', e)
     }
   }, [tag, sw.isRunning])
+
+  useEffect(() => useRunningTimerStore.subscribe((current, previous) => {
+    if (current.session === previous.session || !tag) return
+    if (previous.session?.tagId === tag.id && current.session?.tagId !== tag.id) {
+      const cached = useTagStore.getState().findById(tag.id)
+      if (cached) { setSw(computeStopwatchState(tag.id, cached)); void releaseWakeLock() }
+    }
+  }), [tag, releaseWakeLock])
 
   const formattedElapsedTime = formatTime(sw.elapsedTimeCal)
   const formattedDailyTotalTime = formatTime(sw.dailyTotalTimeCal)

@@ -138,12 +138,18 @@ class TimerConcurrencyIntegrationTest {
 
         Future<?> deviceA = pool.submit(() -> {
             barrier.await();
-            startTimerUseCase.startTimer(startCommand(tagAId));
+            try { startTimerUseCase.startTimer(startCommand(tagAId)); }
+            catch (project.TimeManager.domain.exception.DomainException e) {
+                assertThat(e.getMessage()).isEqualTo("Stale timer switch");
+            }
             return null;
         });
         Future<?> deviceB = pool.submit(() -> {
             barrier.await();
-            startTimerUseCase.startTimer(startCommand(tagBId));
+            try { startTimerUseCase.startTimer(startCommand(tagBId)); }
+            catch (project.TimeManager.domain.exception.DomainException e) {
+                assertThat(e.getMessage()).isEqualTo("Stale timer switch");
+            }
             return null;
         });
 
@@ -152,8 +158,8 @@ class TimerConcurrencyIntegrationTest {
         pool.shutdown();
         assertThat(pool.awaitTermination(10, TimeUnit.SECONDS)).isTrue();
 
-        // 안0: 동시 start 레이스는 서버에 다중 RUNNING을 남길 수 있다(허용된 한계, 락으로 막지 않음).
-        // 대신 읽기 경로(태그 목록·상세 조회)에서 호출되는 reconcile이 이를 최신 1개로 치유한다.
+        // Member locking serializes starts; an older timestamp cannot displace a newer one.
+        assertThat(runningTagsOfMember()).hasSize(1);
         reconcileRunningTimersUseCase.reconcile(memberId);
 
         List<TagJpaEntity> running = runningTagsOfMember();

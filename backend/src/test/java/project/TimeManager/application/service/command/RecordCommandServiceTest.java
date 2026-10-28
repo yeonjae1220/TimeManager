@@ -322,7 +322,7 @@ class RecordCommandServiceTest {
             given(loadTagPort.loadTag(overlapTagId)).willReturn(Optional.of(stubTag(overlapTagId)));
             given(loadRecordsByTagPort.loadRecordsByTagId(overlapTagId)).willReturn(List.of());
 
-            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, true);
+            CreateRecordCommand command = new CreateRecordCommand(tagId, START, END, true, RecordOverlapException.token(List.of(overlapResult)));
 
             Long recordId = recordCommandService.createRecord(command);
 
@@ -405,5 +405,38 @@ class RecordCommandServiceTest {
             then(saveRecordPort).shouldHaveNoInteractions();
             then(updateTagTimeBatchPort).shouldHaveNoInteractions();
         }
+    }
+
+    @Test
+    void overwriteRequiresTheExactReviewedSnapshot() {
+        TagRecordDerivedFieldsSyncService sync = org.mockito.Mockito.mock(TagRecordDerivedFieldsSyncService.class);
+        RecordCommandService service = new RecordCommandService(loadTagPort, loadRecordPort, saveRecordPort, updateTagTimeBatchPort, findOverlappingRecordsPort, sync);
+        given(loadTagPort.loadTag(1L)).willReturn(Optional.of(stubTag(1L)));
+        OverlapResult old = new OverlapResult(9L, 2L, "Other", START, END);
+        OverlapResult changed = new OverlapResult(9L, 2L, "Other", START, END.plusMinutes(5));
+        given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), isNull())).willReturn(List.of(changed));
+        assertThatThrownBy(() -> service.createRecord(new CreateRecordCommand(1L, START, END, true, RecordOverlapException.token(List.of(old)))))
+            .isInstanceOf(RecordOverlapException.class);
+        then(saveRecordPort).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void lostCreateResponseCanBeRetriedWithoutDuplicatingARecord() {
+        RecordCommandService service = new RecordCommandService(loadTagPort, loadRecordPort, saveRecordPort, updateTagTimeBatchPort, findOverlappingRecordsPort, org.mockito.Mockito.mock(TagRecordDerivedFieldsSyncService.class));
+        given(loadTagPort.loadTag(1L)).willReturn(Optional.of(stubTag(1L)));
+        given(findOverlappingRecordsPort.findOverlappingRecords(any(), any(), any(), isNull()))
+            .willReturn(List.of(new OverlapResult(9L, 1L, "Same", START, END)));
+        assertThat(service.createRecord(new CreateRecordCommand(1L, START, END, false))).isEqualTo(9L);
+        then(saveRecordPort).shouldHaveNoInteractions();
+    }
+
+    @Test
+    void queuedEditCannotReplaceAnInterveningDeviceEdit() {
+        RecordCommandService service = new RecordCommandService(loadTagPort, loadRecordPort, saveRecordPort, updateTagTimeBatchPort, findOverlappingRecordsPort, org.mockito.Mockito.mock(TagRecordDerivedFieldsSyncService.class));
+        given(loadTagPort.loadTag(1L)).willReturn(Optional.of(stubTag(1L)));
+        given(loadRecordPort.loadRecord(9L)).willReturn(Optional.of(Record.reconstitute(RecordId.of(9L), TagId.of(1L), new TimeRange(START, END), 3600L)));
+        assertThatThrownBy(() -> service.editRecordTime(new EditRecordTimeCommand(9L, START, END.plusMinutes(30), 1L, false, 1L, null, "old-snapshot")))
+            .isInstanceOf(project.TimeManager.domain.exception.RecordChangedException.class);
+        then(saveRecordPort).shouldHaveNoInteractions();
     }
 }

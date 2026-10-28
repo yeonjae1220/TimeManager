@@ -1,11 +1,15 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import { useLogDate } from '@/hooks/useLogQuery'
+import AddRecordModal from '@/components/AddRecordModal'
+import EditRecordModal from '@/components/EditRecordModal'
+import { useTagStore } from '@/store/tagStore'
 import Link from 'next/link'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { useI18n } from '@/i18n/I18nProvider'
 import DayOffsetBadge from '@/components/DayOffsetBadge'
-import { type DayBoundary, fmtDuration, fmtHMS, getTopTag, addDays, TagBar, NavArrows, LoadError, useLogicalToday, BoundaryWait, getSummary } from './shared'
+import { type SessionDetail, toLocalDate, type DayBoundary, fmtDuration, fmtHMS, getTopTag, addDays, TagBar, NavArrows, LoadError, useLogicalToday, BoundaryWait, getSummary } from './shared'
 
 // ────────────────────────────────────────────────────────────
 // Daily tab
@@ -22,13 +26,15 @@ interface DailyTabProps {
 }
 export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps) {
   const { t: tr, language } = useI18n()
+  const [adding, setAdding] = useState(false)
+  const [editing, setEditing] = useState<(SessionDetail & { tagId: number }) | null>(null)
+  const tagTree = useTagStore((s) => s.tagTree)
+  const loadTags = useTagStore((s) => s.loadTags)
+  useEffect(() => { void loadTags(memberId) }, [loadTags, memberId])
   const logicalToday = useLogicalToday(dayBoundary)
 
-  // 사용자가 화살표로 옮긴 날짜. 드릴다운이면 initialDate, 아니면 논리적 오늘이
-  // 정해질 때까지 date 전체가 null로 남는다. DailyTab은 key={dateParam ?? 'today'}로
-  // 렌더돼 드릴다운/탭 진입마다 새로 마운트되므로 override는 매번 null에서 시작한다
-  // — resetHour가 뒤늦게 도착해도 override가 남아 있으면 오늘로 되돌리지 않는다.
-  const [override, setOverride] = useState<Date | null>(null)
+  // URL cursor survives refresh and browser history; an absent cursor follows logical today.
+  const [override, setOverride] = useLogDate('date')
   const date = override ?? initialDate ?? logicalToday
 
   // date가 null인 동안은 loader를 넘기지 않는다 — 짐작한 경계로 얻은 0건보다
@@ -66,8 +72,14 @@ export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }:
           onNext={() => date && setOverride(addDays(date, 1))}
         />
       )}
+      {date && <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
+        <button onClick={() => setOverride(null)}>{tr('logs.today')}</button>
+        <button disabled={dayBoundary.resetHour === null} onClick={() => setAdding(true)}>{tr('addRecord.title')}</button>
+      </div>}
+      {adding && date && <AddRecordModal tagTree={tagTree} defaultDate={logicalToday && toLocalDate(date) === toLocalDate(logicalToday) ? undefined : toLocalDate(date)} resetHour={dayBoundary.resetHour ?? 0} timezone={dayBoundary.timezone} onClose={() => setAdding(false)} onSaved={reload} />}
+      {editing?.recordId && <EditRecordModal record={{ id: editing.recordId, startTime: editing.startTime, endTime: editing.endTime, totalTime: editing.durationSeconds }} tagTree={tagTree} currentTagId={editing.tagId} timezone={dayBoundary.timezone} onClose={() => setEditing(null)} onSaved={reload} />}
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
-      {!loading && data && (
+      {data && (
         <>
           <div style={{ textAlign: 'center', marginBottom: 32 }}>
             <div className="mono" style={{ fontSize: 'clamp(28px, 8vw, 44px)', color: 'var(--text)', letterSpacing: '-0.02em' }}>
@@ -95,29 +107,27 @@ export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }:
           {data.tagSummaries.some((t) => t.sessions.length > 0) && (
             <div style={{ marginTop: 24 }}>
               <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 12 }}>{tr('logs.sessions')}</p>
-              {data.tagSummaries.flatMap((t) =>
-                t.sessions.map((s, i) => {
+              {data.tagSummaries.flatMap((t) => t.sessions.map((s) => ({ ...s, tagId: t.tagId, tagName: t.tagName }))).sort((a, b) => Date.parse(a.startTime) - Date.parse(b.startTime)).map((s, i) => {
                   const sessionStart = new Date(s.startTime)
                   const sessionEnd = new Date(s.endTime)
                   return (
-                  <div key={`${t.tagId}-${i}`} style={{ display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
+                  <button disabled={!s.recordId || dayBoundary.resetHour === null} aria-label={`${tr('editRecord.title')} · ${s.tagName}`} onClick={() => setEditing(s)} key={`${s.tagId}-${i}`} style={{ width: '100%', background: 'none', color: 'inherit', border: 0, minHeight: 44, cursor: 'pointer', display: 'flex', justifyContent: 'space-between', padding: '8px 0', borderBottom: '1px solid var(--border-subtle)' }}>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span style={{ width: 6, height: 6, borderRadius: '50%', background: 'var(--text-3)', flexShrink: 0 }} />
-                      <span style={{ fontSize: 12 }}>{t.tagName}</span>
+                      <span style={{ fontSize: 12 }}>{s.tagName}</span>
                     </div>
                     <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                        {sessionStart.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
+                        {sessionStart.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', timeZone: dayBoundary.timezone })}
                         {' → '}
-                        {sessionEnd.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
-                        <DayOffsetBadge start={sessionStart} end={sessionEnd} language={language} />
+                        {sessionEnd.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', timeZone: dayBoundary.timezone })}
+                        <DayOffsetBadge start={sessionStart} end={sessionEnd} language={language} timezone={dayBoundary.timezone} />
                       </span>
                       <span className="mono" style={{ fontSize: 11, color: 'var(--text)' }}>{fmtDuration(s.durationSeconds)}</span>
                     </div>
-                  </div>
+                  </button>
                   )
-                })
-              )}
+                })}
             </div>
           )}
         </>

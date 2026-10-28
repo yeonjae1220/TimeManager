@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useLogDate } from '@/hooks/useLogQuery'
 import Link from 'next/link'
 import { logicalDateStringOf } from '@/utils/dayBoundary'
 import { useAsyncData } from '@/hooks/useAsyncData'
@@ -20,7 +21,7 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
   // 사용자가 화살표로 옮긴 달. WeeklyTab과 같은 이유로, 논리적 오늘이 정해질
   // 때까지 refDate 전체가 null로 남는다(자정~resetHour 사이엔 기기 달력의
   // "이번 달"이 논리적으로 아직 지난달일 수 있다 — 예: 매월 1일 02:00).
-  const [refDateOverride, setRefDateOverride] = useState<Date | null>(null)
+  const [refDateOverride, setRefDateOverride] = useLogDate('month')
   // WeeklyTab 의 monday 와 같은 이유로 useMemo 가 필수다 — startOfMonth()가 렌더마다
   // 새 Date 를 만들면 loader identity 가 매번 바뀌어 무한 재조회 루프가 된다.
   const refDate = useMemo(
@@ -105,6 +106,7 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
 
   return (
     <div>
+      <button onClick={() => setRefDateOverride(null)}>{tr('logs.thisMonth')}</button>
       <NavArrows
         label={monthLabel}
         onPrev={() => setRefDateOverride(new Date(refDate.getFullYear(), refDate.getMonth() - 1, 1))}

@@ -1,6 +1,21 @@
 import type { Messages } from './en'
 
 const ko: Messages = {
+  "record.pending": "기록 동기화 대기",
+  "record.reviewRequired": "확인 필요",
+  "record.changed": "다른 기기에서 변경된 기록입니다. 목록을 새로고침한 후 다시 열어 주세요.",
+
+  "record.replaceWarning": "아래 기록이 삭제됩니다. 확인 후 덮어써 주세요.",
+  "record.refreshFailed": "저장됐지만 새로고침에 실패했습니다. 닫고 목록을 새로고침해 주세요.",
+  "record.saveUncertain": "저장을 확인하지 못했습니다. 연결과 기록 목록을 확인한 후 다시 시도해 주세요.",
+  "tags.favorites": "즐겨찾기",
+  "tags.search": "태그 검색",
+  "tags.more": "더 보기",
+  "logs.today": "오늘",
+  "logs.thisWeek": "이번 주",
+  "logs.thisMonth": "이번 달",
+  "timer.pending": "동기화 대기",
+
   'error.unexpected': '문제가 발생했습니다.',
   'common.cancel': '취소',
   'common.save': '저장',

@@ -1,4 +1,5 @@
 'use client'
+import { useRunningTimerStore } from '@/store/runningTimerStore'
 
 import { withPlugin } from '@/utils/nativeBridge'
 import { isNativeApp } from '@/utils/platform'
@@ -232,6 +233,7 @@ async function convergeOngoingSurface(session: NativeRunningSession | null): Pro
 export async function syncNativeRunningSession(
   session: NativeRunningSession | null,
 ): Promise<void> {
+  useRunningTimerStore.setState({ session })
   lastSession = session
   const signature = signatureOf(session)
   const needsOngoing = signature !== lastOngoingSignature

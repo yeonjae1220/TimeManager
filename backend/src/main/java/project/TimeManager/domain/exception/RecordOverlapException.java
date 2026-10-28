@@ -20,4 +20,13 @@ public class RecordOverlapException extends RuntimeException {
     public List<OverlapResult> getOverlaps() {
         return overlaps;
     }
+    public static String token(java.util.List<project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult> overlaps) {
+        String value = overlaps.stream().sorted(java.util.Comparator.comparing(o -> o.recordId()))
+            .map(o -> o.recordId() + ":" + o.tagId() + ":" + o.startTime().toInstant() + ":" + o.endTime().toInstant())
+            .collect(java.util.stream.Collectors.joining("|"));
+        try {
+            return java.util.HexFormat.of().formatHex(java.security.MessageDigest.getInstance("SHA-256")
+                .digest(value.getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+        } catch (java.security.NoSuchAlgorithmException e) { throw new IllegalStateException(e); }
+    }
 }

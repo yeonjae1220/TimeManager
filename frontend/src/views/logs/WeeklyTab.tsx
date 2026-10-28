@@ -1,6 +1,7 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useMemo } from 'react'
+import { useLogDate } from '@/hooks/useLogQuery'
 import Link from 'next/link'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { resolveTodaySummaryDateParam } from '@/views/todayRecordTotal'
@@ -18,7 +19,7 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
   // 사용자가 화살표로 옮긴 주. 논리적 오늘이 정해질 때까지 monday 전체가 null로
   // 남는다 — 기기 달력의 "이번 주"를 먼저 보여줬다가 논리적 주로 바뀌면(자정 직후
   // dailyResetHour 이전 방문) 오늘 강조가 그 사이 다른 주로 튄다.
-  const [mondayOverride, setMondayOverride] = useState<Date | null>(null)
+  const [mondayOverride, setMondayOverride] = useLogDate('week')
   // useMemo 가 필수다 — startOfWeek()는 매번 새 Date 를 만들고, 그 값이 아래
   // loader 들의 deps 에 들어 있다. useAsyncData 는 loader identity 가 바뀌면
   // 재조회하도록 설계돼 있으므로(그것이 "날짜가 바뀌면 다시 부른다"의 트리거),
@@ -62,6 +63,7 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
 
   return (
     <div>
+      <button onClick={() => setMondayOverride(null)}>{tr('logs.thisWeek')}</button>
       <NavArrows
         label={weekLabel(monday, language)}
         onPrev={() => setMondayOverride(addDays(monday, -7))}

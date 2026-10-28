@@ -1,6 +1,21 @@
 import type { Messages } from './en'
 
 const ja: Messages = {
+  "record.pending": "記録の同期待ち",
+  "record.reviewRequired": "確認が必要",
+  "record.changed": "別の端末で変更されました。更新して開き直してください。",
+
+  "record.replaceWarning": "以下の記録が削除されます。確認して置き換えてください。",
+  "record.refreshFailed": "保存済みです。更新に失敗しました。閉じて再読み込みしてください。",
+  "record.saveUncertain": "保存を確認できません。接続と記録を確認して再試行してください。",
+  "tags.favorites": "お気に入り",
+  "tags.search": "タグを検索",
+  "tags.more": "その他",
+  "logs.today": "今日",
+  "logs.thisWeek": "今週",
+  "logs.thisMonth": "今月",
+  "timer.pending": "同期待ち",
+
   'error.unexpected': '問題が発生しました。',
   'common.cancel': 'キャンセル',
   'common.save': '保存',

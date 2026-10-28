@@ -54,8 +54,14 @@ public class GlobalExceptionHandler {
         return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of(
                 "code", "RECORD_OVERLAP",
                 "overlappingTags", overlappingTags,
-                "recordsToDelete", recordsToDelete
+                "recordsToDelete", recordsToDelete,
+                "overlapToken", RecordOverlapException.token(e.getOverlaps())
         ));
+    }
+
+    @ExceptionHandler(project.TimeManager.domain.exception.RecordChangedException.class)
+    public ResponseEntity<Map<String, String>> handleRecordChanged() {
+        return ResponseEntity.status(HttpStatus.CONFLICT).body(Map.of("code", "RECORD_CHANGED"));
     }
 
     @ExceptionHandler(TooManyRequestsException.class)

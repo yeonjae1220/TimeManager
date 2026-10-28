@@ -1,9 +1,38 @@
 'use client'
+import { useAuthStore } from '@/store/authStore'
+
+function scoped(key: string) { const memberId = useAuthStore.getState().memberId; return memberId ? `${key}:${memberId}` : key }
 
 const TIMER_KEY = 'timemgr-timer'
 const PENDING_TIMER_OPS_KEY = 'timemgr-pending-timer-ops'
 const RESET_MARKER_KEY = 'timemgr-reset-marker'
 const RESET_MARKER_TTL_MS = 60_000
+
+/** Claim old unscoped storage only after ownership is established by the tag tree. */
+export function migrateLegacyTimerStorage(memberId: number, ownedTagIds: Set<number>) {
+  if (useAuthStore.getState().memberId !== memberId) return
+  try {
+    const oldState = JSON.parse(localStorage.getItem(TIMER_KEY) ?? 'null')
+    if (oldState && ownedTagIds.has(oldState.tagId)) {
+      if (!localStorage.getItem(scoped(TIMER_KEY))) localStorage.setItem(scoped(TIMER_KEY), JSON.stringify(oldState))
+      localStorage.removeItem(TIMER_KEY)
+    }
+    const oldOps = JSON.parse(localStorage.getItem(PENDING_TIMER_OPS_KEY) ?? '[]')
+    if (Array.isArray(oldOps)) {
+      const owned = oldOps.filter((op) => ownedTagIds.has(op.tagId))
+      if (owned.length) {
+        const current = peekPendingTimerOperations()
+        localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify([...current, ...owned.filter((op) => !current.some((existing) => existing.id === op.id))]))
+        localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(oldOps.filter((op) => !ownedTagIds.has(op.tagId))))
+      }
+    }
+    const old = JSON.parse(localStorage.getItem(RESET_MARKER_KEY) ?? '{}')
+    const markers = old?.kind === 'reset' ? [old] : Object.values(old ?? {}) as ResetTimerMarker[]
+    const currentMarkers = readResetMarkers()
+    for (const marker of markers) if (ownedTagIds.has(marker.tagId) && !currentMarkers[marker.tagId]) currentMarkers[marker.tagId] = marker
+    writeResetMarkers(currentMarkers)
+  } catch { /* corrupt legacy cache is not an authority */ }
+}
 
 // 대기 중인 타이머 op의 보관 기한. record 큐(BackgroundSyncPlugin maxRetentionTime)와
 // 같은 24시간으로 맞춘다. 기한이 없으면 며칠 뒤 복귀했을 때 잊고 있던 조작이 되살아나
@@ -97,41 +126,41 @@ function normalizeTimerState(state: TimerState & { retryAttempted?: boolean }): 
 export function peekTimerState(): TimerState | null {
   if (typeof window === 'undefined') return null
   try {
-    const raw = localStorage.getItem(TIMER_KEY)
+    const raw = localStorage.getItem(scoped(TIMER_KEY))
     if (!raw) return null
 
     const parsed = JSON.parse(raw)
     if (!isTimerState(parsed)) {
-      localStorage.removeItem(TIMER_KEY)
+      localStorage.removeItem(scoped(TIMER_KEY))
       return null
     }
 
     const normalized = normalizeTimerState(parsed)
     if ('retryAttempted' in parsed) {
-      localStorage.setItem(TIMER_KEY, JSON.stringify(normalized))
+      localStorage.setItem(scoped(TIMER_KEY), JSON.stringify(normalized))
     }
     return normalized
   } catch {
-    localStorage.removeItem(TIMER_KEY)
+    localStorage.removeItem(scoped(TIMER_KEY))
     return null
   }
 }
 
 export function saveTimerState(state: Omit<TimerState, 'savedAt'>): void {
-  localStorage.setItem(TIMER_KEY, JSON.stringify({
+  localStorage.setItem(scoped(TIMER_KEY), JSON.stringify({
     ...state,
     savedAt: Date.now(),
   }))
 }
 
 export function clearTimerState(): void {
-  localStorage.removeItem(TIMER_KEY)
+  localStorage.removeItem(scoped(TIMER_KEY))
 }
 
 export function peekPendingTimerOperations(): PendingTimerOperation[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(PENDING_TIMER_OPS_KEY)
+    const raw = localStorage.getItem(scoped(PENDING_TIMER_OPS_KEY))
     const parsed = raw ? JSON.parse(raw) : []
     if (!Array.isArray(parsed)) return []
 
@@ -141,8 +170,8 @@ export function peekPendingTimerOperations(): PendingTimerOperation[] {
       (op: PendingTimerOperation) => typeof op?.savedAt === 'number' && op.savedAt > cutoff
     )
     if (alive.length !== parsed.length) {
-      if (alive.length === 0) localStorage.removeItem(PENDING_TIMER_OPS_KEY)
-      else localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(alive))
+      if (alive.length === 0) localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
+      else localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(alive))
     }
     return alive
   } catch {
@@ -168,22 +197,22 @@ export function enqueuePendingTimerOperation(
       retryAttempted: false,
     } as PendingTimerOperation,
   ]
-  localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(next))
+  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
 }
 
 export function removePendingTimerOperation(id: string): void {
   if (typeof window === 'undefined') return
   const next = peekPendingTimerOperations().filter((operation) => operation.id !== id)
   if (next.length === 0) {
-    localStorage.removeItem(PENDING_TIMER_OPS_KEY)
+    localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
     return
   }
-  localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(next))
+  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
 }
 
 export function clearPendingTimerOperations(): void {
   if (typeof window === 'undefined') return
-  localStorage.removeItem(PENDING_TIMER_OPS_KEY)
+  localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
 }
 
 export function markRetryAttempted(id?: string): void {
@@ -194,7 +223,7 @@ export function markRetryAttempted(id?: string): void {
   const next = operations.map((operation) =>
     operation.id === targetId ? { ...operation, retryAttempted: true } : operation
   )
-  localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(next))
+  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
 }
 
 export function clearRetryAttempted(id?: string): void {
@@ -205,7 +234,7 @@ export function clearRetryAttempted(id?: string): void {
   const next = operations.map((operation) =>
     operation.id === targetId ? { ...operation, retryAttempted: false } : operation
   )
-  localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(next))
+  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
 }
 
 // 리셋 마커는 태그별로 보관한다(단일 슬롯이면 여러 태그를 60초 내 연속 리셋할 때 덮여 유실됨).
@@ -214,7 +243,7 @@ type ResetMarkerMap = Record<string, ResetTimerMarker>
 function readResetMarkers(): ResetMarkerMap {
   if (typeof window === 'undefined') return {}
   try {
-    const raw = localStorage.getItem(RESET_MARKER_KEY)
+    const raw = localStorage.getItem(scoped(RESET_MARKER_KEY))
     if (!raw) return {}
     const parsed = JSON.parse(raw)
     // 레거시(단일 마커 객체) 마이그레이션
@@ -223,17 +252,17 @@ function readResetMarkers(): ResetMarkerMap {
     }
     return parsed && typeof parsed === 'object' ? (parsed as ResetMarkerMap) : {}
   } catch {
-    localStorage.removeItem(RESET_MARKER_KEY)
+    localStorage.removeItem(scoped(RESET_MARKER_KEY))
     return {}
   }
 }
 
 function writeResetMarkers(map: ResetMarkerMap): void {
   if (Object.keys(map).length === 0) {
-    localStorage.removeItem(RESET_MARKER_KEY)
+    localStorage.removeItem(scoped(RESET_MARKER_KEY))
     return
   }
-  localStorage.setItem(RESET_MARKER_KEY, JSON.stringify(map))
+  localStorage.setItem(scoped(RESET_MARKER_KEY), JSON.stringify(map))
 }
 
 // 만료된 마커를 제거하고 남은 맵을 반환.
@@ -281,7 +310,7 @@ export function peekResetTimerMarkers(): ResetTimerMarker[] {
 export function clearResetTimerMarker(tagId?: number): void {
   if (typeof window === 'undefined') return
   if (tagId === undefined) {
-    localStorage.removeItem(RESET_MARKER_KEY)
+    localStorage.removeItem(scoped(RESET_MARKER_KEY))
     return
   }
   const map = readResetMarkers()
@@ -300,9 +329,9 @@ export function forgetTagTimerLocally(tagId: number): void {
 
   const remaining = peekPendingTimerOperations().filter((op) => op.tagId !== tagId)
   if (remaining.length === 0) {
-    localStorage.removeItem(PENDING_TIMER_OPS_KEY)
+    localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
   } else {
-    localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(remaining))
+    localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(remaining))
   }
 
   clearResetTimerMarker(tagId)

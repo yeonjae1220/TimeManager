@@ -30,6 +30,14 @@ import java.util.stream.Collectors;
 @Slf4j
 public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTagsByMemberPort, UpdateTagTimeBatchPort, LoadTagResultPort, SaveTagsOrderPort, ResetTagDailyTimesPort {
 
+    @jakarta.persistence.PersistenceContext
+    private jakarta.persistence.EntityManager mutationEntityManager;
+
+    @Override
+    public void lockMember(Long memberId) {
+        mutationEntityManager.find(project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity.class, memberId, jakarta.persistence.LockModeType.PESSIMISTIC_WRITE);
+    }
+
     private final TagJpaRepository tagJpaRepository;
     private final MemberJpaRepository memberJpaRepository;
     private final TagMapper tagMapper;

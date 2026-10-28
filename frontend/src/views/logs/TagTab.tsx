@@ -1,13 +1,14 @@
 'use client'
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useLogQuery } from '@/hooks/useLogQuery'
 import Link from 'next/link'
 import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore } from '@/store/tagStore'
 import { collectDescendantIds } from '@/utils/tagTree'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { useI18n } from '@/i18n/I18nProvider'
-import { type TagSummary, type SummaryData, fmtHMS, toLocalDate, startOfWeek, addDays, getPrevRange, startOfMonth, endOfMonth, TagBar, LoadError, getSummary } from './shared'
+import { type DayBoundary, useLogicalToday, BoundaryWait, parseLocalDate, type TagSummary, type SummaryData, fmtHMS, toLocalDate, startOfWeek, addDays, getPrevRange, startOfMonth, endOfMonth, TagBar, LoadError, getSummary } from './shared'
 
 // ────────────────────────────────────────────────────────────
 // Tag tab
@@ -15,26 +16,33 @@ import { type TagSummary, type SummaryData, fmtHMS, toLocalDate, startOfWeek, ad
 
 type TagPeriod = 'week' | 'month' | 'custom'
 
-export default function TagTab({ memberId }: { memberId: number }) {
+export default function TagTab({ memberId, dayBoundary }: { memberId: number; dayBoundary: DayBoundary }) {
   const { t: tr } = useI18n()
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
   const findById = useTagStore((s) => s.findById)
 
   const [showPicker, setShowPicker] = useState(false)
-  const [selectedTagId, setSelectedTagId] = useState<number | null>(null)
-  const [period, setPeriod] = useState<TagPeriod>('week')
-  const [customStart, setCustomStart] = useState(() => toLocalDate(addDays(new Date(), -6)))
-  const [customEnd, setCustomEnd] = useState(() => toLocalDate(new Date()))
+  const logicalToday = useLogicalToday(dayBoundary)
+  const { values, set } = useLogQuery()
+  const rawTag = Number(values.get('tagId'))
+  const selectedTagId = Number.isSafeInteger(rawTag) && rawTag > 0 ? rawTag : null
+  const setSelectedTagId = (id: number | null) => set('tagId', id ? String(id) : null)
+  const period: TagPeriod = values.get('period') === 'custom' ? 'custom' : values.get('period') === 'month' ? 'month' : 'week'
+  const setPeriod = (p: TagPeriod) => set('period', p)
+  const customStart = values.get('start') ?? (logicalToday ? toLocalDate(addDays(logicalToday, -6)) : '')
+  const customEnd = values.get('end') ?? (logicalToday ? toLocalDate(logicalToday) : '')
+  const setCustomStart = (v: string) => set('start', v)
+  const setCustomEnd = (v: string) => set('end', v)
 
   useEffect(() => { if (memberId) loadTags(memberId) }, [memberId, loadTags])
 
   const getRange = useCallback((): [Date, Date] => {
-    const today = new Date()
+    const today = logicalToday!
     if (period === 'week') return [startOfWeek(today), addDays(startOfWeek(today), 6)]
     if (period === 'month') return [startOfMonth(today), endOfMonth(today)]
-    return [new Date(customStart), new Date(customEnd)]
-  }, [period, customStart, customEnd])
+    return [parseLocalDate(customStart)!, parseLocalDate(customEnd)!]
+  }, [period, customStart, customEnd, logicalToday])
 
   // 실제 입력은 getRange 가 담은 기간 세 값뿐이다 — 조회 자체는 항상 전체 태그를
   // 가져오고, selectedTagId 는 filterForTag 에서 클라이언트 사이드로만 골라낸다.
@@ -49,7 +57,8 @@ export default function TagTab({ memberId }: { memberId: number }) {
   // 태그 미선택 시에도 조회한다 — 예전엔 여기서 loader 를 null 로 넘겨 태그를
   // 고르기 전까지 빈 화면만 보여줬다. "전체 태그" 기본 데이터를 먼저 보여주는
   // 편이 더 유용하다.
-  const { data: ranges, loading, failed, reload } = useAsyncData(loadRanges)
+  const { data: ranges, loading, failed, reload } = useAsyncData(logicalToday && (period !== 'custom' || (parseLocalDate(customStart) && parseLocalDate(customEnd) && customStart <= customEnd)) ? loadRanges : null)
+  const invalidRange = period === 'custom' && (!parseLocalDate(customStart) || !parseLocalDate(customEnd) || customStart > customEnd)
   const current = ranges?.current ?? null
   const prev = ranges?.prev ?? null
 
@@ -76,6 +85,8 @@ export default function TagTab({ memberId }: { memberId: number }) {
   const currentTotal = currentFiltered.reduce((s, t) => s + t.totalSeconds, 0)
   const prevTotal = prevFiltered.reduce((s, t) => s + t.totalSeconds, 0)
   const delta = prevTotal > 0 ? Math.round(((currentTotal - prevTotal) / prevTotal) * 100) : null
+
+  if (!logicalToday) return <BoundaryWait dayBoundary={dayBoundary} />
 
   return (
     <div>
@@ -110,6 +121,7 @@ export default function TagTab({ memberId }: { memberId: number }) {
         </div>
       )}
 
+      {invalidRange && <p role="alert">{tr('editRecord.invalidRange')}</p>}
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
       {!loading && failed && <LoadError onRetry={reload} />}
       {/* !failed 가 필수다. 빼면 조회 실패가 "해당 기간에 기록이 없습니다" + 기록
@@ -117,7 +129,7 @@ export default function TagTab({ memberId }: { memberId: number }) {
           "이 기간엔 안 했구나"로 확신하고 넘어간다. 아래 통계 블록은 지금은
           length > 0 게이트에 막히지만, 게이트가 바뀌어도 실패 시엔 안 나오도록
           여기서도 !failed 를 건다. */}
-      {!loading && !failed && currentFiltered.length === 0 && (
+      {!loading && !failed && !invalidRange && currentFiltered.length === 0 && (
         <div style={{ display: 'grid', justifyItems: 'center', gap: 12, marginTop: 40 }}>
           <p style={{ fontSize: 13, color: 'var(--text-3)', textAlign: 'center' }}>{tr('logs.noRecordsPeriod')}</p>
           <Link href={`/members/${memberId}/today${selectedTagId ? `?tagId=${selectedTagId}` : ''}`} className="mono" style={{ display: 'inline-flex', alignItems: 'center', minHeight: 40, padding: '0 14px', background: 'var(--accent)', borderRadius: 'var(--radius)', color: 'var(--bg)', fontSize: 11 }}>
@@ -126,7 +138,7 @@ export default function TagTab({ memberId }: { memberId: number }) {
         </div>
       )}
 
-      {!loading && !failed && currentFiltered.length > 0 && (
+      {!loading && !failed && !invalidRange && currentFiltered.length > 0 && (
         <>
           <div style={{ display: 'flex', gap: 16, marginBottom: 24 }}>
             <div style={{ flex: 1, background: 'var(--surface-2)', border: '1px solid var(--border-subtle)', borderRadius: 'var(--radius)', padding: '14px 16px', textAlign: 'center' }}>

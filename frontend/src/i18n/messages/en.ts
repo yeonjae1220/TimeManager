@@ -2,6 +2,21 @@
 // 다른 언어 파일은 Record<MessageKey, string>으로 강제되어 키 누락 시 빌드 실패.
 // 결정 배경: docs/adr/0001-i18n-custom-vs-library.md
 const en = {
+  "record.pending": "Records waiting to sync",
+  "record.reviewRequired": "Review required",
+  "record.changed": "This record changed on another device. Refresh and reopen it.",
+
+  "record.replaceWarning": "The following records will be deleted. Review them before replacing.",
+  "record.refreshFailed": "Saved. Refresh failed; close and refresh the list.",
+  "record.saveUncertain": "Save could not be confirmed. Check your connection and records before retrying.",
+  "tags.favorites": "Favorites",
+  "tags.search": "Search tags",
+  "tags.more": "More actions",
+  "logs.today": "Today",
+  "logs.thisWeek": "This week",
+  "logs.thisMonth": "This month",
+  "timer.pending": "Sync pending",
+
   // common
   'error.unexpected': 'Something went wrong.',
   'common.cancel': 'Cancel',
