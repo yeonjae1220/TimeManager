@@ -63,9 +63,7 @@ describe('NativeTimerSync', () => {
     expect(sync).toHaveBeenLastCalledWith(expect.objectContaining({ tagId: 2, tagName: 'Tag 2' }))
   })
 
-  it.each(['web', 'today', 'hidden', 'offline'])('%s에서는 조회하지 않는다', async (mode) => {
-    if (mode === 'web') env.native = false
-    if (mode === 'today') env.pathname = '/members/7/today'
+  it.each(['hidden', 'offline'])('%s에서는 조회하지 않는다', async (mode) => {
     if (mode === 'hidden') Object.defineProperty(document, 'visibilityState', { value: 'hidden', configurable: true })
     if (mode === 'offline') reportUnreachable()
     render(<NativeTimerSync memberId={7} />)
@@ -96,16 +94,12 @@ describe('NativeTimerSync', () => {
     expect(vi.getTimerCount()).toBe(0)
   })
 
-  it.each(['unmount', 'action', 'account', 'today'])('응답 대기 중 %s 후에는 이전 조회로 표면을 바꾸지 않는다', async (mode) => {
+  it.each(['unmount', 'action', 'account'])('응답 대기 중 %s 후에는 이전 조회로 표면을 바꾸지 않는다', async (mode) => {
     let resolve!: (value: { data: ReturnType<typeof tag>[] }) => void
     get.mockReturnValueOnce(new Promise((res) => { resolve = res }))
     const view = render(<NativeTimerSync memberId={7} />)
     if (mode === 'unmount') view.unmount()
     if (mode === 'account') view.rerender(<NativeTimerSync memberId={8} />)
-    if (mode === 'today') {
-      env.pathname = '/members/7/today'
-      view.rerender(<NativeTimerSync memberId={7} />)
-    }
     if (mode === 'action') saveTimerState({
       tagId: 1, isRunning: false, elapsedTime: 10, latestStartTime: Date.now() - 5_000,
       latestEndTime: Date.now(), latestStopTimeMs: Date.now(), dailyTotalTime: 10, dailyGoalTime: 0,

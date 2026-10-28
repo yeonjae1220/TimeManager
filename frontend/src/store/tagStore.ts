@@ -3,11 +3,13 @@
 import { create } from 'zustand'
 import { get as idbGet, set as idbSet } from 'idb-keyval'
 import apiClient from '@/utils/apiClient'
+import { useAuthStore } from '@/store/authStore'
 import {
   clearRetryAttempted,
   clearTimerState,
   forgetTagTimerLocally,
   markRetryAttempted,
+  migrateLegacyTimerStorage,
   peekPendingTimerOperation,
   peekResetTimerMarkers,
   peekTimerState,
@@ -120,19 +122,19 @@ function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
 const RECENT_TAGS_KEY = 'recentTagIds'
 const MAX_RECENT_TAGS = 16
 
-function loadRecentTagIds(): number[] {
+function loadRecentTagIds(memberId?: number): number[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(RECENT_TAGS_KEY)
+    const raw = localStorage.getItem(RECENT_TAGS_KEY + ':' + memberId)
     return raw ? JSON.parse(raw) : []
   } catch {
     return []
   }
 }
 
-function saveRecentTagIds(ids: number[]) {
+function saveRecentTagIds(ids: number[], memberId: number | null) {
   try {
-    localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(ids))
+    localStorage.setItem(RECENT_TAGS_KEY + ':' + memberId, JSON.stringify(ids))
   } catch { /* ignore */ }
 }
 
@@ -173,7 +175,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   fetchError: false,
   _activeMemberId: null,
   _pendingRefreshMemberId: null,
-  recentTagIds: loadRecentTagIds(),
+  recentTagIds: [],
 
   findById: (id) => findTagById(get().tagTree, id),
 
@@ -181,7 +183,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     const prev = get().recentTagIds.filter((id) => id !== tagId)
     const next = [tagId, ...prev].slice(0, MAX_RECENT_TAGS)
     set({ recentTagIds: next })
-    saveRecentTagIds(next)
+    saveRecentTagIds(next, get()._activeMemberId)
   },
 
   async createTag(name, parentTagId) {
@@ -219,6 +221,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async loadTagsFromCache(memberId) {
+    if (get()._activeMemberId !== memberId) set({ recentTagIds: loadRecentTagIds(memberId), tagTree: [], lastFetchedAt: null })
     set({ fetchError: false, _activeMemberId: memberId })
 
     // 대기 중인 op 재전송은 태그 신선도와 무관하게 먼저 시도한다.
@@ -237,7 +240,8 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
     try {
       const cached = await readTagCache(memberId)
-      if (cached) set({ tagTree: cached })
+      if (get()._activeMemberId !== memberId) return
+      if (cached) { migrateLegacyTimerStorage(memberId, new Set(cached.flatMap(function ids(t): number[] { return [t.id, ...t.children.flatMap(ids)] }))); set({ tagTree: cached }) }
     } catch (e) {
       console.warn('IndexedDB cache read failed:', e)
     }
@@ -277,6 +281,11 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async _doRefreshTags(memberId) {
+    const activeMemberAtStart = get()._activeMemberId
+    const authMemberAtStart = useAuthStore.getState().memberId
+    const isCurrentAccount = () => get()._activeMemberId === activeMemberAtStart
+      && useAuthStore.getState().memberId === authMemberAtStart
+    if (activeMemberAtStart !== null && activeMemberAtStart !== memberId) return
     if (get().isRefreshing) {
       set({ _pendingRefreshMemberId: memberId })
       return
@@ -285,7 +294,9 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
     try {
       const response = await apiClient.get<Tag[]>(`/api/v1/tags?memberId=${memberId}`)
+      if (!isCurrentAccount()) return
       let tagTree = response.data
+      migrateLegacyTimerStorage(memberId, new Set(tagTree.flatMap(function ids(t): number[] { return [t.id, ...t.children.flatMap(ids)] })))
       set({ lastFetchedAt: Date.now(), fetchError: false })
 
       tagTree = applyLocalTimerOverrides(tagTree)
@@ -293,12 +304,13 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       set({ tagTree })
       writeTagCache(memberId, tagTree, 'IndexedDB cache save failed')
     } catch (error) {
+      if (!isCurrentAccount()) return
       console.error('Tag fetch failed:', error)
       if (!selectHasCachedData(get())) set({ fetchError: true })
       if (get().tagTree.length === 0) {
         try {
           const cached = await readTagCache(memberId)
-          if (cached) set({ tagTree: cached })
+          if (cached && isCurrentAccount()) set({ tagTree: cached })
         } catch (e) {
           console.warn('IndexedDB recovery failed:', e)
         }
@@ -325,8 +337,11 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async retryPendingTimerOp() {
+    const memberAtStart = useAuthStore.getState().memberId
+    const sameMember = () => useAuthStore.getState().memberId === memberAtStart
     const inner = (async () => {
       while (true) {
+        if (!sameMember()) return
         const pending = peekPendingTimerOperation()
         if (!pending || pending.retryAttempted) return
 
@@ -349,6 +364,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
               `/api/v1/tags/${pending.tagId}/timer/stop`,
               {
                 elapsedTime: pending.elapsedTime,
+                replay: true,
                 timestamps: {
                   startTime: new Date(pending.latestStartTime).toISOString(),
                   endTime: new Date(pending.latestEndTime).toISOString(),
@@ -356,8 +372,11 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
               },
               { headers: { 'Content-Type': 'application/json' } }
             )
+            if (!sameMember()) return
             const activeTimer = peekTimerState()
-            if (activeTimer?.tagId === pending.tagId && !activeTimer.isRunning) {
+            if (activeTimer?.tagId === pending.tagId && !activeTimer.isRunning
+                && activeTimer.latestStartTime === pending.latestStartTime
+                && activeTimer.latestEndTime === pending.latestEndTime) {
               clearTimerState()
             }
           } else if (pending.type === 'start') {
@@ -373,8 +392,10 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
               { headers: { 'Content-Type': 'application/json' } }
             )
           }
+          if (!sameMember()) return
           removePendingTimerOperation(pending.id)
         } catch (e: unknown) {
+          if (!sameMember()) return
           const status = (e as { response?: { status?: number } }).response?.status
 
           // 401은 "이 op가 틀렸다"가 아니라 "지금 자격이 없다" — 오프라인 중 세션이 만료된
@@ -412,12 +433,18 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       await inner
     } finally {
       _retryPromise = null
+      if (!sameMember()) {
+        // The old account owns these operations; allow idempotent retry on its next login.
+        const key = memberAtStart ? `timemgr-pending-timer-ops:${memberAtStart}` : 'timemgr-pending-timer-ops'
+        try { const old = JSON.parse(localStorage.getItem(key) ?? '[]'); localStorage.setItem(key, JSON.stringify(old.map((op: { retryAttempted: boolean }) => ({ ...op, retryAttempted: false })))) } catch { /* invalid cache */ }
+      } else {
       // 큐 재생이 끝나면 로컬 권위 상태 기준으로 네이티브 표면을 한 번 재수렴시킨다.
       // 고아 start 폐기·401 보존·4xx 폐기 등 재생 경로가 여럿이라 경로마다 알림을
       // 취소하면 진실의 소스가 둘이 되어 오히려 드리프트한다. 결과만 보고 수렴시킨다.
       const active = peekTimerState()
       const name = active ? findTagById(get().tagTree, active.tagId)?.name : undefined
       void syncNativeRunningSession(sessionFromTimerState(active, name))
+      }
     }
   },
 
@@ -437,7 +464,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async clearCache() {
-    set({ tagTree: [], lastFetchedAt: null, fetchError: false })
+    set({ tagTree: [], lastFetchedAt: null, fetchError: false, recentTagIds: [], _activeMemberId: null })
   },
 }))
 

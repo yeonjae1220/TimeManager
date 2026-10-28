@@ -53,7 +53,7 @@ vi.mock('@/store/tagStore', () => ({
   ),
 }))
 
-vi.mock('@/utils/timerPersistence', () => ({ peekTimerState: () => null }))
+vi.mock('@/utils/timerPersistence', () => ({ peekTimerState: () => null, peekPendingTimerOperations: () => [] }))
 
 // URL별로 응답을 다르게 줄 수 있도록 실제 axios 유사 인터페이스만 흉내낸 얇은 mock.
 // 기본은 항상 totalSeconds:0 — 개별 테스트가 필요하면 apiGet.mockImplementationOnce 등으로 덮어쓴다.

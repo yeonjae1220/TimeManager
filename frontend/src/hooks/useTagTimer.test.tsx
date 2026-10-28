@@ -205,9 +205,9 @@ describe('useTagTimer — 타이머 생명주기 전 경우의 수', () => {
 
     await act(async () => {
       await result.current.stopStopwatch()
-    }) // 온라인 stop 성공 → timer clear, 큐[start] 고아 잔존
-    expect(peekTimerState()).toBeNull()
-    expect(opTypes()).toEqual(['start']) // 고아 확인
+    }) // 앞선 start를 추월하지 않고 stop도 대기열에 보존한다.
+    expect(peekTimerState()).toMatchObject({ isRunning: false })
+    expect(opTypes()).toEqual(['start', 'stop'])
 
     post.mockClear()
     await reconnectAndFlush() // 재접속
@@ -226,7 +226,7 @@ describe('useTagTimer — 타이머 생명주기 전 경우의 수', () => {
     await act(async () => {
       await result.current.stopStopwatch()
     }) // 온라인 stop
-    expect(opTypes()).toEqual(['start']) // 고아
+    expect(opTypes()).toEqual(['start', 'stop']) // 정지는 보존, start는 재생 때 제거
 
     post.mockClear()
     await act(async () => {

@@ -32,16 +32,20 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     @Override
     public Long startTimer(StartTimerCommand command) {
+        loadTagPort.lockMember(command.memberId());
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         assertOwner(tag, command.memberId());
 
+        if (tag.isRunning()) return tag.getId().value();
+        if (tag.hasStopMark() && command.startTime().isBefore(tag.getLatestStopTime())) throw new DomainException("Stale timer start");
         // 이 멤버의 다른 실행 중 태그를 모두 자동 정지한다. 정상적으로는 최대 1개지만, 과거 reset
         // 결함으로 다중 RUNNING이 누적됐을 수 있어 전부 정지·기록해 서버 상태를 정리한다.
-        ZonedDateTime endTime = ZonedDateTime.now(command.startTime().getZone());
+        ZonedDateTime endTime = command.startTime();
         for (Tag runningTag : loadTagPort.findRunningTagsByMemberId(tag.getMemberId().value())) {
             if (!runningTag.getId().value().equals(command.tagId())) {
                 log.info("Auto-stopping running tag: {}", runningTag.getId().value());
+                if (!runningTag.getLatestStartTime().isBefore(endTime)) throw new DomainException("Stale timer switch");
                 long elapsed = Math.max(0L, ChronoUnit.SECONDS.between(runningTag.getLatestStartTime(), endTime));
                 runningTag.stop(endTime, elapsed);
                 saveTagPort.saveTag(runningTag);
@@ -56,9 +60,16 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     @Override
     public Long stopTimer(StopTimerCommand command) {
+        loadTagPort.lockMember(command.memberId());
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         assertOwner(tag, command.memberId());
+
+        // A replayed historical segment must not stop a later session on another device.
+        if (command.replay() && tag.isRunning() && tag.hasStartAnchor()
+                && !tag.getLatestStartTime().isBefore(command.endTime())) {
+            return createRecordUseCase.createRecord(new CreateRecordCommand(command.tagId(), command.startTime(), command.endTime(), false));
+        }
 
         ZonedDateTime recordStart = resolveRecordStart(tag, command);
 
@@ -114,6 +125,7 @@ public class TimerCommandService implements StartTimerUseCase, StopTimerUseCase,
 
     @Override
     public Long resetTimer(ResetTimerCommand command) {
+        loadTagPort.lockMember(command.memberId());
         Tag tag = loadTagPort.loadTag(command.tagId())
                 .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
         assertOwner(tag, command.memberId());

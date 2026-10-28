@@ -2,8 +2,10 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import { useEffect, useRef } from 'react'
 import AppShell from './AppShell'
+vi.mock('@/components/PendingRecords', () => ({ default: () => null }))
 
-vi.mock('next/navigation', () => ({ usePathname: () => '/members/1/today' }))
+vi.mock('next/navigation', () => ({
+  useSearchParams: () => new URLSearchParams(), usePathname: () => '/members/1/today' }))
 vi.mock('@/store/authStore', () => ({ useAuthStore: (sel: (s: { memberId: number }) => unknown) => sel({ memberId: 1 }) }))
 vi.mock('@/i18n/I18nProvider', () => ({ useI18n: () => ({ t: (k: string) => k }) }))
 

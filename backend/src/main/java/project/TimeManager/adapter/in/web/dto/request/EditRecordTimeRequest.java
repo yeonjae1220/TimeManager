@@ -20,6 +20,8 @@ public class EditRecordTimeRequest {
 
     /** 중복 시간대가 있을 때 기존 기록을 삭제하고 강제 저장할지 여부 (2단계 확인 후 true로 전송) */
     private boolean forceOverwrite = false;
+    private String overlapToken;
+    private String recordToken;
 
     /** 태그 변경 시 새 tagId. null이면 기존 태그 유지 */
     private Long newTagId;

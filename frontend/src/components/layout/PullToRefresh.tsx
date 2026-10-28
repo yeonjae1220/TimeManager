@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useRef, useState } from 'react'
+import { usePathname, useSearchParams } from 'next/navigation'
 
 const PULL_THRESHOLD = 64
 const MAX_PULL = 96
@@ -22,6 +23,31 @@ interface PullToRefreshProps {
  */
 export default function PullToRefresh({ onRefresh, children }: PullToRefreshProps) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const pathname = usePathname()
+  const query = useSearchParams()?.toString() ?? ''
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el) return
+    const key = 'tm-scroll:' + pathname + '?' + query
+    let target = 0
+    try { target = Number(sessionStorage.getItem(key)) || 0 } catch { /* storage disabled */ }
+    let restoring = target > 0
+    if (!restoring) el.scrollTop = 0
+    const restore = () => {
+      if (!restoring) return
+      el.scrollTop = target
+      if (el.scrollTop >= target) restoring = false
+    }
+    const observer = new MutationObserver(restore)
+    observer.observe(el, { childList: true, subtree: true })
+    restore()
+    const cancel = () => { restoring = false }
+    const save = () => { if (!restoring) { try { sessionStorage.setItem(key, String(el.scrollTop)) } catch { /* storage disabled */ } } }
+    el.addEventListener('scroll', save)
+    el.addEventListener('touchstart', cancel, { passive: true })
+    el.addEventListener('wheel', cancel, { passive: true })
+    return () => { save(); observer.disconnect(); el.removeEventListener('scroll', save); el.removeEventListener('touchstart', cancel); el.removeEventListener('wheel', cancel) }
+  }, [pathname, query])
   const [pull, setPull] = useState(0)
   const [phase, setPhase] = useState<'idle' | 'dragging' | 'refreshing'>('idle')
 

@@ -152,7 +152,7 @@ public class TagApiController {
         ZonedDateTime endTime = request.timestamps().endTime();
         log.info("Stop timer: tagId={}, startTime={}, endTime={}", tagId, startTime, endTime);
         return ResponseEntity.ok(stopTimerUseCase.stopTimer(
-                new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime, memberId)
+                new StopTimerCommand(tagId, request.elapsedTime(), startTime, endTime, memberId, request.replay())
         ));
     }
 

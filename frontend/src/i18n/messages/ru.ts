@@ -1,6 +1,21 @@
 import type { Messages } from './en'
 
 const ru: Messages = {
+  "record.pending": "Записи ожидают синхронизации",
+  "record.reviewRequired": "Требуется проверка",
+  "record.changed": "Запись изменена на другом устройстве. Обновите и откройте её снова.",
+
+  "record.replaceWarning": "Эти записи будут удалены. Проверьте их перед заменой.",
+  "record.refreshFailed": "Сохранено. Не удалось обновить; закройте и обновите список.",
+  "record.saveUncertain": "Сохранение не подтверждено. Проверьте соединение и записи перед повтором.",
+  "tags.favorites": "Избранное",
+  "tags.search": "Поиск тегов",
+  "tags.more": "Другие действия",
+  "logs.today": "Сегодня",
+  "logs.thisWeek": "Эта неделя",
+  "logs.thisMonth": "Этот месяц",
+  "timer.pending": "Ожидание синхронизации",
+
   'error.unexpected': 'Что-то пошло не так.',
   'common.cancel': 'Отмена',
   'common.save': 'Сохранить',

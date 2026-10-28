@@ -43,6 +43,7 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
         if (domain.getId() != null) {
             RecordJpaEntity entity = recordJpaRepository.findById(domain.getId().value())
                     .orElseThrow(() -> new EntityNotFoundException("Record not found: " + domain.getId().value()));
+            entity.setTag(tagJpaRepository.getReferenceById(domain.getTagId().value()));
             entity.setStartTime(domain.getTimeRange().start());
             entity.setEndTime(domain.getTimeRange().end());
             entity.setTotalTime(domain.getTotalTime());

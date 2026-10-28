@@ -43,11 +43,14 @@ public class RecordSummaryResult {
     }
 
     public static class SessionDetail {
+        private final Long recordId;
+        public Long getRecordId() { return recordId; }
         private final ZonedDateTime startTime;
         private final ZonedDateTime endTime;
         private final Long durationSeconds;
 
-        public SessionDetail(ZonedDateTime startTime, ZonedDateTime endTime, Long durationSeconds) {
+        public SessionDetail(Long recordId, ZonedDateTime startTime, ZonedDateTime endTime, Long durationSeconds) {
+            this.recordId = recordId;
             this.startTime = startTime;
             this.endTime = endTime;
             this.durationSeconds = durationSeconds;

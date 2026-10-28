@@ -1,9 +1,9 @@
 'use client'
 
 import { useEffect } from 'react'
-import { usePathname } from 'next/navigation'
 import apiClient from '@/utils/apiClient'
-import { isNativeApp } from '@/utils/platform'
+import { useRunningTimerStore } from '@/store/runningTimerStore'
+import { useTagStore } from '@/store/tagStore'
 import { isOnline, subscribeConnectivity } from '@/utils/connectivity'
 import { peekTimerState } from '@/utils/timerPersistence'
 import { computeStopwatchState } from '@/utils/stopwatchState'
@@ -35,13 +35,17 @@ function runningSession(tags: Tag[]): NativeRunningSession | null {
   return latest
 }
 
-/** Today owns its timer synchronization. Other authenticated screens need a listener
- * too: otherwise returning to Logs/Profile leaves remote stops on native surfaces.
- * This runs only while the app is visible; suspended iOS apps require APNs updates. */
+/** One foreground reconciler feeds the shared mini timer and native surfaces.
+ * Suspended iOS apps still require APNs for remote updates. */
 export function NativeTimerSync({ memberId }: { memberId: number }) {
-  const pathname = usePathname()
   useEffect(() => {
-    if (!isNativeApp() || pathname?.endsWith('/today')) return
+    const runtime = useRunningTimerStore.getState()
+    if (runtime.memberId !== memberId) useRunningTimerStore.setState({ memberId, session: null, busy: false, revision: runtime.revision + 1 })
+    const saved = peekTimerState()
+    if (saved?.isRunning && saved.latestStartTime && !isOnline()) {
+      void syncNativeRunningSession({ tagId: saved.tagId, tagName: useTagStore.getState().findById(saved.tagId)?.name ?? '', startedAtMs: saved.latestStartTime, baseElapsedSec: saved.elapsedTime, dailyBaseSec: saved.dailyTotalTime, dailyGoalSec: saved.dailyGoalTime })
+    }
+
     let disposed = false
     let inFlight = false
     let lastAttempt = -Infinity
@@ -50,11 +54,14 @@ export function NativeTimerSync({ memberId }: { memberId: number }) {
       if (Date.now() - lastAttempt < THROTTLE_MS) return
       lastAttempt = Date.now()
       inFlight = true
+      const revision = useRunningTimerStore.getState().revision
+      if (useRunningTimerStore.getState().busy) { inFlight = false; return }
       const localBefore = JSON.stringify(peekTimerState())
       try {
         const { data } = await apiClient.get<Tag[]>(`/api/v1/tags?memberId=${memberId}`)
         // A navigation, account change or timer action can invalidate an outstanding read.
-        if (disposed || localBefore !== JSON.stringify(peekTimerState())) return
+        if (disposed || useRunningTimerStore.getState().busy || revision !== useRunningTimerStore.getState().revision || localBefore !== JSON.stringify(peekTimerState())) return
+        useTagStore.setState({ tagTree: data, lastFetchedAt: Date.now() })
         await syncNativeRunningSession(runningSession(data))
       } catch {
         // An unavailable server is not evidence that the timer stopped. Retry on return.
@@ -74,6 +81,6 @@ export function NativeTimerSync({ memberId }: { memberId: number }) {
       clearInterval(timer)
       document.removeEventListener('visibilitychange', onVisible)
     }
-  }, [memberId, pathname])
+  }, [memberId])
   return null
 }

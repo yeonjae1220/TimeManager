@@ -62,18 +62,21 @@ public class RecordSummaryResponse {
     }
 
     public static class SessionDetailResponse {
+        private final Long recordId;
+        public Long getRecordId() { return recordId; }
         private final ZonedDateTime startTime;
         private final ZonedDateTime endTime;
         private final Long durationSeconds;
 
-        private SessionDetailResponse(ZonedDateTime startTime, ZonedDateTime endTime, Long durationSeconds) {
+        private SessionDetailResponse(Long recordId, ZonedDateTime startTime, ZonedDateTime endTime, Long durationSeconds) {
+            this.recordId = recordId;
             this.startTime = startTime;
             this.endTime = endTime;
             this.durationSeconds = durationSeconds;
         }
 
         public static SessionDetailResponse from(RecordSummaryResult.SessionDetail detail) {
-            return new SessionDetailResponse(detail.getStartTime(), detail.getEndTime(), detail.getDurationSeconds());
+            return new SessionDetailResponse(detail.getRecordId(), detail.getStartTime(), detail.getEndTime(), detail.getDurationSeconds());
         }
 
         public ZonedDateTime getStartTime() { return startTime; }

@@ -103,5 +103,7 @@ export function useAsyncData<T>(loader: (() => Promise<T>) | null): AsyncData<T>
 
   const reload = useCallback(() => setAttempt((n) => n + 1), [])
 
+  useEffect(() => { window.addEventListener('records-changed', reload); return () => window.removeEventListener('records-changed', reload) }, [reload])
+
   return { data, loading, failed, error, reload }
 }

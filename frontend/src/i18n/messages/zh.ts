@@ -1,6 +1,21 @@
 import type { Messages } from './en'
 
 const zh: Messages = {
+  "record.pending": "记录等待同步",
+  "record.reviewRequired": "需要确认",
+  "record.changed": "此记录已在其他设备上更改。请刷新后重新打开。",
+
+  "record.replaceWarning": "以下记录将被删除，请确认后替换。",
+  "record.refreshFailed": "已保存，但刷新失败。请关闭并刷新列表。",
+  "record.saveUncertain": "无法确认保存。请检查连接和记录后重试。",
+  "tags.favorites": "收藏",
+  "tags.search": "搜索标签",
+  "tags.more": "更多操作",
+  "logs.today": "今天",
+  "logs.thisWeek": "本周",
+  "logs.thisMonth": "本月",
+  "timer.pending": "等待同步",
+
   'error.unexpected': '出现了问题。',
   'common.cancel': '取消',
   'common.save': '保存',

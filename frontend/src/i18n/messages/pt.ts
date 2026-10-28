@@ -1,6 +1,21 @@
 import type { Messages } from './en'
 
 const pt: Messages = {
+  "record.pending": "Registros aguardando sincronização",
+  "record.reviewRequired": "Revisão necessária",
+  "record.changed": "Este registro mudou em outro dispositivo. Atualize e abra novamente.",
+
+  "record.replaceWarning": "Estes registros serão excluídos. Confira antes de substituir.",
+  "record.refreshFailed": "Salvo. Falha ao atualizar; feche e atualize a lista.",
+  "record.saveUncertain": "Não foi possível confirmar. Verifique a conexão e os registros antes de tentar novamente.",
+  "tags.favorites": "Favoritos",
+  "tags.search": "Buscar tags",
+  "tags.more": "Mais ações",
+  "logs.today": "Hoje",
+  "logs.thisWeek": "Esta semana",
+  "logs.thisMonth": "Este mês",
+  "timer.pending": "Sincronização pendente",
+
   'error.unexpected': 'Algo deu errado.',
   'common.cancel': 'Cancelar',
   'common.save': 'Salvar',

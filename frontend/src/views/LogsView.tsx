@@ -59,13 +59,20 @@ export default function LogsView() {
   // 탭 전환은 브라우저 히스토리를 늘리지 않는다(기존 로컬 state와 동일한 UX) —
   // 매 탭 클릭이 "뒤로가기" 대상으로 쌓이면 하드웨어 뒤로가기가 성가셔진다.
   function goToTab(key: TabKey) {
-    router.replace(`/logs?tab=${key}`)
+    const next = new URLSearchParams(searchParams?.toString())
+    next.set('tab', key)
+    next.delete('from')
+    router.replace('/logs?' + next, { scroll: false })
   }
 
   // 날짜를 드릴다운할 때만 히스토리에 실제로 쌓는다 — NativeShell의 하드웨어
   // 뒤로가기(history.back())가 여기서 자연히 period 탭으로 돌아가게 만든다.
   function drillIntoDay(date: Date, from: DrilldownSource) {
-    router.push(`/logs?tab=daily&date=${toLocalDate(date)}&from=${from}`)
+    const next = new URLSearchParams(searchParams?.toString())
+    next.set('tab', 'daily')
+    next.set('date', toLocalDate(date))
+    next.set('from', from)
+    router.push('/logs?' + next, { scroll: false })
   }
 
   return (
@@ -109,7 +116,7 @@ export default function LogsView() {
           {memberId && activeTab === 'monthly' && (
             <MonthlyTab memberId={memberId} onDayClick={(date) => drillIntoDay(date, 'monthly')} dayBoundary={dayBoundary} />
           )}
-          {memberId && activeTab === 'tag' && <TagTab memberId={memberId} />}
+          {memberId && activeTab === 'tag' && <TagTab memberId={memberId} dayBoundary={dayBoundary} />}
         </div>
       </div>
     </AppShell>

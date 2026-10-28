@@ -103,13 +103,13 @@ const runtimeCaching: RuntimeCaching[] = [
   // ── record CRUD — Background Sync ────────────────────────────────
   {
     matcher: ({ url, request, sameOrigin }) =>
-      sameOrigin && url.pathname === '/api/v1/records' && request.method === 'POST',
+      sameOrigin && url.pathname === '/api/v1/records' && !url.searchParams.has('interactive') && request.method === 'POST',
     method: 'POST',
     handler: new NetworkFirst({ plugins: [recordSyncPlugin] }),
   },
   {
     matcher: ({ url, request, sameOrigin }) =>
-      sameOrigin && url.pathname.startsWith('/api/v1/records/') && request.method === 'PUT',
+      sameOrigin && url.pathname.startsWith('/api/v1/records/') && !url.searchParams.has('interactive') && request.method === 'PUT',
     method: 'PUT',
     handler: new NetworkFirst({ plugins: [recordSyncPlugin] }),
   },

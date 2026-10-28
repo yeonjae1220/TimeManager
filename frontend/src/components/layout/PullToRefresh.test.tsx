@@ -2,6 +2,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest'
 import { act, cleanup, render } from '@testing-library/react'
 import PullToRefresh from './PullToRefresh'
 
+const location = vi.hoisted(() => ({ query: '' }))
+vi.mock('next/navigation', () => ({ usePathname: () => '/logs', useSearchParams: () => new URLSearchParams(location.query) }))
+
 afterEach(() => cleanup())
 
 /**
@@ -32,6 +35,22 @@ function drag(el: HTMLDivElement, points: Array<{ x: number; y: number }>) {
 }
 
 describe('PullToRefresh', () => {
+  it('resets a new query to the top and restores the previous query on return', () => {
+    sessionStorage.clear()
+    location.query = 'tab=daily'
+    const renderContent = () => <PullToRefresh onRefresh={vi.fn(async () => {})}><div>content</div></PullToRefresh>
+    const view = render(renderContent())
+    const el = view.container.querySelector('.app-content') as HTMLDivElement
+    el.scrollTop = 240
+    act(() => el.dispatchEvent(new Event('scroll')))
+    location.query = 'tab=weekly'
+    view.rerender(renderContent())
+    expect(el.scrollTop).toBe(0)
+    location.query = 'tab=daily'
+    view.rerender(renderContent())
+    expect(el.scrollTop).toBe(240)
+    location.query = ''
+  })
   it('맨 위(scrollTop=0)에서 임계값 이상 당겼다 놓으면 onRefresh를 부른다', async () => {
     const { el, onRefresh } = renderShell()
     el.scrollTop = 0
