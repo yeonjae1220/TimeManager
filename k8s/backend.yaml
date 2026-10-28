@@ -1,3 +1,13 @@
+# 🔴 이 파일이 backend 의 정본이다 — CI(deploy.yml)가 매 배포마다 이 파일을 apply 한다.
+#    그전엔 CI 가 `set image` 만 해서 여기 적힌 probe 가 라이브에 닿은 적이 없다(GLOBAL-PIT-036).
+#    라이브는 readiness 가 tcpSocket 이고 liveness 가 없었으며, 반대로 GOOGLE_* 의 optional 은
+#    라이브(false)가 맞고 이 파일(true)이 틀려 있었다. 2026-09-08 의 "양방향 드리프트 0" 은 env 만
+#    비교한 결론이었다. 2026-09-27 에 `kubectl diff` 와 서버 dry-run 구조 비교로 전부 대조해 맞췄고,
+#    남은 차이는 이 파일 쪽으로 고른 probe 두 개뿐이었다(CI 의 첫 apply 가 라이브에 반영한다).
+#    라이브를 바꿀 일이 있으면 kubectl 이 아니라 이 파일을 고칠 것. `kubectl set env`·`patch` 로
+#    넣은 값은 last-applied 에 남지 않아서 `kubectl diff` 에 안 보이고 apply 도 지우지 않는다 —
+#    이 파일과 영영 어긋난 채로 숨는다(2026-09-27 실측: set env 로 넣은 TRUSTED_PROXY_IPS 를
+#    이 파일에서 빼고 diff 해도 삭제가 안 나왔다).
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -59,18 +69,22 @@ spec:
                 secretKeyRef:
                   name: timemanager-secret
                   key: PUSH_VAPID_SUBJECT
+            # optional: false 다 — Secret·키가 없으면 새 파드가 뜨지 않고 구 파드가 계속 서빙한다.
+            # true 면 기동은 되고 Google 로그인만 요청 시점에 조용히 실패한다. CI 가 매 배포 이
+            # Secret 을 다시 만들므로 정상 경로에서 막힐 일은 없다.
+            # ⚠️ 빈 문자열은 못 막는다 — GitHub 시크릿이 비어 있으면 키는 생기고 값만 빈다(GLOBAL-PIT-160).
             - name: GOOGLE_CLIENT_ID
               valueFrom:
                 secretKeyRef:
                   name: timemanager-google-secret
                   key: GOOGLE_CLIENT_ID
-                  optional: true
+                  optional: false
             - name: GOOGLE_CLIENT_SECRET
               valueFrom:
                 secretKeyRef:
                   name: timemanager-google-secret
                   key: GOOGLE_CLIENT_SECRET
-                  optional: true
+                  optional: false
             - name: ADMIN_EMAIL
               valueFrom:
                 secretKeyRef:
@@ -105,10 +119,8 @@ spec:
             - name: APP_TRUST_PROXY
               value: "true"
             # ── 아래는 라이브에서 회수한 값이다 (GLOBAL-PIT-083) ──────────────
-            # 이 앱의 CI 는 `kubectl set image` 형이라 이 매니페스트를 apply 하지 않는다
-            # (GLOBAL-PIT-036). 그래서 여기 적힌 값은 저절로 라이브에 닿지 않고,
-            # 반대로 라이브에만 있던 값은 누군가 수동 apply 하는 순간 조용히 사라진다.
-            # 2026-09-08 실측(`kubectl get deploy -o json`)으로 회수했다.
+            # 2026-09-08 실측(`kubectl get deploy -o json`)으로 회수했다. 당시 CI 는 이 파일을
+            # apply 하지 않아서 라이브에만 있던 값이 여기 없었다.
             - name: OTEL_SDK_DISABLED
               value: "false"
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
@@ -125,6 +137,14 @@ spec:
               value: "otlp"
             - name: JAVA_TOOL_OPTIONS
               value: "-XX:MaxRAMPercentage=75.0 -XX:InitialRAMPercentage=50.0 -XX:+UseG1GC"
+          # readiness 는 db·redis 까지 본다(application-docker.yml 의 readiness 그룹). 알고 고른 트레이드오프다:
+          #  · 레플리카가 1개라 DB·Redis 장애가 40~50초(10초 간격 5회 실패)를 넘으면 /api 전체가 503 이 된다.
+          #    Redis 는 refresh 세션 저장소라 그 순간 로그인·refresh 는 어차피 죽어 있고, 더 잃는 것은 이미
+          #    로그인한 사용자의 access token 남은 시간(최대 15분)이다. 그보다 짧은 순단은 흡수한다.
+          #  · 대신 DB·Redis 장애가 PodNotReady 알림(for 5m)으로 잡힌다. tcpSocket 시절엔 Redis 장애를 잡는
+          #    경로가 없었고, DB 장애도 90분을 넘겨야 Loki 배치 침묵 알림으로 간접적으로만 잡혔다.
+          #  · 롤아웃도 새 파드가 DB·Redis 에 실제로 붙은 뒤에만 구 파드를 내린다.
+          # frontend readiness 는 반대로 백엔드를 보지 않는다(frontend.yaml) — 앱 셸까지 연쇄로 빠지지 않게.
           readinessProbe:
             httpGet:
               path: /actuator/health/readiness
@@ -132,6 +152,8 @@ spec:
             initialDelaySeconds: 40
             periodSeconds: 10
             failureThreshold: 5
+          # liveness 는 livenessState 만 본다 — DB·Redis 장애로는 재시작하지 않는다(재시작해도 안 낫는다).
+          # 컨테이너 시작 후 약 90초(60 + 15 × 2)까지 응답이 없어야 죽이며, 실측 기동은 24~26초다.
           livenessProbe:
             httpGet:
               path: /actuator/health/liveness

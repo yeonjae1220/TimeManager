@@ -7,6 +7,7 @@ import { useRunningTimerStore } from '@/store/runningTimerStore'
 import { useI18n } from '@/i18n/I18nProvider'
 import TabBar from './TabBar'
 import PullToRefresh from './PullToRefresh'
+import SyncStatusPill from './SyncStatusPill'
 
 interface AppShellProps {
   children: React.ReactNode
@@ -45,6 +46,7 @@ export default function AppShell({ children, isRunning = false, selectedTagId, o
 
   return (
     <div className={`app-shell${session ? ' has-running-timer' : ''}`}>
+      <SyncStatusPill />
       <PullToRefresh onRefresh={handleRefresh}>
         <div key={onRefresh ? 'static' : refreshKey}>
           {timerError && <p role="alert" className="timer-error">{t('record.saveUncertain')} <button onClick={() => { useRunningTimerStore.setState({ error: false }); void handleRefresh() }}>{t('common.retry')}</button></p>}

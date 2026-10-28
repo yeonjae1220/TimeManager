@@ -18,3 +18,10 @@ export function isNativeApp(): boolean {
   if (typeof window === 'undefined') return false
   return window.Capacitor?.isNativePlatform?.() === true
 }
+
+/** 홈 화면에 설치된 PWA(standalone)로 실행 중인지. iOS 는 navigator.standalone 으로만 알 수 있다. */
+export function isStandaloneDisplay(): boolean {
+  if (typeof window === 'undefined') return false
+  if ((navigator as Navigator & { standalone?: boolean }).standalone === true) return true
+  return window.matchMedia?.('(display-mode: standalone)').matches === true
+}

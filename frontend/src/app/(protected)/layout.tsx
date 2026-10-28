@@ -1,13 +1,29 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/store/authStore'
-import { refreshAuth } from '@/utils/refreshAuth'
+import { usePathname, useRouter } from 'next/navigation'
+import { canOpenOptimistically, useAuthStore } from '@/store/authStore'
+import { getRecentRefreshOutcome, refreshAuth } from '@/utils/refreshAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 import { NativeTimerSync } from '@/components/NativeTimerSync'
 
 type AuthPhase = 'restoring' | 'ready' | 'offline'
+
+const MEMBER_PATH = /^\/members\/(\d+)(?=\/|$)/
+
+/** 랜딩에서 이 레이아웃까지의 라우팅 시간만 덮으면 된다 — 길면 진짜 재시도를 막는다. */
+const RECENT_REFRESH_REUSE_MS = 5_000
+
+/**
+ * URL 의 회원 id 가 인증된 회원과 다르면 고친 경로를, 같거나 URL 에 회원 id 가 없으면 null.
+ * 낙관적 진입은 캐시된 memberId 로 URL 을 만들기 때문에, 쿠키가 다른 회원의 것이면
+ * 그 회원의 토큰으로 남의 자원을 요청해 403 이 쏟아진다.
+ */
+function correctedMemberPath(pathname: string | null, memberId: number): string | null {
+  const match = pathname ? MEMBER_PATH.exec(pathname) : null
+  if (!match || Number(match[1]) === memberId) return null
+  return pathname!.replace(MEMBER_PATH, `/members/${memberId}`)
+}
 
 function AuthSkeleton() {
   return (
@@ -49,10 +65,11 @@ function ReconnectScreen({ onRetry, retrying }: { onRetry: () => void; retrying:
 }
 
 export default function ProtectedLayout({ children }: { children: React.ReactNode }) {
-  const { memberId, clearAuth } = useAuthStore()
+  const { memberId, accessToken, clearAuth } = useAuthStore()
   const router = useRouter()
-  // accessToken이 있으면(인앱 네비게이션) 물론이고, memberId만 남아 있어도(콜드
-  // 스타트, 이 기기의 이전 세션 흔적) 낙관적으로 즉시 통과시킨다 — refresh 왕복이
+  const pathname = usePathname()
+  // accessToken이 있으면(인앱 네비게이션) 물론이고, 최근에 인증된 세션 흔적만 남아
+  // 있어도(콜드 스타트, canOpenOptimistically) 낙관적으로 즉시 통과시킨다 — refresh 왕복이
   // 끝날 때까지 스켈레톤으로 화면 전체를 막으면 그 뒤 타이머 화면(태그 로드·시작
   // 버튼)까지 통째로 지연된다. restore()는 그대로 아래 effect에서 백그라운드로
   // 돌고, unauthenticated로 판명되면 clearAuth()가 memberId를 지워 아래
@@ -112,12 +129,29 @@ export default function ProtectedLayout({ children }: { children: React.ReactNod
       setPhase('ready')
       return
     }
-    // memberId 만 있어도(콜드 스타트, 이 기기의 이전 세션 흔적) 먼저 열고,
-    // restore() 는 그대로 배경에서 돌려 서버 응답으로 화해한다.
-    if (state.memberId) setPhase('ready')
+    // 최근에 인증된 세션 흔적이 있으면(콜드 스타트) 먼저 열고, restore() 는 그대로
+    // 배경에서 돌려 서버 응답으로 화해한다. 흔적이 오래됐으면(서버 세션이 이미 만료됐을
+    // 수 있음) 열었다가 로그인으로 튕기는 대신 결과를 기다린다.
+    if (canOpenOptimistically(state, Date.now())) setPhase('ready')
+    // 랜딩이 방금 refresh 사슬을 다 돌고 offline 을 받아 이리 보냈다면 같은 사슬을 다시
+    // 돌리지 않는다 — 그동안 스켈레톤이 화면을 막는다. refresh 를 건너뛰는 게 아니라
+    // 방금 끝난 시도의 결과를 쓰는 것이고, 다음 시도는 연결 복구 신호(아래 effect)가 맡는다.
+    else if (getRecentRefreshOutcome(RECENT_REFRESH_REUSE_MS)?.status === 'offline') {
+      setPhase('offline')
+      return
+    }
     void restore()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
+
+  // 인증이 확정된 뒤 URL 의 회원이 다르면 바로잡는다. restore() 안이 아니라 여기서
+  // 보는 이유: 랜딩이 먼저 시작한 refresh 가 이 레이아웃 마운트 전에 끝나면 restore()
+  // 는 토큰이 이미 있다고 보고 바로 통과한다 — 그 경로에서도 잡혀야 한다.
+  useEffect(() => {
+    if (!accessToken || memberId === null) return
+    const corrected = correctedMemberPath(pathname, memberId)
+    if (corrected) router.replace(corrected)
+  }, [accessToken, memberId, pathname, router])
 
   // 연결 복구 시(온라인 전환·앱 포그라운드 복귀) 자동 재시도
   useEffect(() => {

@@ -3,7 +3,7 @@
 import Link from 'next/link'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { useAuthStore } from '@/store/authStore'
+import { canOpenOptimistically, useAuthStore } from '@/store/authStore'
 import { refreshAuth } from '@/utils/refreshAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 import { UiLanguageSwitcher } from '@/components/ui/UiLanguageSwitcher'
@@ -26,10 +26,11 @@ function LandingSplash() {
   )
 }
 
+const todayPath = (memberId: number) => `/members/${memberId}/today`
+
 export default function LandingView() {
   const router = useRouter()
   const { t } = useI18n()
-  const { accessToken, memberId } = useAuthStore()
   // 진짜 자격증명은 httpOnly refresh 쿠키 — localStorage의 memberId는 참고용 캐시일 뿐이다.
   // memberId가 없어도(콜드 스타트 시 iOS WebKit이 localStorage flush를 놓쳐 사라질 수 있음)
   // 쿠키가 살아있으면 refresh가 이를 복원해주므로, memberId 유무로 refresh 시도 자체를 막지 않는다.
@@ -38,17 +39,35 @@ export default function LandingView() {
   const [restoring, setRestoring] = useState(true)
 
   useEffect(() => {
-    if (accessToken && memberId) {
-      router.replace(`/members/${memberId}/today`)
+    // 렌더 구독값이 아니라 effect 시점의 스토어를 읽는다 — persist 복원값이 확정된 뒤다.
+    const state = useAuthStore.getState()
+    if (state.accessToken && state.memberId) {
+      router.replace(todayPath(state.memberId))
+      return
+    }
+
+    // PWA start_url 이 '/' 라 콜드 스타트는 항상 여기서 시작한다. 최근에 인증된 세션
+    // 흔적이 있으면 refresh 왕복을 기다리지 않고 타이머 화면(로컬 캐시로 즉시 선다)으로
+    // 보낸다. refresh 는 지금 시작해 두면 보호 레이아웃의 restore() 가 같은 in-flight
+    // 요청을 이어받는다(싱글톤). 판명 결과(로그아웃·회원 불일치)는 그 레이아웃이 처리한다.
+    if (state.memberId !== null && canOpenOptimistically(state, Date.now())) {
+      // 레이아웃이 마운트되기 전에 unauthenticated 로 판명되면 clearAuth 가 흔적을 지워,
+      // 레이아웃은 같은 죽은 쿠키로 refresh 를 한 번 더 한다. 판명된 쪽에서 바로 보낸다.
+      void refreshAuth().then((result) => {
+        if (result.status === 'unauthenticated') router.replace('/login')
+      })
+      router.replace(todayPath(state.memberId))
       return
     }
 
     refreshAuth().then((result) => {
-      if (result.status === 'authenticated') {
-        const restoredMemberId = useAuthStore.getState().memberId
-        router.replace(`/members/${restoredMemberId}/today`)
+      const memberId = useAuthStore.getState().memberId
+      // authenticated 는 물론, offline 이어도 이 기기에 세션 흔적이 있으면 보낸다 —
+      // 보호 레이아웃은 offline + memberId 를 로컬 캐시로 연다. 여기서만 막으면
+      // 오프라인 콜드 스타트가 마케팅 페이지에서 멈춘다.
+      if (memberId !== null && result.status !== 'unauthenticated') {
+        router.replace(todayPath(memberId))
       } else {
-        // unauthenticated·offline 모두 랜딩 표시(저위험 화면)
         setRestoring(false)
       }
     })
