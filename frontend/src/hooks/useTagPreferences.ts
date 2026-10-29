@@ -1,8 +1,8 @@
 'use client'
 import { useEffect, useState } from 'react'
 
-type Preferences = { favorites: number[]; collapsed: number[] }
-const empty: Preferences = { favorites: [], collapsed: [] }
+type Preferences = { collapsed: number[] }
+const empty: Preferences = { collapsed: [] }
 export function useTagPreferences(memberId: number) {
   const key = `tm-tag-preferences:${memberId}`
   const [state, setState] = useState<{ key: string; value: Preferences }>({ key: '', value: empty })
@@ -11,7 +11,7 @@ export function useTagPreferences(memberId: number) {
       try {
         const raw = JSON.parse(localStorage.getItem(key) ?? '{}')
         const ids = (v: unknown) => Array.isArray(v) ? v.filter((id) => Number.isSafeInteger(id) && id > 0) : []
-        setState({ key, value: { favorites: ids(raw.favorites), collapsed: ids(raw.collapsed) } })
+        setState({ key, value: { collapsed: ids(raw.collapsed) } })
       } catch { setState({ key, value: empty }) }
     }
     read()

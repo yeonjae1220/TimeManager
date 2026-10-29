@@ -2,18 +2,16 @@
 
 import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, useRouter, useSearchParams } from 'next/navigation'
-import { useTagPreferences } from '@/hooks/useTagPreferences'
 import { useRunningTimerStore } from '@/store/runningTimerStore'
 import { peekPendingTimerOperations } from '@/utils/timerPersistence'
 import AppShell from '@/components/layout/AppShell'
-import AddRecordModal from '@/components/AddRecordModal'
 import TagPickerModal from '@/components/TagPickerModal'
 import DailyGoalSheet from '@/components/DailyGoalSheet'
 import { useTagStore } from '@/store/tagStore'
 import { useTagTimer } from '@/hooks/useTagTimer'
 import { peekTimerState } from '@/utils/timerPersistence'
 import apiClient from '@/utils/apiClient'
-import { isOnline as getIsOnline, subscribeConnectivity } from '@/utils/connectivity'
+import { subscribeConnectivity } from '@/utils/connectivity'
 import { useI18n } from '@/i18n/I18nProvider'
 import { computeTodayRecordTotal, resolveTodaySummaryDateParam } from './todayRecordTotal'
 import { useDailyResetHour } from '@/hooks/useDailyResetHour'
@@ -40,7 +38,6 @@ export default function TodayView() {
   const searchParams = useSearchParams()
   const { t, language } = useI18n()
   const memberId = Number(params?.id)
-  const prefs = useTagPreferences(memberId)
   const activeSession = useRunningTimerStore((s) => s.session)
   const [clockNow, setClockNow] = useState(() => Date.now())
   useEffect(() => { if (!activeSession) return; const id = setInterval(() => setClockNow(Date.now()), 1000); return () => clearInterval(id) }, [activeSession])
@@ -67,7 +64,6 @@ export default function TodayView() {
     formattedTotalTime,
   } = useTagTimer()
 
-  const [showAddRecord, setShowAddRecord] = useState(false)
   const [showTagPicker, setShowTagPicker] = useState(false)
   const [showGoalSheet, setShowGoalSheet] = useState(false)
   const [isSwitching, setIsSwitching] = useState(false)
@@ -83,7 +79,6 @@ export default function TodayView() {
   // 이 문제가 안 생긴다.
   const pendingAutoStartRef = useRef<number | null>(null)
   // pendingAutoStartRef가 세팅된 시각 — AUTOSTART_STALE_MS 판단에 쓴다.
-  const allowOfflineQuickStart = useRef(false)
   const lastQueryTag = useRef(searchParams?.get('tagId'))
   const pendingAutoStartRequestedAtRef = useRef(0)
 
@@ -228,14 +223,6 @@ export default function TodayView() {
     setIsSwitching(false)
   }, [memberId, isSwitching, loadTag, addRecentTag])
 
-  const quickStart = async (id: number) => {
-    if (isSwitching || timerBusy) return
-    allowOfflineQuickStart.current = true
-    pendingAutoStartRef.current = id
-    pendingAutoStartRequestedAtRef.current = Date.now()
-    await selectTag(id)
-  }
-
   const queryTagId = searchParams?.get('tagId')
   useEffect(() => {
     if (queryTagId === lastQueryTag.current) return
@@ -303,8 +290,7 @@ export default function TodayView() {
   useEffect(() => {
     if (pendingAutoStartRef.current === null) return
     if (!tag || tag.id !== pendingAutoStartRef.current) return
-    if (confirmedTagId !== pendingAutoStartRef.current && !(allowOfflineQuickStart.current && !getIsOnline())) return
-    allowOfflineQuickStart.current = false
+    if (confirmedTagId !== pendingAutoStartRef.current) return
     pendingAutoStartRef.current = null
     // 요청 후 오래(오프라인이 길게 이어지다 포그라운드 복귀로 뒤늦게 확정된 경우 등)
     // 지났으면 시작하지 않는다 — 사용자가 이미 다른 화면으로 넘어갔을 시점에 타이머가
@@ -314,7 +300,7 @@ export default function TodayView() {
     void startTimerFlow()
   }, [tag, sw.isRunning, confirmedTagId, startTimerFlow])
 
-  const recentTags = [...new Set([...prefs.favorites, ...recentTagIds])]
+  const recentTags = recentTagIds
     .map((id) => findById(id))
     .filter((t): t is NonNullable<typeof t> => t !== null && t.type !== 'DISCARDED' && !t.children.some((c) => c.type !== 'DISCARDED') && t.id !== tag?.id)
     .slice(0, TODAY_RECENT_TAG_LIMIT)
@@ -356,7 +342,6 @@ export default function TodayView() {
         </section>
 
         {peekPendingTimerOperations().length > 0 && <p role="status">{t('timer.pending')}</p>}
-        {tag && <button aria-label={`${t('tags.favorites')} · ${tag.name}`} aria-pressed={prefs.favorites.includes(tag.id)} onClick={() => prefs.toggle('favorites', tag.id)}>{prefs.favorites.includes(tag.id) ? '★' : '☆'}</button>}
         {/* Timer display */}
         {tag ? (
           <section style={{ textAlign: 'center', padding: '32px 0 24px' }}>
@@ -488,7 +473,7 @@ export default function TodayView() {
         {/* Recent tags */}
         {recentTags.length > 0 && (
           <section style={{ marginBottom: 24 }}>
-            <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{prefs.favorites.length > 0 ? t('tags.favorites') + ' · ' : ''}{t('today.recent')}</p>
+            <p className="mono" style={{ fontSize: 9, color: 'var(--text-3)', letterSpacing: '0.12em', textTransform: 'uppercase', marginBottom: 10 }}>{t('today.recent')}</p>
             <div
               style={{
                 display: 'flex',
@@ -501,8 +486,8 @@ export default function TodayView() {
               }}
             >
               {recentTags.map((recent) => (
-                <div key={recent.id} style={{ display: 'flex', flexShrink: 0 }}>
                 <button
+                  key={recent.id}
                   onClick={() => selectTag(recent.id)}
                   disabled={isSwitching}
                   style={{
@@ -522,15 +507,11 @@ export default function TodayView() {
                   <span style={{ width: 5, height: 5, borderRadius: '50%', background: recent.state ? 'var(--running)' : 'var(--text-3)', flexShrink: 0 }} />
                   <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{recent.name}</span>
                 </button>
-                <button disabled={isSwitching || timerBusy} aria-label={`${t('tags.startTimer')} · ${recent.name}`} onClick={() => void quickStart(recent.id)}>▶</button>
-                <button aria-label={`${t('tags.favorites')} · ${recent.name}`} aria-pressed={prefs.favorites.includes(recent.id)} onClick={() => prefs.toggle('favorites', recent.id)}>{prefs.favorites.includes(recent.id) ? '★' : '☆'}</button>
-                </div>
               ))}
             </div>
           </section>
         )}
 
-        <button disabled={dailyResetHour === null} onClick={() => setShowAddRecord(true)}>{t('addRecord.title')}</button>
         {/* Stats */}
         {tag && (
           <>
@@ -566,7 +547,6 @@ export default function TodayView() {
         )}
       </div>
 
-      {showAddRecord && <AddRecordModal tagTree={tagTree} defaultTagId={tag?.id ?? recentTags[0]?.id} timezone={memberTimezone} onClose={() => setShowAddRecord(false)} onSaved={refreshToday} />}
       {/* Daily goal sheet — 저장 후 loadTag 를 다시 돌리면 화면과 네이티브 알림이
           같은 경로(useTagTimer 의 sync 배선)로 함께 갱신된다. */}
       {showGoalSheet && tag && (

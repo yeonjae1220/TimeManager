@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useLogDate } from '@/hooks/useLogQuery'
-import AddRecordModal from '@/components/AddRecordModal'
 import EditRecordModal from '@/components/EditRecordModal'
 import { useTagStore } from '@/store/tagStore'
 import Link from 'next/link'
 import { useAsyncData } from '@/hooks/useAsyncData'
 import { useI18n } from '@/i18n/I18nProvider'
 import DayOffsetBadge from '@/components/DayOffsetBadge'
-import { type SessionDetail, toLocalDate, type DayBoundary, fmtDuration, fmtHMS, getTopTag, addDays, TagBar, NavArrows, LoadError, useLogicalToday, BoundaryWait, getSummary } from './shared'
+import { type SessionDetail, type DayBoundary, fmtDuration, fmtHMS, getTopTag, addDays, TagBar, NavArrows, LoadError, useLogicalToday, BoundaryWait, getSummary } from './shared'
 
 // ────────────────────────────────────────────────────────────
 // Daily tab
@@ -26,7 +25,6 @@ interface DailyTabProps {
 }
 export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }: DailyTabProps) {
   const { t: tr, language } = useI18n()
-  const [adding, setAdding] = useState(false)
   const [editing, setEditing] = useState<(SessionDetail & { tagId: number }) | null>(null)
   const tagTree = useTagStore((s) => s.tagTree)
   const loadTags = useTagStore((s) => s.loadTags)
@@ -74,9 +72,7 @@ export default function DailyTab({ memberId, initialDate, backTo, dayBoundary }:
       )}
       {date && <div style={{ display: 'flex', gap: 12, marginBottom: 16 }}>
         <button onClick={() => setOverride(null)}>{tr('logs.today')}</button>
-        <button disabled={dayBoundary.resetHour === null} onClick={() => setAdding(true)}>{tr('addRecord.title')}</button>
       </div>}
-      {adding && date && <AddRecordModal tagTree={tagTree} defaultDate={logicalToday && toLocalDate(date) === toLocalDate(logicalToday) ? undefined : toLocalDate(date)} resetHour={dayBoundary.resetHour ?? 0} timezone={dayBoundary.timezone} onClose={() => setAdding(false)} onSaved={reload} />}
       {editing?.recordId && <EditRecordModal record={{ id: editing.recordId, startTime: editing.startTime, endTime: editing.endTime, totalTime: editing.durationSeconds }} tagTree={tagTree} currentTagId={editing.tagId} timezone={dayBoundary.timezone} onClose={() => setEditing(null)} onSaved={reload} />}
       {loading && <div className="spinner" style={{ margin: '40px auto' }} />}
       {data && (

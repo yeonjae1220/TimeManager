@@ -210,14 +210,6 @@ function TagRow({
     }
   }
 
-  // 시작 버튼은 이동만 하지 않고 오늘 화면에 도착하자마자 타이머를 시작한다.
-  // 이름 클릭(goToTag)과 분리해둬야 "그냥 보러 가기"와 "바로 시작"이 헷갈리지 않는다.
-  function goToTagAndStart() {
-    if (isLeaf) {
-      router.push(`/members/${memberId}/today?tagId=${tag.id}&autostart=1`)
-    }
-  }
-
   return (
     <div>
       <div
@@ -275,20 +267,6 @@ function TagRow({
           </span>
         )}
 
-        {isLeaf && (
-          <button
-            onClick={goToTagAndStart}
-            title={t('tags.startTimer')}
-            style={{ display: 'flex', alignItems: 'center', gap: 5, minHeight: 34, padding: '0 10px', background: 'var(--surface-2)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 10, cursor: 'pointer', flexShrink: 0 }}
-          >
-            <svg width="10" height="10" viewBox="0 0 12 12" fill="none">
-              <path d="M3 1.5l7.5 4.5L3 10.5V1.5z" fill="currentColor"/>
-            </svg>
-            {t('tags.startTimer')}
-          </button>
-        )}
-
-        <button aria-label={`${t('tags.favorites')} · ${tag.name}`} aria-pressed={prefs.favorites.includes(tag.id)} onClick={() => prefs.toggle('favorites', tag.id)} style={{ minWidth: 44, background: 'none', border: 0, color: 'var(--accent)' }}>{prefs.favorites.includes(tag.id) ? '★' : '☆'}</button>
         <div style={{ position: 'relative' }}>
           <button aria-label={`${t('tags.more')} · ${tag.name}`} aria-expanded={menu} onClick={() => setMenu(!menu)} style={{ minWidth: 44 }}>⋯</button>
           {menu && <div onKeyDown={(e) => { if (e.key === 'Escape') setMenu(false) }} style={{ position: 'absolute', right: 0, top: 44, zIndex: 10, background: 'var(--surface)', border: '1px solid var(--border)', padding: 8, minWidth: 160 }}>
@@ -338,8 +316,6 @@ export default function TagListView() {
   const { loadTags, fetchError, isRefreshing, createTag, renameTag, moveTag, reorderTags, discardTag } = useTagStore()
 
   const [query, setQuery] = useState('')
-  const prefs = useTagPreferences(memberId)
-  const [favoritesOnly, setFavoritesOnly] = useState(false)
   const discardedId = findDiscardedId(tagTree)
 
   const [editingTag, setEditingTag] = useState<Tag | null>(null)
@@ -446,7 +422,6 @@ export default function TagListView() {
           </div>
 
           <input type="search" aria-label={t('tags.search')} placeholder={t('tags.search')} value={query} onChange={(e) => setQuery(e.target.value)} style={{ width: '100%', minHeight: 44, marginBottom: 12, padding: 12, background: 'var(--input-bg)', color: 'var(--text)', border: '1px solid var(--border)' }} />
-          <button aria-pressed={favoritesOnly} onClick={() => setFavoritesOnly(!favoritesOnly)}>{t('tags.favorites')} ★</button>
           {fetchError && (
             <div role="alert" style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap', marginBottom: 16 }}>
               <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>
@@ -492,11 +467,11 @@ export default function TagListView() {
             </div>
           ) : (
             <div>
-              {(favoritesOnly ? tagList.flatMap(function flatten(tag): Tag[] { return tag.type === 'DISCARDED' ? [] : [tag, ...tag.children.flatMap(flatten)] }).filter((tag) => prefs.favorites.includes(tag.id)) : tagList).map((tag) => (
+              {tagList.map((tag) => (
                 <div key={tag.id}>
                   <TagRow
                     tag={tag}
-                    filtering={!!query.trim() || favoritesOnly}
+                    filtering={!!query.trim()}
                     query={query.trim().toLowerCase()}
                     depth={0}
                     memberId={memberId}
