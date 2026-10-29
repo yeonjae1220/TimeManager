@@ -122,14 +122,37 @@ function applyLocalTimerOverrides(tagTree: Tag[]): Tag[] {
 const RECENT_TAGS_KEY = 'recentTagIds'
 const MAX_RECENT_TAGS = 16
 
-function loadRecentTagIds(memberId?: number): number[] {
+function readRecentTagIds(key: string): number[] {
   if (typeof window === 'undefined') return []
   try {
-    const raw = localStorage.getItem(RECENT_TAGS_KEY + ':' + memberId)
-    return raw ? JSON.parse(raw) : []
+    const value: unknown = JSON.parse(localStorage.getItem(key) ?? '[]')
+    return Array.isArray(value)
+      ? [...new Set(value.filter((id): id is number => Number.isSafeInteger(id) && id > 0))]
+      : []
   } catch {
     return []
   }
+}
+
+function loadRecentTagIds(memberId: number): number[] {
+  return readRecentTagIds(`${RECENT_TAGS_KEY}:${memberId}`).slice(0, MAX_RECENT_TAGS)
+}
+
+/** Recover pre-account-scoping history only after the account's tag tree is available. */
+function migrateLegacyRecentTags(memberId: number, tagTree: Tag[], current: number[]): number[] {
+  if (useAuthStore.getState().memberId !== memberId) return current
+  const legacy = readRecentTagIds(RECENT_TAGS_KEY)
+  const owned = legacy.filter((id) => findTagById(tagTree, id) !== null)
+  if (owned.length === 0) return current
+  const merged = [...new Set([...current, ...owned])].slice(0, MAX_RECENT_TAGS)
+  try {
+    // Persist first: on quota/storage failure the source must remain recoverable.
+    localStorage.setItem(`${RECENT_TAGS_KEY}:${memberId}`, JSON.stringify(merged))
+    const remaining = legacy.filter((id) => !owned.includes(id))
+    if (remaining.length) localStorage.setItem(RECENT_TAGS_KEY, JSON.stringify(remaining))
+    else localStorage.removeItem(RECENT_TAGS_KEY)
+  } catch { /* Keep the recovered list in memory and retry from legacy storage next time. */ }
+  return merged
 }
 
 function saveRecentTagIds(ids: number[], memberId: number | null) {
@@ -241,7 +264,10 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
     try {
       const cached = await readTagCache(memberId)
       if (get()._activeMemberId !== memberId) return
-      if (cached) { migrateLegacyTimerStorage(memberId, new Set(cached.flatMap(function ids(t): number[] { return [t.id, ...t.children.flatMap(ids)] }))); set({ tagTree: cached }) }
+      if (cached) {
+        migrateLegacyTimerStorage(memberId, new Set(cached.flatMap(function ids(t): number[] { return [t.id, ...t.children.flatMap(ids)] })))
+        set({ tagTree: cached, recentTagIds: migrateLegacyRecentTags(memberId, cached, get().recentTagIds) })
+      }
     } catch (e) {
       console.warn('IndexedDB cache read failed:', e)
     }
@@ -301,7 +327,7 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
 
       tagTree = applyLocalTimerOverrides(tagTree)
 
-      set({ tagTree })
+      set({ tagTree, recentTagIds: migrateLegacyRecentTags(memberId, tagTree, get().recentTagIds) })
       writeTagCache(memberId, tagTree, 'IndexedDB cache save failed')
     } catch (error) {
       if (!isCurrentAccount()) return
@@ -310,7 +336,9 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
       if (get().tagTree.length === 0) {
         try {
           const cached = await readTagCache(memberId)
-          if (cached && isCurrentAccount()) set({ tagTree: cached })
+          if (cached && isCurrentAccount()) {
+            set({ tagTree: cached, recentTagIds: migrateLegacyRecentTags(memberId, cached, get().recentTagIds) })
+          }
         } catch (e) {
           console.warn('IndexedDB recovery failed:', e)
         }
