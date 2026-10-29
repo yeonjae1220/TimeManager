@@ -1,8 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { cleanup, fireEvent, render, screen } from '@testing-library/react'
 
-// 이 테스트의 초점은 "이름 클릭 = 이동만, 시작 버튼 클릭 = 이동 + autostart" 분기
-// 하나다. 드래그앤드롭·편집 모달 등 나머지 트리 UI는 대상이 아니므로 실제 스토어
+// 이름 클릭은 타이머 화면으로 이동하고 시작은 그 화면의 주 버튼에서만 한다.
+// 드래그앤드롭·편집 모달 등 나머지 트리 UI는 대상이 아니므로 실제 스토어
 // 구현(selectTagList 등)만 재사용하고 상태는 고정 데이터로 대체한다.
 const push = vi.fn()
 vi.mock('next/navigation', () => ({
@@ -72,10 +72,10 @@ describe('TagListView — 리프 태그에서 오늘 화면으로 이동', () =>
     expect(push).toHaveBeenCalledWith('/members/1/today?tagId=10')
   })
 
-  it('[회귀] 시작 버튼을 누르면 autostart=1 을 붙여 이동한다', () => {
+  it('즐겨찾기와 별도 시작 버튼을 표시하지 않는다', () => {
     renderView()
-    fireEvent.click(screen.getByRole('button', { name: '시작' }))
-    expect(push).toHaveBeenCalledWith('/members/1/today?tagId=10&autostart=1')
+    expect(screen.queryByRole('button', { name: '시작' })).toBeNull()
+    expect(screen.queryByRole('button', { name: /즐겨찾기/ })).toBeNull()
   })
 })
 
