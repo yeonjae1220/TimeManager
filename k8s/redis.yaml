@@ -83,6 +83,40 @@ spec:
             limits:
               memory: "192Mi"
               cpu: "200m"
+        # 메모리·OOM 거부를 Prometheus(monitoring) 로 내보낸다. noeviction 이라 꽉 차면 로그인·refresh
+        # 쓰기가 OOM 으로 실패하는데, 이게 없으면 사용자 신고 전까지 아무도 모른다.
+        #
+        # 🔴 사이드카도 파드 Ready 에 들어간다 — 이 컨테이너가 죽거나 이미지를 못 받으면 파드가 NotReady
+        #    가 되고 redis Service 엔드포인트에서 빠져 backend 가 Redis 를 잃는다. 그래서:
+        #    - probe 를 두지 않는다(exporter 는 Redis 가 죽어도 redis_up 0 을 내며 계속 산다 — 실측).
+        #    - Recreate 라 구 파드가 먼저 내려간다. apply 전에 노드에서 이미지를 미리 받아 둔다
+        #      (`crictl pull`). 못 받으면 Redis 가 그동안 통째로 내려간다.
+        #
+        # /scrape?target= 로 임의 주소에 붙는 기능이 있지만 redis-policy 의 egress: [] 가 파드 밖으로
+        # 나가는 걸 막는다(localhost 는 NetworkPolicy 대상이 아니라 자기 redis 에는 붙는다).
+        - name: redis-exporter
+          image: oliver006/redis_exporter:v1.92.1
+          env:
+            - name: REDIS_ADDR
+              value: redis://localhost:6379
+          ports:
+            - name: metrics
+              containerPort: 9121
+          securityContext:
+            runAsNonRoot: true
+            runAsUser: 59000
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: ["ALL"]
+          # 실측 RSS ~12MiB. 한도에 걸려 OOMKill 되면 위 이유로 Redis 까지 빠지므로 넉넉히 둔다.
+          resources:
+            requests:
+              memory: "16Mi"
+              cpu: "10m"
+            limits:
+              memory: "64Mi"
+              cpu: "100m"
       volumes:
         - name: data
           persistentVolumeClaim:
@@ -99,3 +133,20 @@ spec:
   ports:
     - port: 6379
       targetPort: 6379
+---
+# Prometheus 스크레이프 전용. backend 가 쓰는 redis Service 에 9121 을 섞지 않는다.
+# publishNotReadyAddresses: Redis readiness(redis-cli ping)가 실패하는 바로 그때 redis_up 0 을
+# 읽어야 하므로 NotReady 파드도 엔드포인트에 남긴다.
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis-metrics
+  namespace: timemanager
+spec:
+  selector:
+    app: redis
+  publishNotReadyAddresses: true
+  ports:
+    - name: metrics
+      port: 9121
+      targetPort: metrics

@@ -160,7 +160,10 @@ spec:
         - port: 5432
   egress: []
 ---
-# redis: backend에서만 수신
+# redis: 6379 는 backend 에서만, 9121(redis-exporter 사이드카)은 monitoring/prometheus 에서만 수신
+# ⚠️ CI 는 이 파일을 apply 하지 않는다. k8s-manifests 의 timemanager/resources.yaml 에도
+#    redis-policy 사본이 있는데 9121 이 없다 — 그쪽을 apply 하면 스크레이프가 끊긴다
+#    (RedisMetricsDown 알림으로 드러난다).
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -180,4 +183,16 @@ spec:
               app: backend
       ports:
         - port: 6379
+    # namespaceSelector 와 podSelector 를 한 항목에 둬야 AND 다(둘로 나누면 OR 가 되어
+    # monitoring 의 모든 파드 + timemanager 의 prometheus 라벨 파드가 열린다)
+    - from:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: monitoring
+          podSelector:
+            matchLabels:
+              app: prometheus
+      ports:
+        - port: 9121
+          protocol: TCP
   egress: []
