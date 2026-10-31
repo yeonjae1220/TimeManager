@@ -327,7 +327,7 @@ export default function TodayView() {
         {/* Tag selector */}
         <section style={{ padding: '24px 0 16px' }}>
           <p className="mono" style={{ fontSize: 10, color: 'var(--text-3)', letterSpacing: '0.15em', textTransform: 'uppercase', marginBottom: 12 }}>
-            {t('today.recording')}
+            {t(sw.isRunning ? 'today.recording' : 'today.ready')}
           </p>
           <button
             onClick={() => setShowTagPicker(true)}

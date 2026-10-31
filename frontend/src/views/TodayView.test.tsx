@@ -230,6 +230,22 @@ afterEach(() => {
 })
 
 describe('TodayView — 태그 탭 시작 버튼(autostart) 오케스트레이션', () => {
+  it('shows ready until explicitly started, then returns to ready after stopping', async () => {
+    mockSearch = 'tagId=42'
+    renderToday()
+    await screen.findByRole('button', { name: '집중 시작' })
+    expect(screen.getByText('시작 대기')).toBeTruthy()
+    expect(screen.queryByText('기록 중')).toBeNull()
+    fireEvent.click(screen.getByRole('button', { name: '집중 시작' }))
+    await screen.findByText('기록 중')
+    fireEvent.click(screen.getByRole('button', { name: '정지하고 저장' }))
+    await screen.findByText('시작 대기')
+  })
+
+  it('explains that tag selection is followed by an explicit start', () => {
+    renderToday()
+    expect(screen.getByText('태그를 선택한 뒤 집중 시작을 눌러 주세요.')).toBeTruthy()
+  })
   it('[회귀] ?tagId=X&autostart=1 로 도착하면 태그가 로드된 뒤 정확히 한 번 시작한다', async () => {
     mockSearch = 'tagId=42&autostart=1'
     mockLoadedTagPresets.set(42, { name: '독서', isRunning: false })

@@ -1,11 +1,13 @@
 'use client'
 
-import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { type Tag } from '@/store/tagStore'
 import { useTagStore } from '@/store/tagStore'
 import { findTagNode } from '@/utils/tagTree'
 import AddTagForm from '@/components/AddTagForm'
 import { useI18n } from '@/i18n/I18nProvider'
+import ModalPortal from './ModalPortal'
+import { useDialogFocus } from '@/hooks/useDialogFocus'
 
 interface TagPickerModalProps {
   tagTree: Tag[]
@@ -37,6 +39,8 @@ const PICKER_RECENT_TAG_LIMIT = 10
 
 export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClose, allowCreate = false }: TagPickerModalProps) {
   const { t: tr } = useI18n()
+  const dialogRef = useRef<HTMLDivElement>(null)
+  useDialogFocus(dialogRef, onClose, false)
   const [pathIds, setPathIds] = useState<number[]>([])
   const [query, setQuery] = useState('')
   const [showCreateForm, setShowCreateForm] = useState(false)
@@ -101,12 +105,13 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
     .slice(0, 4)
 
   return (
+    <ModalPortal>
     <div
       data-modal-overlay
-      style={{ position: 'fixed', inset: 0, zIndex: 100, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: '20px' }}
+      style={{ position: 'fixed', inset: 0, zIndex: 300, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: '20px' }}
       onClick={(e) => e.target === e.currentTarget && onClose()}
     >
-      <div style={{ width: '100%', maxWidth: 400, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', maxHeight: '70vh', overflow: 'hidden', boxShadow: 'var(--shadow-modal)' }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label={tr('field.tag')} style={{ width: '100%', maxWidth: 400, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, display: 'flex', flexDirection: 'column', maxHeight: '70dvh', overflow: 'hidden', boxShadow: 'var(--shadow-modal)' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '16px 20px 12px', borderBottom: '1px solid var(--border-subtle)', flexShrink: 0 }}>
         {pathIds.length > 0 ? (
@@ -142,6 +147,7 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
         </div>
 
         <button
+          aria-label={tr('common.cancel')}
           onClick={onClose}
           style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 28, height: 28, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', flexShrink: 0 }}
         >
@@ -348,5 +354,6 @@ export default function TagPickerModal({ tagTree, currentTagId, onSelect, onClos
       </div>
     </div>
     </div>
+    </ModalPortal>
   )
 }

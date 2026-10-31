@@ -8,6 +8,7 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore, type Tag } from '@/store/tagStore'
 import { writeRecord } from '@/utils/recordMutations'
 import { useI18n } from '@/i18n/I18nProvider'
+import ModalPortal from './ModalPortal'
 
 interface AddRecordModalProps {
   tagTree: Tag[]
@@ -17,7 +18,7 @@ interface AddRecordModalProps {
   resetHour?: number
   timezone?: string
   onClose: () => void
-  onSaved: () => void | Promise<void>
+  onSaved: (tagId: number) => void | Promise<void>
 }
 
 export default function AddRecordModal({ tagTree, defaultTagId, defaultDate, initialTimes, resetHour, timezone, onClose, onSaved }: AddRecordModalProps) {
@@ -59,7 +60,7 @@ export default function AddRecordModal({ tagTree, defaultTagId, defaultDate, ini
       })
       if (outcome === 'pending') { onClose(); return }
       setSaved(true)
-      try { await onSaved(); onClose() }
+      try { await onSaved(tagId); onClose() }
       catch { setError(t('record.refreshFailed')) }
     } catch (e: unknown) {
       const data = (e as { response?: { data?: { code?: string; message?: string; recordsToDelete?: RecordConflict[]; overlapToken?: string } } })?.response?.data
@@ -73,14 +74,14 @@ export default function AddRecordModal({ tagTree, defaultTagId, defaultDate, ini
 
   function preset(minutes: number) {
     try {
-      const start = defaultDate ? new Date(wallTimeToIso(startTime, timezone, initialTimes?.start)) : new Date(Date.now() - minutes * 60_000)
-      setStartTime(wallTime(start, timezone))
+      const start = new Date(wallTimeToIso(startTime, timezone, initialTimes?.start))
       setEndTime(wallTime(new Date(start.getTime() + minutes * 60_000), timezone))
       clearConflict()
     } catch { setError(t('editRecord.invalidRange')) }
   }
 
   return (
+    <ModalPortal>
     <div
       data-modal-overlay
       style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: 20 }}
@@ -143,5 +144,6 @@ export default function AddRecordModal({ tagTree, defaultTagId, defaultDate, ini
         />
       )}
     </div>
+    </ModalPortal>
   )
 }

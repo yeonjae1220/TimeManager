@@ -12,6 +12,39 @@ afterEach(cleanup)
 const renderForm = (extra = {}) => render(<I18nProvider initialLanguage="en"><AddRecordModal tagTree={tags} defaultTagId={1} defaultDate="2026-10-01" resetHour={5} timezone="Asia/Seoul" onClose={vi.fn()} onSaved={vi.fn()} {...extra} /></I18nProvider>)
 
 describe('editable manual record defaults', () => {
+  it.each([15, 30, 60])('preserves a manually edited start without defaultDate when choosing %i minutes', async (minutes) => {
+    const onSaved = vi.fn()
+    renderForm({ defaultDate: undefined, onSaved })
+    fireEvent.change(screen.getByLabelText(/^start$/i), { target: { value: '2026-10-02T23:50' } })
+    fireEvent.click(screen.getByRole('button', { name: `${minutes} min` }))
+    expect((screen.getByLabelText(/^start$/i) as HTMLInputElement).value).toBe('2026-10-02T23:50')
+    fireEvent.click(screen.getByText('First'))
+    fireEvent.click(screen.getByText('choose second tag'))
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(2))
+    expect(writeRecord).toHaveBeenCalledWith('post', '/api/v1/records', expect.objectContaining({
+      tagId: 2, newStartTime: '2026-10-02T14:50:00.000Z',
+      newEndTime: new Date(Date.parse('2026-10-02T14:50:00Z') + minutes * 60_000).toISOString(),
+    }))
+  })
+
+  it('closes without announcing a confirmed save when the write is queued', async () => {
+    const onSaved = vi.fn(), onClose = vi.fn()
+    vi.mocked(writeRecord).mockResolvedValue('pending')
+    renderForm({ onSaved, onClose })
+    fireEvent.click(screen.getByRole('button', { name: 'Add' }))
+    await waitFor(() => expect(onClose).toHaveBeenCalled())
+    expect(onSaved).not.toHaveBeenCalled()
+  })
+
+  it('retains a blank start instead of silently replacing it with the current time', () => {
+    renderForm({ defaultDate: undefined })
+    fireEvent.change(screen.getByLabelText(/^start$/i), { target: { value: '' } })
+    fireEvent.click(screen.getByRole('button', { name: '15 min' }))
+    expect((screen.getByLabelText(/^start$/i) as HTMLInputElement).value).toBe('')
+    expect(writeRecord).not.toHaveBeenCalled()
+  })
+
   it('lets the user replace tag, start date/time and end date/time', async () => {
     const view = renderForm()
     fireEvent.change(screen.getByLabelText(/^start$/i), { target: { value: '2026-10-02T23:30' } })
