@@ -8,6 +8,7 @@ import TagPickerModal from '@/components/TagPickerModal'
 import { useTagStore, type Tag } from '@/store/tagStore'
 import { writeRecord } from '@/utils/recordMutations'
 import { useI18n } from '@/i18n/I18nProvider'
+import ModalPortal from './ModalPortal'
 
 interface Record {
   id: number
@@ -23,7 +24,7 @@ interface EditRecordModalProps {
   timezone?: string
   initialRecordToken?: string
   onClose: () => void
-  onSaved: () => void | Promise<void>
+  onSaved: (tagId: number) => void | Promise<void>
 }
 
 interface ApiErrorData {
@@ -127,7 +128,7 @@ export default function EditRecordModal({ record, tagTree, currentTagId, timezon
       })
       if (outcome === 'pending') { onClose(); return }
       setSaved(true)
-      try { await onSaved(); onClose() } catch { setError(t('record.refreshFailed')) }
+      try { await onSaved(newTagId); onClose() } catch { setError(t('record.refreshFailed')) }
     } catch (e: unknown) {
       const data = (e as { response?: { data?: ApiErrorData } })?.response?.data
       if (data?.code === 'RECORD_OVERLAP') {
@@ -146,6 +147,7 @@ export default function EditRecordModal({ record, tagTree, currentTagId, timezon
   }
 
   return (
+    <ModalPortal>
     <div
       data-modal-overlay
       style={{ position: 'fixed', inset: 0, zIndex: 200, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'var(--overlay)', backdropFilter: 'blur(2px)', padding: 20 }}
@@ -252,5 +254,6 @@ export default function EditRecordModal({ record, tagTree, currentTagId, timezon
         />
       )}
     </div>
+    </ModalPortal>
   )
 }

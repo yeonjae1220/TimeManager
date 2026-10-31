@@ -1,7 +1,7 @@
 'use client'
 
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { useParams, useRouter } from 'next/navigation'
+import { useParams, useRouter, useSearchParams } from 'next/navigation'
 import { useDailyResetHour } from '@/hooks/useDailyResetHour'
 import { useAuthStore } from '@/store/authStore'
 import AppShell from '@/components/layout/AppShell'
@@ -72,6 +72,8 @@ export default function RecordListView() {
   const authMemberId = useAuthStore((s) => s.memberId)
   const { timezone, resetHour } = useDailyResetHour(authMemberId)
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const savedParam = searchParams?.get('saved') === '1'
   const { t, language } = useI18n()
   const tagId = Number(params?.id)
   const tagTree = useTagStore((s) => s.tagTree)
@@ -90,6 +92,14 @@ export default function RecordListView() {
   const [errorKey, setErrorKey] = useState<MessageKey | null>(null)
   const [editingRecord, setEditingRecord] = useState<Record | null>(null)
   const [showAdd, setShowAdd] = useState(false)
+  const [savedNotice, setSavedNotice] = useState(false)
+
+  useEffect(() => {
+    if (!savedParam) return
+    setSavedNotice(true)
+    // Consume the notice so a later reload does not announce another save.
+    router.replace(`/records/${tagId}`, { scroll: false })
+  }, [savedParam, tagId, router])
 
   // Undo state
   const [undoVisible, setUndoVisible] = useState(false)
@@ -106,13 +116,24 @@ export default function RecordListView() {
       setTag(tagRes.data)
       setRecords(recRes.data)
       setErrorKey(null)
+      return true
     } catch {
       setErrorKey('records.loadFail')
+      return false
     } finally {
       setLoading(false)
       setHasLoadedOnce(true)
     }
   }, [tagId])
+
+  async function handleSaved(savedTagId: number) {
+    if (savedTagId !== tagId) {
+      router.push(`/records/${savedTagId}?saved=1`)
+      return
+    }
+    if (!await fetchRecords()) throw new Error('Record refresh failed')
+    setSavedNotice(true)
+  }
 
   useEffect(() => { fetchRecords(); window.addEventListener('records-changed', fetchRecords); return () => window.removeEventListener('records-changed', fetchRecords) }, [fetchRecords])
 
@@ -185,7 +206,7 @@ export default function RecordListView() {
               {tag?.name ?? t('records.title')}
             </h1>
             <button
-              disabled={resetHour === null} onClick={() => setShowAdd(true)}
+              disabled={resetHour === null} onClick={() => { setSavedNotice(false); setShowAdd(true) }}
               style={{ display: 'flex', alignItems: 'center', gap: 6, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '5px 10px', color: 'var(--text-2)', fontFamily: 'var(--font-mono)', fontSize: 11, cursor: 'pointer' }}
             >
               <svg width="11" height="11" viewBox="0 0 12 12" fill="none">
@@ -197,6 +218,7 @@ export default function RecordListView() {
 
           {loading && !hasLoadedOnce && <div className="spinner" style={{ margin: '40px auto' }} />}
           {errorKey && <p className="mono" style={{ fontSize: 11, color: 'var(--danger)' }}>{t(errorKey)}</p>}
+          {savedNotice && !errorKey && <p role="status" className="mono" style={{ fontSize: 12, color: 'var(--accent)', marginBottom: 12 }}>{t('record.saved')}</p>}
           {!loading && records.length === 0 && (
             <p style={{ fontSize: 13, color: 'var(--text-3)' }}>{t('records.empty')}</p>
           )}
@@ -213,14 +235,14 @@ export default function RecordListView() {
                 key={record.id}
                 style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '12px 0', borderBottom: '1px solid var(--border-subtle)' }}
               >
-                <div style={{ flex: 1 }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.totalTime)}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
                       {start.toLocaleDateString(language)}
                     </span>
                   </div>
-                  <div style={{ display: 'flex', gap: 8, fontSize: 11, color: 'var(--text-3)' }}>
+                  <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-3)' }}>
                     <span className="mono">{start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
                     <span>→</span>
                     <span className="mono">
@@ -231,8 +253,9 @@ export default function RecordListView() {
                 </div>
                 {/* Edit */}
                 <button
-                  onClick={() => setEditingRecord(record)}
-                  style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '4px 6px', flexShrink: 0 }}
+                  aria-label={t('editRecord.title')}
+                  onClick={() => { setSavedNotice(false); setEditingRecord(record) }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '4px 6px', flexShrink: 0 }}
                 >
                   <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
                     <path d="M8.5 1.5l2 2-7 7H1.5v-2l7-7z" stroke="currentColor" strokeWidth="1.1" strokeLinejoin="round"/>
@@ -240,8 +263,9 @@ export default function RecordListView() {
                 </button>
                 {/* Delete */}
                 <button
+                  aria-label={t('common.delete')}
                   onClick={() => handleDelete(record, idx)}
-                  style={{ display: 'flex', alignItems: 'center', background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '4px 6px', flexShrink: 0 }}
+                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minWidth: 44, minHeight: 44, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-3)', padding: '4px 6px', flexShrink: 0 }}
                 >
                   <svg width="13" height="13" viewBox="0 0 12 12" fill="none">
                     <path d="M2 3h8M5 3V2h2v1M4 3v6M8 3v6M3 3l.5 7h5l.5-7" stroke="currentColor" strokeWidth="1.1" strokeLinecap="round" strokeLinejoin="round"/>
@@ -261,7 +285,7 @@ export default function RecordListView() {
           tagTree={tagTree}
           currentTagId={tagId}
           onClose={() => setEditingRecord(null)}
-          onSaved={fetchRecords}
+          onSaved={handleSaved}
         />
       )}
 
@@ -271,7 +295,7 @@ export default function RecordListView() {
           tagTree={tagTree}
           defaultTagId={tagId}
           onClose={() => setShowAdd(false)}
-          onSaved={fetchRecords}
+          onSaved={handleSaved}
         />
       )}
 

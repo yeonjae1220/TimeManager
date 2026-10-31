@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
-import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 
 /**
  * 초점은 **조회 실패 문구의 수명** 하나다.
@@ -14,15 +14,19 @@ import { act, cleanup, render, screen, waitFor } from '@testing-library/react'
  */
 
 // vi.mock 팩토리는 파일 최상단으로 호이스팅되므로 목 함수도 함께 끌어올려야 한다.
-const { get } = vi.hoisted(() => ({ get: vi.fn() }))
+const { get, router, writeRecord, navigation } = vi.hoisted(() => ({ get: vi.fn(), router: { push: vi.fn(), replace: vi.fn(), back: vi.fn() }, writeRecord: vi.fn(), navigation: { search: '' } }))
 vi.mock('@/utils/apiClient', () => ({
   default: { get, delete: vi.fn(), post: vi.fn(), put: vi.fn() },
 }))
 
 vi.mock('next/navigation', () => ({
   useParams: () => ({ id: '10' }),
-  useRouter: () => ({ push: vi.fn(), back: vi.fn() }),
+  useRouter: () => router,
+  useSearchParams: () => new URLSearchParams(navigation.search),
 }))
+vi.mock('@/hooks/useDailyResetHour', () => ({ useDailyResetHour: () => ({ timezone: 'Asia/Seoul', resetHour: 5 }) }))
+vi.mock('@/utils/recordMutations', () => ({ writeRecord }))
+vi.mock('@/components/TagPickerModal', () => ({ default: ({ onSelect }: { onSelect: (id: number) => void }) => <button onClick={() => onSelect(20)}>choose destination tag</button> }))
 
 vi.mock('@/components/layout/AppShell', () => ({
   default: ({ children }: { children: React.ReactNode }) => <div>{children}</div>,
@@ -30,7 +34,7 @@ vi.mock('@/components/layout/AppShell', () => ({
 
 vi.mock('@/store/tagStore', async (importOriginal) => {
   const actual = await importOriginal<typeof import('@/store/tagStore')>()
-  const state = { tagTree: [], loadTags: vi.fn() }
+  const state = { tagTree: [], loadTags: vi.fn(), findById: (id: number) => ({ id, name: id === 10 ? 'Source tag' : 'Destination tag' }) }
   return {
     ...actual,
     useTagStore: (selector?: (s: typeof state) => unknown) => (selector ? selector(state) : state),
@@ -58,9 +62,66 @@ function renderView() {
 }
 
 beforeEach(() => {
+  navigation.search = ''
+  router.push.mockClear()
+  router.replace.mockClear()
+  writeRecord.mockReset().mockResolvedValue('saved')
   get.mockReset()
   get.mockRejectedValue(new Error('network down'))
   localStorage.setItem(LANG_KEY, 'ko')
+})
+
+function serveRecords() {
+  get.mockImplementation(async (url: string) => ({ data: url.includes('/records?')
+    ? [{ id: 30, totalTime: 3600, startTime: '2026-10-01T00:00Z', endTime: '2026-10-01T01:00Z' }]
+    : { id: 10, name: 'Source tag' } }))
+}
+
+describe('RecordListView save destination', () => {
+  it.each(['add', 'edit'])('opens the destination tag only after a successful %s', async (mode) => {
+    serveRecords()
+    renderView()
+    await screen.findByRole('heading', { name: 'Source tag' })
+    fireEvent.click(screen.getByRole('button', { name: mode === 'add' ? '추가' : '세션 편집' }))
+    const dialog = screen.getByRole('dialog')
+    fireEvent.click(within(dialog).getByRole('button', { name: 'Source tag' }))
+    fireEvent.click(screen.getByText('choose destination tag'))
+    fireEvent.click(within(dialog).getByRole('button', { name: mode === 'add' ? '추가' : '저장' }))
+    await waitFor(() => expect(router.push).toHaveBeenCalledWith('/records/20?saved=1'))
+    expect(writeRecord).toHaveBeenCalled()
+  })
+
+  it('announces a save on arrival and removes the one-use URL flag', async () => {
+    serveRecords()
+    navigation.search = 'saved=1'
+    renderView()
+    expect(await screen.findByRole('status')).toHaveProperty('textContent', '기록을 저장했습니다.')
+    expect(router.replace).toHaveBeenCalledWith('/records/10', { scroll: false })
+  })
+
+  it('keeps the current list for same-tag saves and labels the existing row controls', async () => {
+    serveRecords()
+    renderView()
+    await screen.findByRole('button', { name: '세션 편집' })
+    expect(screen.getByRole('button', { name: '삭제' })).toBeTruthy()
+    fireEvent.click(screen.getByRole('button', { name: '추가' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '추가' }))
+    await screen.findByRole('status')
+    expect(router.push).not.toHaveBeenCalled()
+  })
+
+  it('keeps a failed save editable without navigating or showing success', async () => {
+    serveRecords()
+    writeRecord.mockRejectedValue(new Error('write failed'))
+    renderView()
+    await screen.findByRole('heading', { name: 'Source tag' })
+    fireEvent.click(screen.getByRole('button', { name: '추가' }))
+    fireEvent.click(within(screen.getByRole('dialog')).getByRole('button', { name: '추가' }))
+    await screen.findByText('저장을 확인하지 못했습니다. 연결과 기록 목록을 확인한 후 다시 시도해 주세요.')
+    expect(router.push).not.toHaveBeenCalled()
+    expect(screen.queryByRole('status')).toBeNull()
+    expect((screen.getByLabelText('시작') as HTMLInputElement).disabled).toBe(false)
+  })
 })
 
 afterEach(() => {

@@ -90,12 +90,14 @@ const en = {
   'register.fail': 'Registration failed. Please try again.',
 
   // today
+  "today.ready": "Ready",
+  "record.saved": "Record saved.",
   'today.recording': 'recording',
   'today.selectTag': 'Select a tag',
   'today.elapsed': 'elapsed',
   'today.wakeLock': 'Screen stays awake',
   'today.wakeLockAria': 'Screen wake lock active',
-  'today.noTagPrompt': 'Select a tag above to start the timer',
+  "today.noTagPrompt": "Select a tag, then tap Start focus.",
   'today.chooseTagCta': 'Choose a tag',
   'today.startCta': 'Start focus',
   'today.stopCta': 'Stop and save',
