@@ -86,3 +86,10 @@ member:
     # ⚠️ /privacy 페이지가 이 값을 공개 약속으로 명시하고 있다(DELETION_GRACE_DAYS).
     #    바꾸면 그 문서와 profile.deleteConfirm 문구(9개 언어)도 함께 고칠 것.
     grace-days: ${MEMBER_DELETION_GRACE_DAYS:30}
+
+---
+spring:
+  config:
+    activate:
+      on-profile: local
+    import: classpath:application-local-defaults.yml

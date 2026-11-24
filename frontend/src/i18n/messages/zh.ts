@@ -45,7 +45,7 @@ const zh: Messages = {
   'landing.feature2Title': '精准秒表',
   'landing.feature2Desc': '会话、每日和累计时长 — 始终保持最新。',
   'landing.feature3Title': '完整历史',
-  'landing.feature3Desc': '浏览并编辑每条记录。不会丢失任何内容。',
+  'landing.feature3Desc': '浏览和编辑已保存的记录。',
 
   'auth.email': '邮箱',
   'auth.password': '密码',
@@ -60,6 +60,12 @@ const zh: Messages = {
   'login.noAccount': '还没有账户？',
   'login.registerLink': '注册',
   'login.errorInvalid': '邮箱或密码不正确。',
+  'login.errorNetwork': "连接失败。请检查网络后重试。",
+  'login.errorRate': "尝试次数过多。请稍后重试。",
+  'login.errorService': "暂时无法登录。请重试。",
+  'register.success': "账号已创建。登录后即可开始记录。",
+  'logs.startDayPolicy': "每个时段均计入开始当天。",
+  'common.loadMore': "加载更多",
 
   'oauth.signingIn': '登录中...',
   'oauth.backToLogin': '返回登录',

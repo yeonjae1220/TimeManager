@@ -45,7 +45,7 @@ const fr: Messages = {
   'landing.feature2Title': 'Chronomètre précis',
   'landing.feature2Desc': 'Totaux par session, journaliers et cumulés — toujours à jour.',
   'landing.feature3Title': 'Historique complet',
-  'landing.feature3Desc': 'Parcourez et modifiez chaque enregistrement. Rien n’est perdu.',
+  'landing.feature3Desc': 'Consultez et modifiez vos enregistrements sauvegardés.',
 
   'auth.email': 'E-mail',
   'auth.password': 'Mot de passe',
@@ -60,6 +60,12 @@ const fr: Messages = {
   'login.noAccount': 'Vous n’avez pas de compte ?',
   'login.registerLink': 'S’inscrire',
   'login.errorInvalid': 'E-mail ou mot de passe incorrect.',
+  'login.errorNetwork': "Connexion impossible. Vérifiez votre connexion et réessayez.",
+  'login.errorRate': "Trop de tentatives. Réessayez plus tard.",
+  'login.errorService': "La connexion est temporairement indisponible. Réessayez.",
+  'register.success': "Compte créé. Connectez-vous pour commencer à enregistrer.",
+  'logs.startDayPolicy': "Les sessions sont comptées le jour de leur début.",
+  'common.loadMore': "Afficher plus",
 
   'oauth.signingIn': 'Connexion...',
   'oauth.backToLogin': 'Retour à la connexion',

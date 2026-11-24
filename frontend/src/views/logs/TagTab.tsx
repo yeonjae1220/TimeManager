@@ -50,7 +50,7 @@ export default function TagTab({ memberId, dayBoundary }: { memberId: number; da
   const loadRanges = useCallback(() => {
     const [start, end] = getRange()
     const [pStart, pEnd] = getPrevRange(start, end)
-    return Promise.all([getSummary(start, end), getSummary(pStart, pEnd)])
+    return Promise.all([getSummary(start, end, false), getSummary(pStart, pEnd, false)])
       .then(([cur, pr]) => ({ current: cur, prev: pr }))
   }, [getRange])
 

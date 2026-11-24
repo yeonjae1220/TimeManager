@@ -5,6 +5,7 @@ import org.springframework.stereotype.Service;
 import project.TimeManager.application.dto.result.RecordResult;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
+import project.TimeManager.domain.member.model.MemberDayBoundary;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 import project.TimeManager.domain.port.out.tag.LoadTagPort;
@@ -40,8 +41,9 @@ public class TagRecordDerivedFieldsSyncService {
                 .mapToLong(RecordResult::getTotalTime)
                 .sum();
 
+        var day = MemberDayBoundary.dateOf(ZonedDateTime.now(userZone), userZone, resetHour);
         long dailyTotalTime = records.stream()
-                .filter(record -> isToday(record.getStartTime(), userZone, resetHour))
+                .filter(record -> day.equals(MemberDayBoundary.dateOf(record.getStartTime(), userZone, resetHour)))
                 .mapToLong(RecordResult::getTotalTime)
                 .sum();
 
@@ -58,14 +60,4 @@ public class TagRecordDerivedFieldsSyncService {
         saveTagPort.saveTag(tag);
     }
 
-    private boolean isToday(ZonedDateTime sessionTime, ZoneId userZone, int resetHour) {
-        ZonedDateTime now = ZonedDateTime.now(userZone);
-        ZonedDateTime todayReset = now.toLocalDate().atStartOfDay(userZone).plusHours(resetHour);
-        if (now.isBefore(todayReset)) {
-            todayReset = todayReset.minusDays(1);
-        }
-        ZonedDateTime nextReset = todayReset.plusDays(1);
-        ZonedDateTime sessionInZone = sessionTime.withZoneSameInstant(userZone);
-        return !sessionInZone.isBefore(todayReset) && sessionInZone.isBefore(nextReset);
-    }
 }

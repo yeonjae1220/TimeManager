@@ -32,6 +32,9 @@ public class PushSender {
     @Value("${push.vapid.subject}")
     private String vapidSubject;
 
+    @Value("${push.vapid.enabled:true}")
+    private boolean enabled = true;
+
     private PushService pushService;
 
     public PushSender(LoadPushSubscriptionsPort loadPushSubscriptionsPort, ObjectMapper objectMapper) {
@@ -41,6 +44,7 @@ public class PushSender {
 
     @PostConstruct
     public void init() throws Exception {
+        if (!enabled) return;
         if (Security.getProvider(BouncyCastleProvider.PROVIDER_NAME) == null) {
             Security.addProvider(new BouncyCastleProvider());
         }
@@ -59,6 +63,7 @@ public class PushSender {
     }
 
     public void send(PushSubscription sub, String title, String body) {
+        if (!enabled || !WebPushEndpoint.isAllowed(sub.getEndpoint())) return;
         try {
             Subscription subscription = new Subscription(
                     sub.getEndpoint(),
@@ -66,10 +71,14 @@ public class PushSender {
             );
             String payload = objectMapper.writeValueAsString(Map.of("title", title, "body", body));
             Notification notification = new Notification(subscription, payload);
-            pushService.send(notification);
-            log.info("[Push] 알림 전송 성공: endpoint={}", sub.getEndpoint());
+            int status = pushService.send(notification).getStatusLine().getStatusCode();
+            if (status >= 200 && status < 300) {
+                log.info("[Push] 알림 전송 성공: subscriptionId={}", sub.getId());
+            } else {
+                log.warn("[Push] 알림 전송 거절: subscriptionId={}, status={}", sub.getId(), status);
+            }
         } catch (Exception e) {
-            log.warn("[Push] 알림 전송 실패: endpoint={}, error={}", sub.getEndpoint(), e.getMessage());
+            log.warn("[Push] 알림 전송 실패: subscriptionId={}, error={}", sub.getId(), e.getClass().getSimpleName());
         }
     }
 }

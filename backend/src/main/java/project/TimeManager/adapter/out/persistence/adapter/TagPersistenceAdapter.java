@@ -21,6 +21,7 @@ import project.TimeManager.domain.tag.model.Tag;
 import project.TimeManager.domain.tag.model.TimerState;
 
 import jakarta.persistence.EntityManager;
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 import java.util.stream.Collectors;
@@ -121,6 +122,11 @@ public class TagPersistenceAdapter implements LoadTagPort, SaveTagPort, LoadTags
     public Optional<TagResult> loadTagResult(Long tagId) {
         return tagJpaRepository.findById(tagId)
                 .map(tagMapper::toResult);
+    }
+
+    @Override
+    public void rebuildDailyTotals(Long memberId, ZonedDateTime start, ZonedDateTime end) {
+        tagJpaRepository.rebuildDailyTotals(memberId, start, end);
     }
 
     @Override

@@ -45,7 +45,7 @@ const ru: Messages = {
   'landing.feature2Title': 'Точный секундомер',
   'landing.feature2Desc': 'Итоги за сессию, за день и за всё время — всегда актуальны.',
   'landing.feature3Title': 'Полная история',
-  'landing.feature3Desc': 'Просматривайте и редактируйте каждую запись. Ничего не теряется.',
+  'landing.feature3Desc': 'Просматривайте и редактируйте сохранённые записи.',
 
   'auth.email': 'Эл. почта',
   'auth.password': 'Пароль',
@@ -60,6 +60,12 @@ const ru: Messages = {
   'login.noAccount': 'Нет аккаунта?',
   'login.registerLink': 'Регистрация',
   'login.errorInvalid': 'Неверная почта или пароль.',
+  'login.errorNetwork': "Не удалось подключиться. Проверьте сеть и повторите попытку.",
+  'login.errorRate': "Слишком много попыток. Повторите позже.",
+  'login.errorService': "Вход временно недоступен. Повторите попытку.",
+  'register.success': "Аккаунт создан. Войдите, чтобы начать запись.",
+  'logs.startDayPolicy': "Сеансы учитываются в день их начала.",
+  'common.loadMore': "Показать ещё",
 
   'oauth.signingIn': 'Вход...',
   'oauth.backToLogin': 'Вернуться к входу',

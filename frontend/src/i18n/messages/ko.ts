@@ -45,7 +45,7 @@ const ko: Messages = {
   'landing.feature2Title': '정밀한 스톱워치',
   'landing.feature2Desc': '세션·일별·전체 누적 시간 — 항상 최신으로 유지됩니다.',
   'landing.feature3Title': '전체 기록',
-  'landing.feature3Desc': '모든 기록을 열람하고 수정하세요. 잃어버리는 건 없습니다.',
+  'landing.feature3Desc': '저장한 기록을 열람하고 수정할 수 있습니다.',
 
   'auth.email': '이메일',
   'auth.password': '비밀번호',
@@ -60,6 +60,12 @@ const ko: Messages = {
   'login.noAccount': '계정이 없으신가요?',
   'login.registerLink': '회원가입',
   'login.errorInvalid': '이메일 또는 비밀번호가 올바르지 않습니다.',
+  'login.errorNetwork': "연결할 수 없습니다. 네트워크를 확인하고 다시 시도해 주세요.",
+  'login.errorRate': "시도 횟수가 너무 많습니다. 잠시 후 다시 시도해 주세요.",
+  'login.errorService': "지금 로그인할 수 없습니다. 잠시 후 다시 시도해 주세요.",
+  'register.success': "계정을 만들었습니다. 로그인하고 첫 기록을 시작해 보세요.",
+  'logs.startDayPolicy': "세션은 시작한 날에 모두 집계됩니다.",
+  'common.loadMore': "더 보기",
 
   'oauth.signingIn': '로그인 중...',
   'oauth.backToLogin': '로그인으로 돌아가기',

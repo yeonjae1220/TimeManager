@@ -8,7 +8,7 @@ export function middleware(request: NextRequest) {
     "default-src 'self'",
     // 'unsafe-inline': nonce+strict-dynamic 지원 브라우저(모던)에서는 strict-dynamic이 override하여 무력화됨.
     // nonce 미지원 구버전 브라우저 전용 fallback — 이 앱은 모던 브라우저만 지원하므로 실질 위험 없음.
-    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'`,
+    `script-src 'nonce-${nonce}' 'strict-dynamic' 'unsafe-inline'${process.env.NODE_ENV === 'development' ? " 'unsafe-eval'" : ''}`,
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "img-src 'self' data: https: blob:",
     "font-src 'self' https://fonts.gstatic.com",

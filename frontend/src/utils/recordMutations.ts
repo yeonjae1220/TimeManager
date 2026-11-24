@@ -13,6 +13,7 @@ export interface RecordWrite {
 }
 export interface PendingRecord {
   id: string; path: string; method: 'post' | 'put'; data: RecordWrite; failed: boolean
+  timerRecovery?: 'expired' | 'rejected'
 }
 const key = (memberId: number) => `tm-record-pending:${memberId}`
 export function readPendingRecords(memberId: number): PendingRecord[] {
@@ -20,11 +21,22 @@ export function readPendingRecords(memberId: number): PendingRecord[] {
 }
 function update(memberId: number, fn: (entries: PendingRecord[]) => PendingRecord[]) {
   localStorage.setItem(key(memberId), JSON.stringify(fn(readPendingRecords(memberId))))
-  window.dispatchEvent(new Event('record-pending'))
+  queueMicrotask(() => window.dispatchEvent(new Event('record-pending')))
 }
 export function removePendingRecord(memberId: number, id: string) {
   update(memberId, (entries) => entries.filter((e) => e.id !== id))
 }
+export function preserveTimerRecord(
+  memberId: number, operationId: string, tagId: number, start: number, end: number,
+  reason: NonNullable<PendingRecord['timerRecovery']>,
+) {
+  const id = 'timer:' + operationId
+  update(memberId, (entries) => entries.some((e) => e.id === id) ? entries : [...entries, {
+    id, path: '/api/v1/records', method: 'post', failed: true, timerRecovery: reason,
+    data: { tagId, newStartTime: new Date(start).toISOString(), newEndTime: new Date(end).toISOString(), forceOverwrite: false },
+  }])
+}
+
 export function recordsChanged() { window.dispatchEvent(new Event('records-changed')) }
 
 /** Manual writes have one queue on web and native. Destructive confirmations never replay. */
@@ -58,7 +70,7 @@ export async function retryRecordWrites(memberId: number) {
         if (useAuthStore.getState().memberId === memberId) recordsChanged()
       } catch (error) {
         const status = (error as { response?: { status?: number } }).response?.status
-        if (!status || status >= 500 || status === 401) break
+        if (!status || status >= 500 || status === 401 || status === 429) break
         update(memberId, (list) => list.map((e) => e.id === entry.id ? { ...e, failed: true } : e))
       }
     }

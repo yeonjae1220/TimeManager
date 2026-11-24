@@ -20,6 +20,8 @@ spec:
       app: backend
   template:
     metadata:
+      annotations:
+        timemanager.mungji.com/secret-revisions: "rendered-by-ci"
       labels:
         app: backend
     spec:

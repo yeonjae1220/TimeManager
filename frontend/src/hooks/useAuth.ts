@@ -39,7 +39,7 @@ export function useAuth() {
 
   async function register(name: string, email: string, password: string) {
     await authApi.register(name, email, password)
-    router.push('/login')
+    router.push('/login?registered=1')
   }
 
   async function googleLogin(code: string, redirectUri: string) {

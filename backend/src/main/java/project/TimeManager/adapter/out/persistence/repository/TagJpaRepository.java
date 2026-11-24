@@ -9,6 +9,7 @@ import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.domain.tag.model.TagType;
 import project.TimeManager.domain.tag.model.TimerState;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Optional;
 
@@ -38,6 +39,17 @@ public interface TagJpaRepository extends JpaRepository<TagJpaEntity, Long>, Tag
     @Modifying
     @Query("UPDATE TagJpaEntity t SET t.dailyTotalTime = 0, t.dailyElapsedTime = 0 WHERE t.member.id = :memberId")
     void resetDailyTimesByMemberId(@Param("memberId") Long memberId);
+
+    @Modifying(flushAutomatically = true, clearAutomatically = true)
+    @Query(value = """
+            UPDATE tag SET daily_total_time = COALESCE((
+                SELECT SUM(r.total_time) FROM record r
+                WHERE r.tag_id = tag.tag_id AND r.start_time >= :start AND r.start_time < :end
+            ), 0)
+            WHERE member_id = :memberId
+            """, nativeQuery = true)
+    void rebuildDailyTotals(@Param("memberId") Long memberId, @Param("start") ZonedDateTime start,
+                            @Param("end") ZonedDateTime end);
 
     int countByParent_Id(Long parentId);
 

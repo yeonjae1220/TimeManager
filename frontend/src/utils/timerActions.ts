@@ -1,6 +1,6 @@
 'use client'
 import apiClient from './apiClient'
-import { recordsChanged } from './recordMutations'
+import { preserveTimerRecord, recordsChanged } from './recordMutations'
 import { useAuthStore } from '@/store/authStore'
 import { useTagStore, type Tag } from '@/store/tagStore'
 import { useRunningTimerStore } from '@/store/runningTimerStore'
@@ -52,7 +52,7 @@ export async function startTimer(tag: Tag, sw: StopwatchState, onStarted: (at: n
   } catch (error) {
     if (useAuthStore.getState().memberId === member) {
       const status = (error as { response?: { status?: number } }).response?.status
-      if (status && status >= 400 && status < 500 && status !== 401) {
+      if (status && status >= 400 && status < 500 && status !== 401 && status !== 429) {
         clearTimerState()
         patchTag(tag.id, { state: false })
         useRunningTimerStore.setState({ error: true })
@@ -87,7 +87,14 @@ export async function stopTimer(session: NativeRunningSession, onStopped?: (segm
   } catch (error) {
     if (useAuthStore.getState().memberId === member) {
       const status = (error as { response?: { status?: number } }).response?.status
-      if (status && status >= 400 && status < 500 && status !== 401) {
+      if (status && status >= 400 && status < 500 && status !== 401 && status !== 429) {
+        if (member && end > session.startedAtMs) {
+          try {
+            preserveTimerRecord(member, `${session.tagId}:${session.startedAtMs}:${end}`, session.tagId, session.startedAtMs, end, 'rejected')
+          } catch {
+            queueStop(session, end)
+          }
+        }
         clearTimerState()
         useRunningTimerStore.setState({ error: true })
         if (member) useTagStore.getState().refreshTags(member)

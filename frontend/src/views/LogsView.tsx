@@ -87,6 +87,8 @@ export default function LogsView() {
             {t('logs.eyebrow')}
           </p>
 
+          <p style={{ color: 'var(--text-2)', margin: '8px 0 16px' }}>{t('logs.startDayPolicy')}</p>
+
           {/* Tab bar */}
           <div style={{ display: 'flex', gap: 2, marginBottom: 28, background: 'var(--surface-2)', borderRadius: 'var(--radius)', padding: 3 }}>
             {TABS.map((tab) => (

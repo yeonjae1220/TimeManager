@@ -71,6 +71,12 @@ public class RecordPersistenceAdapter implements LoadRecordPort, SaveRecordPort,
     }
 
     @Override
+    public List<RecordResult> loadRecordPage(Long tagId, ZonedDateTime before, Long beforeId, int limit) {
+        return recordJpaRepository.findTagRecordPage(tagId, before, beforeId, limit)
+                .stream().map(recordMapper::toResult).toList();
+    }
+
+    @Override
     public List<RecordJpaEntity> loadRecordsByMemberAndDateRange(Long memberId, ZonedDateTime start, ZonedDateTime end) {
         return recordJpaRepository.findByMemberIdAndStartTimeBetween(memberId, start, end);
     }

@@ -28,9 +28,10 @@ function MemberPendingRecords({ memberId }: { memberId: number }) {
     const retry = () => { if (isOnline() && document.visibilityState === 'visible') void retryRecordWrites(memberId) }
     const unsubscribe = subscribeConnectivity((online) => { if (online) retry() })
     window.addEventListener('record-pending', refresh)
+    window.addEventListener('storage', refresh)
     document.addEventListener('visibilitychange', retry)
     refresh(); retry()
-    return () => { unsubscribe(); window.removeEventListener('record-pending', refresh); document.removeEventListener('visibilitychange', retry) }
+    return () => { unsubscribe(); window.removeEventListener('record-pending', refresh); window.removeEventListener('storage', refresh); document.removeEventListener('visibilitychange', retry) }
   }, [memberId])
   if (!memberId || entries.length === 0) return null
   const done = () => { if (editing) removePendingRecord(memberId, editing.id); setEditing(null) }
@@ -40,7 +41,7 @@ function MemberPendingRecords({ memberId }: { memberId: number }) {
         <span>{entry.data.newStartTime} → {entry.data.newEndTime}</span>
         {entry.failed && <span role="alert"> {t('record.reviewRequired')}</span>}
         {entry.failed && entry.method === 'put' && <Link href={`/records/${entry.data.recordToken?.split(':')[1] ?? entry.data.newTagId}`}>{t('record.changed')}</Link>}
-        <button disabled={replaying || !entry.failed || !timezone} onClick={() => setEditing(entry)}>{t('editRecord.title')}</button>
+        <button disabled={replaying || !entry.failed || !timezone} onClick={() => setEditing(entry)}>{t(entry.timerRecovery ? 'addRecord.title' : 'editRecord.title')}</button>
         <button disabled={replaying} onClick={() => { if (!isRecordReplayRunning() && confirm(t('common.delete') + '?')) removePendingRecord(memberId, entry.id) }}>{t('common.delete')}</button>
       </div>)}
       <button onClick={() => void retryRecordWrites(memberId)}>{t('common.retry')}</button>

@@ -1,5 +1,6 @@
 'use client'
 import { useAuthStore } from '@/store/authStore'
+import { preserveTimerRecord } from './recordMutations'
 
 function scoped(key: string) { const memberId = useAuthStore.getState().memberId; return memberId ? `${key}:${memberId}` : key }
 
@@ -21,8 +22,7 @@ export function migrateLegacyTimerStorage(memberId: number, ownedTagIds: Set<num
     if (Array.isArray(oldOps)) {
       const owned = oldOps.filter((op) => ownedTagIds.has(op.tagId))
       if (owned.length) {
-        const current = peekPendingTimerOperations()
-        localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify([...current, ...owned.filter((op) => !current.some((existing) => existing.id === op.id))]))
+        mutateQueue((current) => [...current, ...owned.filter((op) => !current.some((existing) => existing.id === op.id))])
         localStorage.setItem(PENDING_TIMER_OPS_KEY, JSON.stringify(oldOps.filter((op) => !ownedTagIds.has(op.tagId))))
       }
     }
@@ -166,17 +166,53 @@ export function peekPendingTimerOperations(): PendingTimerOperation[] {
 
     // 리셋 마커와 같은 방식으로 읽을 때 만료분을 걷어낸다(pruneResetMarkers 참조).
     const cutoff = Date.now() - PENDING_OP_TTL_MS
-    const alive = parsed.filter(
-      (op: PendingTimerOperation) => typeof op?.savedAt === 'number' && op.savedAt > cutoff
-    )
-    if (alive.length !== parsed.length) {
-      if (alive.length === 0) localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
-      else localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(alive))
+    const memberId = useAuthStore.getState().memberId
+    const active: PendingTimerOperation[] = []
+    const kept: PendingTimerOperation[] = []
+    for (const op of parsed as PendingTimerOperation[]) {
+      if (typeof op?.savedAt !== 'number') continue
+      if (op.savedAt > cutoff) {
+        active.push(op)
+        kept.push(op)
+      } else if (op.type === 'stop' && !archivePendingStop(memberId, op, 'expired')) {
+        // Keep the raw operation if storage is full or legacy ownership is unknown.
+        kept.push(op)
+      }
     }
-    return alive
+    if (kept.length !== parsed.length) {
+      if (kept.length === 0) localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
+      else localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(kept))
+    }
+    return active
   } catch {
     return []
   }
+}
+
+export function archivePendingStop(
+  memberId: number | null, op: Extract<PendingTimerOperation, { type: 'stop' }>,
+  reason: 'expired' | 'rejected',
+): boolean {
+  if (!memberId) return false
+  if (!Number.isFinite(op.latestStartTime) || !Number.isFinite(op.latestEndTime)
+      || op.latestEndTime <= op.latestStartTime) return false
+  try {
+    preserveTimerRecord(memberId, op.id, op.tagId, op.latestStartTime, op.latestEndTime, reason)
+    return true
+  } catch {
+    return false
+  }
+}
+
+// Update the raw queue so a failed archive is never lost when another op is added.
+function mutateQueue(mutate: (ops: PendingTimerOperation[]) => PendingTimerOperation[]) {
+  const key = scoped(PENDING_TIMER_OPS_KEY)
+  const raw = localStorage.getItem(key)
+  let parsed: unknown
+  try { parsed = JSON.parse(raw ?? '[]') } catch { parsed = [] }
+  const next = mutate(Array.isArray(parsed) ? parsed : [])
+  if (next.length) localStorage.setItem(key, JSON.stringify(next))
+  else localStorage.removeItem(key)
 }
 
 export function peekPendingTimerOperation(): PendingTimerOperation | null {
@@ -188,26 +224,17 @@ export function enqueuePendingTimerOperation(
 ): void {
   if (typeof window === 'undefined') return
   const now = Date.now()
-  const next = [
-    ...peekPendingTimerOperations(),
-    {
-      ...operation,
-      id: `${now}-${Math.random().toString(36).slice(2)}`,
-      savedAt: now,
-      retryAttempted: false,
-    } as PendingTimerOperation,
-  ]
-  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
+  mutateQueue((ops) => [...ops, {
+    ...operation,
+    id: `${now}-${Math.random().toString(36).slice(2)}`,
+    savedAt: now,
+    retryAttempted: false,
+  }])
 }
 
 export function removePendingTimerOperation(id: string): void {
   if (typeof window === 'undefined') return
-  const next = peekPendingTimerOperations().filter((operation) => operation.id !== id)
-  if (next.length === 0) {
-    localStorage.removeItem(scoped(PENDING_TIMER_OPS_KEY))
-    return
-  }
-  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
+  mutateQueue((ops) => ops.filter((op) => op.id !== id))
 }
 
 export function clearPendingTimerOperations(): void {
@@ -220,10 +247,9 @@ export function markRetryAttempted(id?: string): void {
   const targetId = id ?? operations[0]?.id
   if (!targetId) return
 
-  const next = operations.map((operation) =>
-    operation.id === targetId ? { ...operation, retryAttempted: true } : operation
-  )
-  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
+  mutateQueue((ops) => ops.map((op) =>
+    op.id === targetId ? { ...op, retryAttempted: true } : op
+  ))
 }
 
 export function clearRetryAttempted(id?: string): void {
@@ -231,10 +257,9 @@ export function clearRetryAttempted(id?: string): void {
   const targetId = id ?? operations[0]?.id
   if (!targetId) return
 
-  const next = operations.map((operation) =>
-    operation.id === targetId ? { ...operation, retryAttempted: false } : operation
-  )
-  localStorage.setItem(scoped(PENDING_TIMER_OPS_KEY), JSON.stringify(next))
+  mutateQueue((ops) => ops.map((op) =>
+    op.id === targetId ? { ...op, retryAttempted: false } : op
+  ))
 }
 
 // 리셋 마커는 태그별로 보관한다(단일 슬롯이면 여러 태그를 60초 내 연속 리셋할 때 덮여 유실됨).

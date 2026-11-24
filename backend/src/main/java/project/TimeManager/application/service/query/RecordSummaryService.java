@@ -11,6 +11,7 @@ import project.TimeManager.application.service.MemberDayBoundarySettingsCache;
 import project.TimeManager.application.service.MemberDayBoundarySettingsCache.Settings;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.member.model.Member;
+import project.TimeManager.domain.member.model.MemberDayBoundary;
 import project.TimeManager.domain.port.in.record.GetRecordSummaryQuery;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
@@ -31,19 +32,32 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
     private final MemberDayBoundarySettingsCache dayBoundaryCache;
 
     @Override
-    public RecordSummaryResult getSummary(Long memberId, LocalDate startDate, LocalDate endDate) {
+    public RecordSummaryResult getSummary(Long memberId, LocalDate startDate, LocalDate endDate, boolean includeSessions) {
+        if (endDate.isBefore(startDate) || java.time.temporal.ChronoUnit.DAYS.between(startDate, endDate) >= 366
+                || startDate.getYear() < 1 || endDate.getYear() > 9999) {
+            throw new DomainException("조회 기간은 시작일에서 최대 366일까지입니다");
+        }
         Settings settings = loadDayBoundarySettings(memberId);
         ZoneId userZone = settings.zone();
         int resetHour = settings.resetHour();
 
         // "하루"의 경계는 회원의 dailyResetHour를 기준으로 한다 (TagRecordDerivedFieldsSyncService.isToday와 동일 규칙).
-        ZonedDateTime start = startDate.atStartOfDay(userZone).plusHours(resetHour);
-        ZonedDateTime end = endDate.plusDays(1).atStartOfDay(userZone).plusHours(resetHour);
+        ZonedDateTime start = MemberDayBoundary.startOf(startDate, userZone, resetHour);
+        ZonedDateTime end = MemberDayBoundary.startOf(endDate.plusDays(1), userZone, resetHour);
 
         List<RecordJpaEntity> records = loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(memberId, start, end);
 
         Map<Long, List<RecordJpaEntity>> byTag = records.stream()
                 .collect(Collectors.groupingBy(r -> r.getTag().getId(), LinkedHashMap::new, Collectors.toList()));
+
+        Map<LocalDate, Long> dailyTotals = new LinkedHashMap<>();
+        for (LocalDate day = startDate; !day.isAfter(endDate); day = day.plusDays(1)) {
+            dailyTotals.put(day, 0L);
+        }
+        for (RecordJpaEntity record : records) {
+            LocalDate day = MemberDayBoundary.dateOf(record.getStartTime(), userZone, resetHour);
+            dailyTotals.computeIfPresent(day, (key, total) -> total + record.getTotalTime());
+        }
 
         long grandTotal = 0L;
         List<TagSummary> tagSummaries = new ArrayList<>();
@@ -52,14 +66,14 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
             List<RecordJpaEntity> tagRecords = entry.getValue();
             RecordJpaEntity sample = tagRecords.get(0);
             String tagName = sample.getTag().getName();
-            String parentTagName = sample.getTag().getParent() != null
-                    ? sample.getTag().getParent().getName()
-                    : null;
+            var parent = sample.getTag().getParent();
+            String parentTagName = parent != null && memberId.equals(parent.getMember().getId())
+                    ? parent.getName() : null;
 
             long tagTotal = tagRecords.stream().mapToLong(RecordJpaEntity::getTotalTime).sum();
             grandTotal += tagTotal;
 
-            List<SessionDetail> sessions = tagRecords.stream()
+            List<SessionDetail> sessions = !includeSessions ? List.of() : tagRecords.stream()
                     .map(r -> new SessionDetail(r.getId(), r.getStartTime(), r.getEndTime(), r.getTotalTime()))
                     .collect(Collectors.toList());
 
@@ -68,7 +82,7 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
 
         tagSummaries.sort(Comparator.comparingLong(TagSummary::getTotalSeconds).reversed());
 
-        return new RecordSummaryResult(grandTotal, tagSummaries);
+        return new RecordSummaryResult(grandTotal, tagSummaries, dailyTotals);
     }
 
     private Settings loadDayBoundarySettings(Long memberId) {

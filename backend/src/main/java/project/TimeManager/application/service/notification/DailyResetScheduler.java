@@ -5,6 +5,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 import project.TimeManager.domain.port.out.member.DailyResetTarget;
+import project.TimeManager.domain.member.model.MemberDayBoundary;
 import project.TimeManager.domain.port.out.member.LoadDailyResetTargetsPort;
 
 import java.time.Clock;
@@ -113,11 +114,8 @@ public class DailyResetScheduler {
      * "어제 05:00" 은 24시간 전이 아니라 23시간 또는 25시간 전이다.
      */
     private static Instant mostRecentBoundary(ZonedDateTime now, int dailyResetHour) {
-        ZonedDateTime todayBoundary = now.toLocalDate()
-                .atTime(dailyResetHour, 0)
-                .atZone(now.getZone());
-        return (now.isBefore(todayBoundary) ? todayBoundary.minusDays(1) : todayBoundary)
-                .toInstant();
+        var day = MemberDayBoundary.dateOf(now, now.getZone(), dailyResetHour);
+        return MemberDayBoundary.startOf(day, now.getZone(), dailyResetHour).toInstant();
     }
 
     /**

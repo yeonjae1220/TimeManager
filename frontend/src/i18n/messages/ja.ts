@@ -45,7 +45,7 @@ const ja: Messages = {
   'landing.feature2Title': '高精度ストップウォッチ',
   'landing.feature2Desc': 'セッション・日次・累計の合計を常に最新に保ちます。',
   'landing.feature3Title': '完全な履歴',
-  'landing.feature3Desc': 'すべての記録を閲覧・編集できます。失われるものはありません。',
+  'landing.feature3Desc': '保存した記録を閲覧・編集できます。',
 
   'auth.email': 'メール',
   'auth.password': 'パスワード',
@@ -60,6 +60,12 @@ const ja: Messages = {
   'login.noAccount': 'アカウントをお持ちでないですか？',
   'login.registerLink': '登録',
   'login.errorInvalid': 'メールまたはパスワードが正しくありません。',
+  'login.errorNetwork': "接続できません。接続を確認して再試行してください。",
+  'login.errorRate': "試行回数が多すぎます。しばらくしてからお試しください。",
+  'login.errorService': "一時的にログインできません。再試行してください。",
+  'register.success': "アカウントを作成しました。ログインして記録を始めましょう。",
+  'logs.startDayPolicy': "セッションは開始日に集計されます。",
+  'common.loadMore': "さらに表示",
 
   'oauth.signingIn': 'ログイン中...',
   'oauth.backToLogin': 'ログインに戻る',

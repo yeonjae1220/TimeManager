@@ -1,6 +1,8 @@
 package project.TimeManager.application.dto.result;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import java.util.List;
 
 public class RecordSummaryResult {
@@ -8,10 +10,15 @@ public class RecordSummaryResult {
     private final Long totalSeconds;
     private final List<TagSummary> tagSummaries;
 
-    public RecordSummaryResult(Long totalSeconds, List<TagSummary> tagSummaries) {
+    private final Map<LocalDate, Long> dailyTotals;
+
+    public RecordSummaryResult(Long totalSeconds, List<TagSummary> tagSummaries, Map<LocalDate, Long> dailyTotals) {
         this.totalSeconds = totalSeconds;
         this.tagSummaries = tagSummaries;
+        this.dailyTotals = dailyTotals;
     }
+
+    public Map<LocalDate, Long> getDailyTotals() { return dailyTotals; }
 
     public Long getTotalSeconds() { return totalSeconds; }
     public List<TagSummary> getTagSummaries() { return tagSummaries; }

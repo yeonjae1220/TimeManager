@@ -2,6 +2,8 @@ package project.TimeManager.adapter.in.web;
 
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
+import org.springframework.security.core.annotation.AuthenticationPrincipal;
+import project.TimeManager.domain.exception.ResourceForbiddenException;
 import jakarta.validation.Valid;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.adapter.in.web.dto.request.PushSubscribeRequest;
@@ -19,9 +21,11 @@ public class NotificationApiController {
     @PostMapping("/{memberId}")
     public ResponseEntity<Void> subscribe(
             @PathVariable Long memberId,
+            @AuthenticationPrincipal Long principalId,
             @Valid @RequestBody PushSubscribeRequest request) {
+        requireOwner(memberId, principalId);
         savePushSubscriptionUseCase.saveSubscription(
-                new SavePushSubscriptionCommand(memberId, request.endpoint(),
+                new SavePushSubscriptionCommand(principalId, request.endpoint(),
                         request.getP256dh(), request.getAuth()));
         return ResponseEntity.noContent().build();
     }
@@ -29,8 +33,14 @@ public class NotificationApiController {
     @DeleteMapping("/{memberId}")
     public ResponseEntity<Void> unsubscribe(
             @PathVariable Long memberId,
-            @RequestBody PushUnsubscribeRequest request) {
-        savePushSubscriptionUseCase.deleteSubscription(memberId, request.endpoint());
+            @AuthenticationPrincipal Long principalId,
+            @Valid @RequestBody PushUnsubscribeRequest request) {
+        requireOwner(memberId, principalId);
+        savePushSubscriptionUseCase.deleteSubscription(principalId, request.endpoint());
         return ResponseEntity.noContent().build();
+    }
+
+    private void requireOwner(Long memberId, Long principalId) {
+        if (!memberId.equals(principalId)) throw new ResourceForbiddenException();
     }
 }

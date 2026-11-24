@@ -7,7 +7,7 @@ import { useEffect } from 'react'
 // inline 스크립트는 차단되지만, 번들된 client 모듈은 nonce로 로드되므로 안전하다.
 export default function ServiceWorkerRegister() {
   useEffect(() => {
-    if (!('serviceWorker' in navigator)) return
+    if (process.env.NODE_ENV !== 'production' || !('serviceWorker' in navigator)) return
     // SW는 secure context(HTTPS/localhost)에서만 동작
     if (!window.isSecureContext) return
 

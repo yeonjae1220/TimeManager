@@ -45,7 +45,7 @@ const pt: Messages = {
   'landing.feature2Title': 'Cronômetro preciso',
   'landing.feature2Desc': 'Totais por sessão, diários e vitalícios — sempre atualizados.',
   'landing.feature3Title': 'Histórico completo',
-  'landing.feature3Desc': 'Navegue e edite cada registro. Nada se perde.',
+  'landing.feature3Desc': 'Consulte e edite os seus registros salvos.',
 
   'auth.email': 'E-mail',
   'auth.password': 'Senha',
@@ -60,6 +60,12 @@ const pt: Messages = {
   'login.noAccount': 'Não tem uma conta?',
   'login.registerLink': 'Registrar',
   'login.errorInvalid': 'E-mail ou senha incorretos.',
+  'login.errorNetwork': "Falha na conexão. Verifique a rede e tente novamente.",
+  'login.errorRate': "Muitas tentativas. Tente novamente mais tarde.",
+  'login.errorService': "O login está temporariamente indisponível. Tente novamente.",
+  'register.success': "Conta criada. Entre para começar a registrar.",
+  'logs.startDayPolicy': "As sessões são contabilizadas no dia em que começam.",
+  'common.loadMore': "Carregar mais",
 
   'oauth.signingIn': 'Entrando...',
   'oauth.backToLogin': 'Voltar ao login',

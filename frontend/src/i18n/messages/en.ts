@@ -49,7 +49,7 @@ const en = {
   'landing.feature2Title': 'Precise stopwatch',
   'landing.feature2Desc': 'Session, daily, and lifetime totals — always up to date.',
   'landing.feature3Title': 'Full history',
-  'landing.feature3Desc': 'Browse and edit every record. Nothing is lost.',
+  'landing.feature3Desc': 'Browse and edit your saved sessions.',
 
   // auth shared
   'auth.email': 'Email',
@@ -66,6 +66,12 @@ const en = {
   'login.noAccount': "Don't have an account?",
   'login.registerLink': 'Register',
   'login.errorInvalid': 'Email or password is incorrect.',
+  'login.errorNetwork': "Connection failed. Check your connection and try again.",
+  'login.errorRate': "Too many attempts. Try again later.",
+  'login.errorService': "Sign-in is temporarily unavailable. Try again.",
+  'register.success': "Account created. Sign in to start recording.",
+  'logs.startDayPolicy': "Sessions count toward the day they started.",
+  'common.loadMore': "Load more",
 
   // oauth callback
   'oauth.signingIn': 'Signing in...',

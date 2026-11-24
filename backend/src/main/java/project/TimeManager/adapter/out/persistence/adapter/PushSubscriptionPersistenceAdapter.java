@@ -21,8 +21,7 @@ public class PushSubscriptionPersistenceAdapter implements SavePushSubscriptionP
     @Transactional
     public void save(PushSubscription subscription) {
         // 같은 endpoint가 이미 존재하면 중복 저장하지 않음
-        if (repository.findAll().stream()
-                .anyMatch(e -> e.getEndpoint().equals(subscription.getEndpoint()))) {
+        if (repository.existsByEndpoint(subscription.getEndpoint())) {
             return;
         }
         repository.save(new PushSubscriptionJpaEntity(
@@ -35,8 +34,8 @@ public class PushSubscriptionPersistenceAdapter implements SavePushSubscriptionP
 
     @Override
     @Transactional
-    public void deleteByEndpoint(String endpoint) {
-        repository.deleteByEndpoint(endpoint);
+    public void deleteByMemberIdAndEndpoint(Long memberId, String endpoint) {
+        repository.deleteByMemberIdAndEndpoint(memberId, endpoint);
     }
 
     @Override

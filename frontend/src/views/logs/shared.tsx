@@ -29,6 +29,7 @@ export interface TagSummary {
 export interface SummaryData {
   totalSeconds: number
   tagSummaries: TagSummary[]
+  dailyTotals?: Record<string, number>
 }
 
 /**
@@ -252,8 +253,8 @@ export function BoundaryWait({ dayBoundary }: { dayBoundary: DayBoundary }) {
 }
 
 /** 기간 요약 조회. 4개 탭이 같은 엔드포인트를 쓰므로 URL 조립을 한 곳에 둔다. */
-export function getSummary(start: Date, end: Date): Promise<SummaryData> {
+export function getSummary(start: Date, end: Date, includeSessions = true): Promise<SummaryData> {
   return apiClient
-    .get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(start)}&endDate=${toLocalDate(end)}`)
+    .get<SummaryData>(`/api/v1/records/summary?startDate=${toLocalDate(start)}&endDate=${toLocalDate(end)}${includeSessions ? '' : '&includeSessions=false'}`)
     .then((res) => res.data)
 }

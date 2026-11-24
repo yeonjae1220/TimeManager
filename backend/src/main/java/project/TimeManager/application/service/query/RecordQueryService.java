@@ -7,6 +7,7 @@ import project.TimeManager.application.dto.result.RecordResult;
 import project.TimeManager.domain.port.in.record.GetRecordListQuery;
 import project.TimeManager.domain.port.out.record.LoadRecordsByTagPort;
 
+import java.time.ZonedDateTime;
 import java.util.List;
 
 @Service
@@ -19,5 +20,10 @@ public class RecordQueryService implements GetRecordListQuery {
     @Override
     public List<RecordResult> getRecordsByTagId(Long tagId) {
         return loadRecordsByTagPort.loadRecordsByTagId(tagId);
+    }
+
+    @Override
+    public List<RecordResult> getRecordPage(Long tagId, ZonedDateTime before, Long beforeId, int limit) {
+        return loadRecordsByTagPort.loadRecordPage(tagId, before, beforeId, limit);
     }
 }

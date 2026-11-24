@@ -1,6 +1,8 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { readdirSync, statSync } from 'node:fs'
 import { join } from 'node:path'
+import { useAuthStore } from '@/store/authStore'
+import { readPendingRecords } from './recordMutations'
 import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
 import {
   clearPendingTimerOperations,
@@ -167,18 +169,34 @@ describe('timerPersistence', () => {
   // record 큐는 24h(BackgroundSyncPlugin), 리셋 마커는 60s TTL이 있는데 타이머 op만
   // 무기한이었다. 며칠 뒤 복귀 시 옛 조작이 되살아나면 사용자가 이해할 수 없는 기록이 생긴다.
   describe('대기 op 보관 기한', () => {
-    it('보관 기한이 지난 op는 조회에서 제외되고 저장소에서도 정리된다', () => {
+    it('만료된 완료 세션은 재생하지 않고 원래 회원의 복구 목록으로 한 번만 옮긴다', () => {
+      useAuthStore.getState().setAuth('test-session', 11)
+      try {
+        const start = Date.now() - 5000
+        const end = Date.now()
+        enqueuePendingTimerOperation({ type: 'stop', tagId: 1, elapsedTime: 5, latestStartTime: start, latestEndTime: end })
+        vi.advanceTimersByTime(PENDING_OP_TTL_MS + 1000)
+
+        expect(peekPendingTimerOperations()).toEqual([])
+        expect(peekPendingTimerOperations()).toEqual([])
+        expect(readPendingRecords(11)).toEqual([expect.objectContaining({
+          failed: true, timerRecovery: 'expired',
+          data: expect.objectContaining({ tagId: 1, newStartTime: new Date(start).toISOString(), newEndTime: new Date(end).toISOString() }),
+        })])
+        expect(readPendingRecords(12)).toEqual([])
+      } finally {
+        useAuthStore.getState().clearAuth()
+      }
+    })
+
+    it('만료된 구형 세션은 소유자가 확인될 때까지 원본이 보존된다', () => {
       enqueuePendingTimerOperation({
         type: 'stop', tagId: 1, elapsedTime: 5,
         latestStartTime: Date.now() - 5000, latestEndTime: Date.now(),
       })
-      // 저장된 op를 기한 밖으로 밀어낸다
-      const raw = JSON.parse(localStorage.getItem('timemgr-pending-timer-ops')!)
-      raw[0].savedAt = Date.now() - (PENDING_OP_TTL_MS + 1000)
-      localStorage.setItem('timemgr-pending-timer-ops', JSON.stringify(raw))
-
-      expect(peekPendingTimerOperations()).toHaveLength(0)
-      expect(localStorage.getItem('timemgr-pending-timer-ops')).toBeNull()
+      vi.advanceTimersByTime(PENDING_OP_TTL_MS + 1000)
+      expect(peekPendingTimerOperations()).toEqual([])
+      expect(localStorage.getItem('timemgr-pending-timer-ops')).not.toBeNull()
     })
 
     it('기한 내 op는 유지된다', () => {

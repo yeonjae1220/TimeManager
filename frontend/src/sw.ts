@@ -60,46 +60,8 @@ const runtimeCaching: RuntimeCaching[] = [
       ],
     }),
   },
-  // ── 기타 API GET — NetworkFirst (auth·records·tags 제외) ──────────
-  // 태그 API(/api/v1/tags*)는 캐시 금지: 응답에 타이머 state(running)·latestStartTime이
-  // 실려 있어, NetworkFirst가 느린 네트워크(3초 타임아웃)에서 stale "running" 스냅샷을
-  // 서빙하면 정지된 태그가 계속 실행중으로 보이는 유령 러닝이 발생한다. 이 캐시는 앱
-  // 로컬 SW Cache Storage라 localStorage/IndexedDB 초기화로도 안 사라진다. 태그 오프라인은
-  // tagStore의 IndexedDB 캐시가 담당하므로 SW 레벨 태그 캐싱은 불필요하다.
-  // auth 경로(/api/v1/auth/*)도 제외: stale 인증 상태 반환 및 로그아웃 미전달 방지.
-  {
-    matcher: ({ url, sameOrigin }) =>
-      sameOrigin &&
-      url.pathname.startsWith('/api/v1/') &&
-      !url.pathname.startsWith('/api/v1/auth/') &&
-      !url.pathname.startsWith('/api/v1/records') &&
-      !url.pathname.startsWith('/api/v1/tags'),
-    handler: new NetworkFirst({
-      cacheName: 'api-cache',
-      networkTimeoutSeconds: 3,
-      plugins: [
-        new CacheableResponsePlugin({ statuses: [0, 200] }),
-        new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 60 * 60 }),
-      ],
-    }),
-  },
-  // ── record 조회 GET — NetworkFirst (오프라인 읽기용) ──────────────
-  // 기록은 이미 확정된 과거 데이터라 stale 해도 해롭지 않다. 타이머 state(running,
-  // latestStartTime)가 실린 태그 API 를 캐싱하지 않는 원칙과는 구분된다 — 그쪽은
-  // stale 스냅샷이 "유령 러닝"을 만들지만, 기록은 잠깐 옛 목록을 보여줄 뿐이다.
-  // 오프라인에서 새로 만든 기록은 Background Sync 로 올라간 뒤 갱신된다.
-  {
-    matcher: ({ url, request, sameOrigin }) =>
-      sameOrigin && url.pathname.startsWith('/api/v1/records') && request.method === 'GET',
-    handler: new NetworkFirst({
-      cacheName: 'records-cache',
-      networkTimeoutSeconds: 3,
-      plugins: [
-        new CacheableResponsePlugin({ statuses: [200] }),
-        new ExpirationPlugin({ maxEntries: 50, maxAgeSeconds: 24 * 60 * 60 }),
-      ],
-    }),
-  },
+  // Authenticated API reads are network-only. Offline tag state is stored in the
+  // app's member-scoped store, so a shared browser cache cannot return another member's data.
   // ── record CRUD — Background Sync ────────────────────────────────
   {
     matcher: ({ url, request, sameOrigin }) =>
@@ -156,6 +118,7 @@ self.addEventListener('activate', (event) => {
       await Promise.all([
         caches.delete('tag-detail-cache'),
         caches.delete('api-cache'),
+        caches.delete('records-cache'),
         // 새 배포의 SW가 활성화되면 옛 문서는 무효다 — 이미 삭제된 해시 청크를
         // 참조해 앱이 흰 화면으로 깨진다. 다음 온라인 방문 때 다시 채워진다.
         caches.delete(DOCUMENT_CACHE),

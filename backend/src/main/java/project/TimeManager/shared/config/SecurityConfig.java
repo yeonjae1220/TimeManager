@@ -70,6 +70,7 @@ public class SecurityConfig {
     @PostConstruct
     public void validateAdminCredentials() {
         boolean isTest = Arrays.asList(environment.getActiveProfiles()).contains("test");
+        if (hasLocalProfile()) return;
         if (isTest) {
             log.info("[Admin] test 프로파일 — admin 자격증명 검증 생략");
             return;
@@ -97,6 +98,10 @@ public class SecurityConfig {
         log.info("[Admin] admin 계정 설정이 유효합니다: email={}", adminEmail);
     }
 
+    private boolean hasLocalProfile() {
+        return Arrays.asList(environment.getActiveProfiles()).contains("local");
+    }
+
     @Bean
     public BCryptPasswordEncoder bCryptPasswordEncoder() {
         return new BCryptPasswordEncoder();
@@ -104,6 +109,7 @@ public class SecurityConfig {
 
     @Bean
     public UserDetailsService adminUserDetailsService() {
+        if (hasLocalProfile()) return new InMemoryUserDetailsManager();
         var admin = User.builder()
                 .username(adminEmail)
                 .password(adminPasswordBcrypt)
@@ -149,6 +155,11 @@ public class SecurityConfig {
     @Bean
     @Order(1)
     public SecurityFilterChain adminFilterChain(HttpSecurity http) throws Exception {
+        if (hasLocalProfile()) {
+            return http.securityMatcher(AntPathRequestMatcher.antMatcher("/admin/**"))
+                    .authorizeHttpRequests(auth -> auth.anyRequest().denyAll())
+                    .build();
+        }
         return http
                 .securityMatcher(AntPathRequestMatcher.antMatcher("/admin/**"))
                 .authenticationManager(adminAuthenticationManager())
