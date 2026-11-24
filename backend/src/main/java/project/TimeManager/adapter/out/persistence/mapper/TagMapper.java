@@ -63,9 +63,12 @@ public class TagMapper {
     }
 
     public TagResult toResult(TagJpaEntity entity) {
-        Long parentId = entity.getParent() != null ? entity.getParent().getId() : null;
+        var parent = entity.getParent();
+        Long memberId = entity.getMember().getId();
+        Long parentId = parent != null && memberId.equals(parent.getMember().getId()) ? parent.getId() : null;
         boolean isRunning = entity.getTimerState() == TimerState.RUNNING;
         List<Long> childrenList = entity.getChildren().stream()
+                .filter(child -> memberId.equals(child.getMember().getId()))
                 .map(TagJpaEntity::getId)
                 .toList();
 

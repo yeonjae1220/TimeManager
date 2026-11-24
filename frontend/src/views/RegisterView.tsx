@@ -1,13 +1,14 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useId, useState } from 'react'
 import { useAuth } from '@/hooks/useAuth'
 import { useI18n } from '@/i18n/I18nProvider'
 
 export default function RegisterView() {
   const { register } = useAuth()
   const { t } = useI18n()
+  const formId = useId()
   const [name, setName] = useState('')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
@@ -52,8 +53,10 @@ export default function RegisterView() {
 
         <form className="auth-form" onSubmit={handleRegister}>
           <div className="field">
-            <label>{t('register.name')}</label>
+            <label htmlFor={formId + '-name'}>{t('register.name')}</label>
             <input
+              id={formId + '-name'}
+              required
               type="text"
               autoComplete="name"
               placeholder={t('register.namePlaceholder')}
@@ -62,8 +65,10 @@ export default function RegisterView() {
             />
           </div>
           <div className="field">
-            <label>{t('auth.email')}</label>
+            <label htmlFor={formId + '-email'}>{t('auth.email')}</label>
             <input
+              id={formId + '-email'}
+              required
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
@@ -72,8 +77,10 @@ export default function RegisterView() {
             />
           </div>
           <div className="field">
-            <label>{t('auth.password')}</label>
+            <label htmlFor={formId + '-password'}>{t('auth.password')}</label>
             <input
+              id={formId + '-password'}
+              required
               type="password"
               autoComplete="new-password"
               placeholder="••••••••"
@@ -81,7 +88,7 @@ export default function RegisterView() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {error && <p className="auth-error">{error}</p>}
+          {error && <p role="alert" className="auth-error">{error}</p>}
           <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? '...' : (
               <>

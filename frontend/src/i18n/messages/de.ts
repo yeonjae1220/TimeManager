@@ -45,7 +45,7 @@ const de: Messages = {
   'landing.feature2Title': 'Präzise Stoppuhr',
   'landing.feature2Desc': 'Summen pro Sitzung, täglich und insgesamt — immer aktuell.',
   'landing.feature3Title': 'Vollständige Historie',
-  'landing.feature3Desc': 'Durchsuchen und bearbeiten Sie jeden Eintrag. Nichts geht verloren.',
+  'landing.feature3Desc': 'Gespeicherte Einträge ansehen und bearbeiten.',
 
   'auth.email': 'E-Mail',
   'auth.password': 'Passwort',
@@ -60,6 +60,12 @@ const de: Messages = {
   'login.noAccount': 'Noch kein Konto?',
   'login.registerLink': 'Registrieren',
   'login.errorInvalid': 'E-Mail oder Passwort ist falsch.',
+  'login.errorNetwork': "Verbindung fehlgeschlagen. Prüfe sie und versuche es erneut.",
+  'login.errorRate': "Zu viele Versuche. Versuche es später erneut.",
+  'login.errorService': "Die Anmeldung ist vorübergehend nicht verfügbar. Versuche es erneut.",
+  'register.success': "Konto erstellt. Melde dich an, um mit der Erfassung zu beginnen.",
+  'logs.startDayPolicy': "Sitzungen zählen zu dem Tag, an dem sie begonnen haben.",
+  'common.loadMore': "Mehr laden",
 
   'oauth.signingIn': 'Anmeldung...',
   'oauth.backToLogin': 'Zurück zur Anmeldung',

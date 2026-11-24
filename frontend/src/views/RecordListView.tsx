@@ -13,6 +13,8 @@ import DayOffsetBadge from '@/components/DayOffsetBadge'
 import { useI18n } from '@/i18n/I18nProvider'
 import type { MessageKey } from '@/i18n/messages/index'
 
+const PAGE_SIZE = 50
+
 interface Record {
   id: number
   totalTime: number
@@ -81,6 +83,11 @@ export default function RecordListView() {
 
   const [tag, setTag] = useState<Tag | null>(null)
   const [records, setRecords] = useState<Record[]>([])
+  const [hasMore, setHasMore] = useState(false)
+  const [loadingMore, setLoadingMore] = useState(false)
+  const [loadMoreFailed, setLoadMoreFailed] = useState(false)
+  const moreInFlight = useRef(false)
+  const pageVersion = useRef(0)
   const [loading, setLoading] = useState(true)
   // 최초 로드에서만 페이지 본문 스피너를 보여준다 — pull-to-refresh 로 다시
   // 불러올 때는 PullToRefresh 자체 인디케이터가 이미 그 역할을 하므로, 여기서도
@@ -107,24 +114,53 @@ export default function RecordListView() {
 
   const fetchRecords = useCallback(async () => {
     if (!tagId) return
+    const version = ++pageVersion.current
     setLoading(true)
+    setLoadMoreFailed(false)
     try {
       const [tagRes, recRes] = await Promise.all([
         apiClient.get<Tag>(`/api/v1/tags/${tagId}`),
-        apiClient.get<Record[]>(`/api/v1/records?tagId=${tagId}`),
+        apiClient.get<Record[]>(`/api/v1/records?tagId=${tagId}&limit=${PAGE_SIZE + 1}`),
       ])
+      if (version !== pageVersion.current) return false
       setTag(tagRes.data)
-      setRecords(recRes.data)
+      const paged = recRes.headers?.['x-record-page'] === '1'
+      setRecords(paged ? recRes.data.slice(0, PAGE_SIZE) : recRes.data)
+      setHasMore(paged && recRes.data.length > PAGE_SIZE)
       setErrorKey(null)
       return true
     } catch {
-      setErrorKey('records.loadFail')
+      if (version === pageVersion.current) setErrorKey('records.loadFail')
       return false
     } finally {
-      setLoading(false)
-      setHasLoadedOnce(true)
+      if (version === pageVersion.current) {
+        setLoading(false)
+        setHasLoadedOnce(true)
+      }
     }
   }, [tagId])
+
+  async function loadMore() {
+    const last = records.at(-1)
+    if (!last || moreInFlight.current || !hasMore) return
+    moreInFlight.current = true
+    const version = pageVersion.current
+    setLoadingMore(true)
+    setLoadMoreFailed(false)
+    try {
+      const { data } = await apiClient.get<Record[]>(
+        `/api/v1/records?tagId=${tagId}&limit=${PAGE_SIZE + 1}&before=${encodeURIComponent(last.startTime)}&beforeId=${last.id}`,
+      )
+      if (version !== pageVersion.current) return
+      setHasMore(data.length > PAGE_SIZE)
+      setRecords((previous) => [...previous, ...data.slice(0, PAGE_SIZE)])
+    } catch {
+      if (version === pageVersion.current) setLoadMoreFailed(true)
+    } finally {
+      moreInFlight.current = false
+      setLoadingMore(false)
+    }
+  }
 
   async function handleSaved(savedTagId: number) {
     if (savedTagId !== tagId) {
@@ -239,15 +275,15 @@ export default function RecordListView() {
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
                     <span className="mono" style={{ fontSize: 13 }}>{formatTime(record.totalTime)}</span>
                     <span className="mono" style={{ fontSize: 11, color: 'var(--text-3)' }}>
-                      {start.toLocaleDateString(language)}
+                      {start.toLocaleDateString(language, { timeZone: timezone })}
                     </span>
                   </div>
                   <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', fontSize: 11, color: 'var(--text-3)' }}>
-                    <span className="mono">{start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}</span>
+                    <span className="mono">{start.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', timeZone: timezone })}</span>
                     <span>→</span>
                     <span className="mono">
-                      {end.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit' })}
-                      <DayOffsetBadge start={start} end={end} language={language} />
+                      {end.toLocaleTimeString(language, { hour: '2-digit', minute: '2-digit', timeZone: timezone })}
+                      <DayOffsetBadge start={start} end={end} language={language} timezone={timezone} />
                     </span>
                   </div>
                 </div>
@@ -274,6 +310,10 @@ export default function RecordListView() {
               </div>
               )
             })}
+            {loadMoreFailed && <p role="alert">{t('records.loadFail')}</p>}
+            {hasMore && <button disabled={loading || loadingMore} onClick={() => void loadMore()}>
+              {loadingMore ? '…' : t('common.loadMore')}
+            </button>}
           </div>
         </div>
       </div>

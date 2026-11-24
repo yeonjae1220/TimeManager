@@ -5,6 +5,7 @@ import { get as idbGet, set as idbSet } from 'idb-keyval'
 import apiClient from '@/utils/apiClient'
 import { useAuthStore } from '@/store/authStore'
 import {
+  archivePendingStop,
   clearRetryAttempted,
   clearTimerState,
   forgetTagTimerLocally,
@@ -365,8 +366,12 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
   },
 
   async retryPendingTimerOp() {
-    const memberAtStart = useAuthStore.getState().memberId
-    const sameMember = () => useAuthStore.getState().memberId === memberAtStart
+    if (_retryPromise) return _retryPromise
+    const { memberId: memberAtStart, sessionEpoch } = useAuthStore.getState()
+    const sameMember = () => {
+      const auth = useAuthStore.getState()
+      return auth.memberId === memberAtStart && auth.sessionEpoch === sessionEpoch
+    }
     const inner = (async () => {
       while (true) {
         if (!sameMember()) return
@@ -430,22 +435,19 @@ export const useTagStore = create<TagStoreState>()((set, get) => ({
           // 전형적인 경우다. 폐기하면 사용자가 오프라인에서 한 작업이 조용히 사라지므로
           // 큐에 보존하고 재생만 중단한다. 어차피 뒤의 op도 같은 이유로 401이라 계속해봐야
           // 소용없다. 재로그인 후 재전송이 트리거되면 그대로 처리된다.
-          if (status === 401) {
+          if (status === 401 || status === 429) {
             clearRetryAttempted(pending.id)
             return
           }
 
           const isClientError = typeof status === 'number' && status >= 400 && status < 500
           if (isClientError) {
-            // 401 외 4xx는 이 op가 앞으로도 성공할 수 없는 확정 실패(잘못된 요청·삭제된 태그,
-            // 서버가 거부한 stale 한 정지 등). 큐 헤드에 남겨두면 뒤의 정상 op까지 영구히
-            // 막으므로 폐기하고 다음 op로 진행한다.
-            //
-            // 다만 폐기는 사용자가 실제로 누른 조작이 사라지는 자리다. 흔적을 안 남기면
-            // "왜 기록이 없지"를 추적할 수단이 0이 되므로 무엇을 왜 버렸는지 반드시 남긴다.
-            console.warn(
-              `Discarding pending timer op (type=${pending.type}, tagId=${pending.tagId}, status=${status}) — 서버가 확정 거부했습니다`
-            )
+            if (pending.type === 'stop' && memberAtStart
+                && !archivePendingStop(memberAtStart, pending, 'rejected')) {
+              clearRetryAttempted(pending.id)
+              return
+            }
+            console.warn(`Removing pending timer op from replay (type=${pending.type}, tagId=${pending.tagId}, status=${status})`)
             removePendingTimerOperation(pending.id)
             continue
           }

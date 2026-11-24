@@ -31,7 +31,7 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
     [mondayOverride, logicalToday],
   )
 
-  const load = useMemo(() => (monday ? () => getSummary(monday, addDays(monday, 6)) : null), [monday])
+  const load = useMemo(() => (monday ? () => getSummary(monday, addDays(monday, 6), false) : null), [monday])
   const { data, loading, failed, reload } = useAsyncData(load)
 
   // Fetch per-day data for bar chart
@@ -39,14 +39,19 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
   // "그날 기록이 없음" 과 "그날 조회 실패" 가 막대 높이 0 으로 똑같이 보인다.
   // 메인 요약이 성공한 부분 실패 상황에서는 화면 어디에도 단서가 안 남는다.
   // 하나라도 실패하면 차트를 그리지 않는다 — 거짓 0 보다 공백이 정직하다.
+  // Older backends do not return dailyTotals during a rolling update.
+  const serverDailyTotals = data?.dailyTotals
   const loadDailyTotals = useMemo(
-    () => (monday ? () => Promise.all(
+    () => (monday && data && !serverDailyTotals ? () => Promise.all(
       Array.from({ length: 7 }, (_, i) => addDays(monday, i))
         .map((d) => getSummary(d, d).then((s) => s.totalSeconds)),
     ) : null),
-    [monday],
+    [monday, data, serverDailyTotals],
   )
-  const { data: dailyTotals } = useAsyncData(loadDailyTotals)
+  const { data: fallbackTotals, failed: chartFailed, reload: retryChart } = useAsyncData(loadDailyTotals)
+  const dailyTotals = !loading && monday && serverDailyTotals
+    ? Array.from({ length: 7 }, (_, i) => serverDailyTotals[toLocalDate(addDays(monday, i))] ?? 0)
+    : fallbackTotals
 
   // 경계를 모르는 동안은 어느 주가 "이번 주"인지도 못 정한다 — 화살표도 막대도
   // 가리킬 대상이 없으니 대기 화면만 둔다(DailyTab과 동일한 게이팅).
@@ -97,6 +102,7 @@ export default function WeeklyTab({ memberId, onDayClick, dayBoundary }: { membe
         })}
       </div>
 
+      {chartFailed && <LoadError onRetry={retryChart} />}
       {loading && <div className="spinner" style={{ margin: '20px auto' }} />}
       {!loading && data && (
         <>

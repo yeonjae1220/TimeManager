@@ -37,6 +37,10 @@ class UpdateMemberProfileCommandServiceTest {
     @Mock
     PasswordHasherPort passwordHasherPort;
 
+    @Mock project.TimeManager.domain.port.out.tag.LoadTagPort loadTagPort;
+    @Mock project.TimeManager.domain.port.out.tag.ResetTagDailyTimesPort resetTagDailyTimesPort;
+    @Mock project.TimeManager.domain.port.out.member.MarkDailyResetPort markDailyResetPort;
+
     MemberDayBoundarySettingsCache dayBoundaryCache;
     UpdateMemberProfileCommandService service;
 
@@ -52,7 +56,8 @@ class UpdateMemberProfileCommandServiceTest {
     @BeforeEach
     void setUp() {
         dayBoundaryCache = new MemberDayBoundarySettingsCache();
-        service = new UpdateMemberProfileCommandService(loadMemberPort, updateMemberPort, passwordHasherPort, dayBoundaryCache);
+        service = new UpdateMemberProfileCommandService(loadMemberPort, updateMemberPort, passwordHasherPort, dayBoundaryCache,
+                loadTagPort, resetTagDailyTimesPort, markDailyResetPort, java.time.Clock.systemUTC());
         given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.of(member()));
     }
 

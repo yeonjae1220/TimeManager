@@ -1,6 +1,9 @@
 package project.TimeManager.adapter.in.web.dto.request;
 
-import com.fasterxml.jackson.annotation.JsonProperty;
+import jakarta.validation.Valid;
+import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 /**
  * 프론트엔드의 PushSubscription.toJSON() 결과를 그대로 수신
@@ -10,12 +13,12 @@ import com.fasterxml.jackson.annotation.JsonProperty;
  * }
  */
 public record PushSubscribeRequest(
-        String endpoint,
-        Keys keys
+        @NotBlank @Size(max = 512) String endpoint,
+        @NotNull @Valid Keys keys
 ) {
     public record Keys(
-            String p256dh,
-            String auth
+            @NotBlank @Size(max = 256) String p256dh,
+            @NotBlank @Size(max = 64) String auth
     ) {}
 
     public String getP256dh() { return keys != null ? keys.p256dh() : null; }

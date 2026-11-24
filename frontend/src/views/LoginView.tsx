@@ -1,29 +1,36 @@
 'use client'
 
 import Link from 'next/link'
-import { useState } from 'react'
+import { useId, useState } from 'react'
+import { useSearchParams } from 'next/navigation'
 import { useAuth } from '@/hooks/useAuth'
 import { saveOauthState } from '@/utils/oauthState'
 import { createOauthState, openOAuthUrl } from '@/utils/nativeOAuth'
 import { useI18n } from '@/i18n/I18nProvider'
+import type { MessageKey } from '@/i18n/messages'
 
 export default function LoginView() {
   const { login } = useAuth()
   const { t } = useI18n()
+  const params = useSearchParams()
+  const registered = params?.get('registered') === '1'
+  const formId = useId()
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
-  const [error, setError] = useState('')
+  const [error, setError] = useState<MessageKey | null>(null)
   const [loading, setLoading] = useState(false)
 
   async function handleLogin(e: React.FormEvent) {
     e.preventDefault()
     setLoading(true)
-    setError('')
+    setError(null)
     try {
       await login(email, password)
     } catch (err: unknown) {
-      const msg = (err as { response?: { data?: { message?: string } } })?.response?.data?.message
-      setError(msg || t('login.errorInvalid'))
+      const status = (err as { response?: { status?: number } })?.response?.status
+      if (status === 400 || status === 401) setError('login.errorInvalid')
+      else if (status === 429) setError('login.errorRate')
+      else setError(status === undefined ? 'login.errorNetwork' : 'login.errorService')
     } finally {
       setLoading(false)
     }
@@ -59,10 +66,13 @@ export default function LoginView() {
           <h1 className="auth-title">{t('login.title')}</h1>
         </div>
 
+        {registered && <p role="status">{t('register.success')}</p>}
         <form className="auth-form" onSubmit={handleLogin}>
           <div className="field">
-            <label>{t('auth.email')}</label>
+            <label htmlFor={formId + '-email'}>{t('auth.email')}</label>
             <input
+              id={formId + '-email'}
+              required
               type="email"
               autoComplete="email"
               placeholder="you@example.com"
@@ -71,8 +81,10 @@ export default function LoginView() {
             />
           </div>
           <div className="field">
-            <label>{t('auth.password')}</label>
+            <label htmlFor={formId + '-password'}>{t('auth.password')}</label>
             <input
+              id={formId + '-password'}
+              required
               type="password"
               autoComplete="current-password"
               placeholder="••••••••"
@@ -80,7 +92,7 @@ export default function LoginView() {
               onChange={(e) => setPassword(e.target.value)}
             />
           </div>
-          {error && <p className="auth-error">{error}</p>}
+          {error && <p role="alert" className="auth-error">{t(error)}</p>}
           <button className="btn btn-primary" type="submit" disabled={loading} style={{ width: '100%', justifyContent: 'center' }}>
             {loading ? '...' : (
               <>

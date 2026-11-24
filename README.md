@@ -23,17 +23,56 @@ k8s/       Kubernetes manifests and network policy
 
 ## Local development
 
+Use JDK 17 and a Node.js version that meets the lockfile's tooling requirements.
+Start Redis in Docker. The local backend uses a fresh in-memory H2 database,
+binds to loopback, and disables admin access, Web Push, and remote feedback forwarding.
+
 ```bash
-cp .env.example .env
-docker compose up -d
+docker compose up -d redis
 
-# Backend
-cd backend && ./gradlew bootRun
+# Backend terminal
+export JWT_SECRET="$(openssl rand -base64 32)"
+cd backend
+./gradlew bootRun
 
-# Frontend
-cd frontend && npm install && npm run dev
+# Frontend terminal
+cd frontend
+npm ci
+npm run dev
 ```
+
+Open http://localhost:3000 and sign in with the local sample account
+`member1@test.com` / `password123` or register a local test account.
 
 Run backend tests with `cd backend && ./gradlew test`.
 
 For implementation notes, measured tradeoffs, and known limits, see the [portfolio](https://portfolio.mungji.com/#p07).
+
+## Deployment verification
+
+The deploy job records the requested and previous backend/frontend image references
+in the Actions summary. It runs a manifest diff and deploys the image digests
+built by the same workflow run. If a rollout fails, review the rollout diagnostics
+and schema compatibility before restoring the previous digest for each app.
+The summary also lists immutable image references observed on ready pods, when
+the container runtime reports them. Use the last verified digest pair from a
+successful deployment. If the previous spec uses `:latest` and the summary has
+no ready digest or lists multiple candidates, establish the correct pair before
+rolling back.
+
+After confirming that the previous images work with the current schema and
+configuration, set `backend_image` and `frontend_image` to those full
+`registry/repository@sha256:...` references. To restore the images, run on the
+deployment host against its TimeManager cluster:
+
+```bash
+sudo kubectl -n timemanager set image deployment/backend "backend=${backend_image:?}"
+sudo kubectl -n timemanager rollout status deployment/backend --timeout=300s
+sudo kubectl -n timemanager set image deployment/frontend "frontend=${frontend_image:?}"
+sudo kubectl -n timemanager rollout status deployment/frontend --timeout=300s
+```
+
+Verify the live image references and run login, recording, and stats checks.
+This operation restores images only. Changes to the schema, credentials, or
+other settings need their own recovery procedure. The next deployment will
+select the digests from that workflow run.

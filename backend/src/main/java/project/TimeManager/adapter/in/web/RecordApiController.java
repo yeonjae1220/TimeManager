@@ -21,6 +21,8 @@ import project.TimeManager.domain.port.in.record.GetRecordListQuery;
 import project.TimeManager.domain.port.in.record.GetRecordSummaryQuery;
 import project.TimeManager.domain.port.in.tag.GetTagQuery;
 
+import org.springframework.format.annotation.DateTimeFormat;
+import java.time.ZonedDateTime;
 import java.time.LocalDate;
 import java.util.List;
 
@@ -38,16 +40,24 @@ public class RecordApiController {
     private final GetTagQuery getTagQuery;
 
     @GetMapping
-    public ResponseEntity<List<RecordResponse>> getRecordsForTag(@RequestParam Long tagId,
-                                                                  @AuthenticationPrincipal Long memberId) {
+    public ResponseEntity<List<RecordResponse>> getRecordsForTag(
+            @RequestParam Long tagId,
+            @RequestParam(defaultValue = "1000") int limit,
+            @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) ZonedDateTime before,
+            @RequestParam(required = false) Long beforeId,
+            @AuthenticationPrincipal Long memberId) {
+        if (limit < 1 || limit > 1000 || (before == null) != (beforeId == null)
+                || (beforeId != null && beforeId < 1)) {
+            throw new DomainException("기록 조회 범위 또는 커서가 올바르지 않습니다");
+        }
         TagResult tag = getTagQuery.getTag(tagId);
         if (!tag.getMemberId().equals(memberId)) {
             throw new DomainException("접근 권한이 없습니다");
         }
-        List<RecordResponse> records = getRecordListQuery.getRecordsByTagId(tagId).stream()
+        List<RecordResponse> records = getRecordListQuery.getRecordPage(tagId, before, beforeId, limit).stream()
                 .map(RecordResponse::from)
                 .toList();
-        return ResponseEntity.ok(records);
+        return ResponseEntity.ok().header("X-Record-Page", "1").body(records);
     }
 
     @PostMapping
@@ -82,9 +92,10 @@ public class RecordApiController {
     public ResponseEntity<RecordSummaryResponse> getSummary(
             @RequestParam LocalDate startDate,
             @RequestParam LocalDate endDate,
+            @RequestParam(defaultValue = "true") boolean includeSessions,
             @AuthenticationPrincipal Long memberId) {
         RecordSummaryResponse response = RecordSummaryResponse.from(
-                getRecordSummaryQuery.getSummary(memberId, startDate, endDate));
+                getRecordSummaryQuery.getSummary(memberId, startDate, endDate, includeSessions));
         return ResponseEntity.ok(response);
     }
 }

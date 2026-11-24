@@ -29,7 +29,7 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
     [refDateOverride, logicalToday],
   )
 
-  const load = useMemo(() => (refDate ? () => getSummary(startOfMonth(refDate), endOfMonth(refDate)) : null), [refDate])
+  const load = useMemo(() => (refDate ? () => getSummary(startOfMonth(refDate), endOfMonth(refDate), false) : null), [refDate])
   const { data, loading, failed, reload } = useAsyncData(load)
 
   // Per-day totals for heatmap (batch: one call per day is expensive, so we use per-week calls)
@@ -46,8 +46,9 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
   //
   // resetHour를 모르는 동안은 loader 자체를 넘기지 않는다. 짐작한 경계로 칠한
   // 히트맵은 아래 "실패한 주를 빈 칸으로 그리지 않는다"와 같은 부류의 거짓 데이터다.
+  const serverDailyTotals = data?.dailyTotals
   const loadHeatmap = useMemo(() => {
-    if (refDate === null || resetHour === null) return null
+    if (refDate === null || resetHour === null || !data || serverDailyTotals) return null
     return () => {
       const end = endOfMonth(refDate)
       const weeks: Date[] = []
@@ -76,8 +77,9 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
         return merged
       })
     }
-  }, [refDate, resetHour, timezone])
-  const { data: dailyTotals } = useAsyncData(loadHeatmap)
+  }, [refDate, resetHour, timezone, data, serverDailyTotals])
+  const { data: fallbackTotals, failed: chartFailed, reload: retryChart } = useAsyncData(loadHeatmap)
+  const dailyTotals = !loading && serverDailyTotals ? new Map(Object.entries(serverDailyTotals)) : fallbackTotals
 
   // 경계를 모르는 동안은 어느 달이 "이번 달"인지도 못 정한다 — 화살표도 히트맵도
   // 가리킬 대상이 없으니 대기 화면만 둔다(DailyTab/WeeklyTab과 동일한 게이팅).
@@ -163,6 +165,7 @@ export default function MonthlyTab({ memberId, onDayClick, dayBoundary }: { memb
         </div>
       </div>
 
+      {chartFailed && <LoadError onRetry={retryChart} />}
       {loading && <div className="spinner" style={{ margin: '20px auto' }} />}
       {!loading && data && (
         <>

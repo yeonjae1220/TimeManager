@@ -8,6 +8,7 @@ import java.util.List;
 
 public interface RecordJpaRepositoryCustom {
     List<RecordJpaEntity> findByTagId(Long tagId);
+    List<RecordJpaEntity> findTagRecordPage(Long tagId, ZonedDateTime before, Long beforeId, int limit);
 
     Long sumTotalTimeByTagIdAndStartTimeAfter(Long tagId, ZonedDateTime after);
 

@@ -10,6 +10,11 @@ import project.TimeManager.application.dto.command.RenameTagCommand;
 import project.TimeManager.application.dto.command.ReorderTagsCommand;
 import project.TimeManager.application.dto.command.SetDailyGoalCommand;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.ResourceForbiddenException;
+import project.TimeManager.domain.tag.model.TagType;
+
+import java.util.HashSet;
+import java.util.Set;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.in.tag.CreateTagUseCase;
 import project.TimeManager.domain.port.in.tag.MoveTagUseCase;
@@ -36,8 +41,8 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, Rena
 
     @Override
     public Long createTag(CreateTagCommand command) {
-        Tag parent = loadTagPort.loadTag(command.parentTagId())
-                .orElseThrow(() -> new DomainException("Parent tag not found: " + command.parentTagId()));
+        loadTagPort.lockMember(command.memberId());
+        Tag parent = requireOwnedTag(command.parentTagId(), command.memberId());
 
         Tag newTag = Tag.createCustomTag(
                 command.tagName(),
@@ -52,25 +57,26 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, Rena
 
     @Override
     public Long moveTag(MoveTagCommand command) {
+        loadTagPort.lockMember(command.memberId());
+        Tag tag = requireOwnedTag(command.tagId(), command.memberId());
+        Tag newParent = requireOwnedTag(command.newParentTagId(), command.memberId());
         if (command.tagId().equals(command.newParentTagId())) {
             throw new DomainException("A tag cannot be moved to itself");
         }
-
-        Tag tag = loadTagPort.loadTag(command.tagId())
-                .orElseThrow(() -> new DomainException("Tag not found: " + command.tagId()));
-
-        if (!tag.getMemberId().value().equals(command.memberId())) {
-            throw new DomainException("접근 권한이 없습니다");
+        if (tag.getType() != TagType.CUSTOM) {
+            throw new DomainException("기본 태그는 이동할 수 없습니다");
         }
-
-        Tag newParent = loadTagPort.loadTag(command.newParentTagId())
-                .orElseThrow(() -> new DomainException("New parent tag not found: " + command.newParentTagId()));
+        validateParentChain(tag, newParent, command.memberId());
 
         Long oldParentId = tag.getParentId() != null ? tag.getParentId().value() : null;
+        if (command.newParentTagId().equals(oldParentId)) return command.tagId();
         long tagTotalTime = tag.getTotalTime();
 
         if (oldParentId != null) {
-            updateTagTimeBatchPort.updateTagTimeBatch(oldParentId, -tagTotalTime);
+            Tag oldParent = loadTagPort.loadTag(oldParentId).orElse(null);
+            if (oldParent != null && oldParent.getMemberId().value().equals(command.memberId())) {
+                updateTagTimeBatchPort.updateTagTimeBatch(oldParentId, -tagTotalTime);
+            }
         }
 
         tag.moveTo(newParent.getId());
@@ -116,12 +122,38 @@ public class TagCommandService implements CreateTagUseCase, MoveTagUseCase, Rena
 
     @Override
     public void reorderTags(ReorderTagsCommand command) {
-        Tag parentTag = loadTagPort.loadTag(command.parentTagId())
-                .orElseThrow(() -> new DomainException("Parent tag not found: " + command.parentTagId()));
-        if (!parentTag.getMemberId().value().equals(command.memberId())) {
-            throw new DomainException("접근 권한이 없습니다");
+        loadTagPort.lockMember(command.memberId());
+        requireOwnedTag(command.parentTagId(), command.memberId());
+        Set<Long> unique = new HashSet<>();
+        for (Long id : command.orderedTagIds()) {
+            if (id == null || !unique.add(id)) {
+                throw new DomainException("정렬 목록의 태그는 중복되거나 비어 있을 수 없습니다");
+            }
+            Tag child = requireOwnedTag(id, command.memberId());
+            if (child.getType() != TagType.CUSTOM || child.getParentId() == null
+                    || !child.getParentId().value().equals(command.parentTagId())) {
+                throw new DomainException("같은 부모 아래의 태그만 정렬할 수 있습니다");
+            }
         }
         saveTagsOrderPort.saveTagsOrder(command.orderedTagIds());
-        log.info("Tags reordered: parentId={}, order={}", command.parentTagId(), command.orderedTagIds());
+    }
+
+    private Tag requireOwnedTag(Long id, Long memberId) {
+        return loadTagPort.loadTag(id)
+                .filter(tag -> tag.getMemberId().value().equals(memberId))
+                .orElseThrow(ResourceForbiddenException::new);
+    }
+
+    private void validateParentChain(Tag moving, Tag parent, Long memberId) {
+        Set<Long> visited = new HashSet<>();
+        Tag current = parent;
+        while (current != null) {
+            Long id = current.getId().value();
+            if (id.equals(moving.getId().value()) || !visited.add(id)) {
+                throw new DomainException("태그 계층에 순환을 만들 수 없습니다");
+            }
+            current = current.getParentId() == null
+                    ? null : requireOwnedTag(current.getParentId().value(), memberId);
+        }
     }
 }

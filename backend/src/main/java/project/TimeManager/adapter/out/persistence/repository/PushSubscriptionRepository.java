@@ -7,6 +7,7 @@ import java.util.List;
 
 public interface PushSubscriptionRepository extends JpaRepository<PushSubscriptionJpaEntity, Long> {
     List<PushSubscriptionJpaEntity> findByMemberId(Long memberId);
-    void deleteByEndpoint(String endpoint);
+    boolean existsByEndpoint(String endpoint);
+    void deleteByMemberIdAndEndpoint(Long memberId, String endpoint);
     void deleteByMemberId(Long memberId);
 }

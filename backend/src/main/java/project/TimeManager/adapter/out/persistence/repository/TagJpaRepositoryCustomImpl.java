@@ -40,11 +40,11 @@ public class TagJpaRepositoryCustomImpl implements TagJpaRepositoryCustom {
     @SuppressWarnings("unchecked")
     public List<Long> findAncestorIds(Long startTagId) {
         List<Object> result = em.createNativeQuery(
-                "WITH RECURSIVE ancestor_chain(tag_id, parent_id, type) AS (" +
-                "  SELECT tag_id, parent_id, type FROM tag WHERE tag_id = :startTagId " +
-                "  UNION ALL " +
-                "  SELECT t.tag_id, t.parent_id, t.type FROM tag t " +
-                "  INNER JOIN ancestor_chain ac ON t.tag_id = ac.parent_id " +
+                "WITH RECURSIVE ancestor_chain(tag_id, parent_id, type, member_id) AS (" +
+                "  SELECT tag_id, parent_id, type, member_id FROM tag WHERE tag_id = :startTagId " +
+                "  UNION " +
+                "  SELECT t.tag_id, t.parent_id, t.type, t.member_id FROM tag t " +
+                "  INNER JOIN ancestor_chain ac ON t.tag_id = ac.parent_id AND t.member_id = ac.member_id " +
                 "  WHERE ac.type NOT IN ('ROOT', 'DISCARDED')" +
                 ") SELECT tag_id FROM ancestor_chain"
         )

@@ -7,8 +7,10 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
+import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.exception.RecordOverlapException;
+import project.TimeManager.domain.exception.ResourceForbiddenException;
 import project.TimeManager.domain.exception.TooManyRequestsException;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 
@@ -71,11 +73,21 @@ public class GlobalExceptionHandler {
                 .body(Map.of("error", e.getMessage()));
     }
 
+    @ExceptionHandler(ResourceForbiddenException.class)
+    public ResponseEntity<Map<String, String>> handleForbidden(ResourceForbiddenException e) {
+        return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+    }
+
     @ExceptionHandler(DomainException.class)
     public ResponseEntity<Map<String, String>> handleDomainException(DomainException e) {
         log.warn("Domain rule violation: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
                 .body(Map.of("error", e.getMessage()));
+    }
+
+    @ExceptionHandler(MethodArgumentTypeMismatchException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidParameter(MethodArgumentTypeMismatchException e) {
+        return ResponseEntity.badRequest().body(Map.of("error", "Invalid parameter: " + e.getName()));
     }
 
     @ExceptionHandler(IllegalArgumentException.class)

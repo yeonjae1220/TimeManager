@@ -53,3 +53,9 @@ management:
 logging:
   level:
     org.hibernate.SQL: warn
+
+# Avoid emitting SQL parameters such as member emails and password hashes in production logs.
+decorator:
+  datasource:
+    p6spy:
+      enable-logging: false

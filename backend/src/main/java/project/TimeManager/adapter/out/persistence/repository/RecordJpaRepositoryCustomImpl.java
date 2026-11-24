@@ -33,6 +33,20 @@ public class RecordJpaRepositoryCustomImpl implements RecordJpaRepositoryCustom 
     }
 
     @Override
+    public List<RecordJpaEntity> findTagRecordPage(Long tagId, ZonedDateTime before, Long beforeId, int limit) {
+        var condition = record.tag.id.eq(tagId);
+        if (before != null) {
+            condition = condition.and(record.startTime.lt(before)
+                    .or(record.startTime.eq(before).and(record.id.lt(beforeId))));
+        }
+        return jpaQueryFactory.selectFrom(record)
+                .where(condition)
+                .orderBy(record.startTime.desc(), record.id.desc())
+                .limit(limit)
+                .fetch();
+    }
+
+    @Override
     public Long sumTotalTimeByTagIdAndStartTimeAfter(Long tagId, ZonedDateTime after) {
         Long sum = jpaQueryFactory
                 .select(record.totalTime.sum())

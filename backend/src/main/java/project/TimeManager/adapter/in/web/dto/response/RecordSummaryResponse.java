@@ -2,7 +2,9 @@ package project.TimeManager.adapter.in.web.dto.response;
 
 import project.TimeManager.application.dto.result.RecordSummaryResult;
 
+import java.time.LocalDate;
 import java.time.ZonedDateTime;
+import java.util.Map;
 import java.util.List;
 import java.util.stream.Collectors;
 
@@ -11,16 +13,21 @@ public class RecordSummaryResponse {
     private final Long totalSeconds;
     private final List<TagSummaryResponse> tagSummaries;
 
-    private RecordSummaryResponse(Long totalSeconds, List<TagSummaryResponse> tagSummaries) {
+    private final Map<LocalDate, Long> dailyTotals;
+
+    private RecordSummaryResponse(Long totalSeconds, List<TagSummaryResponse> tagSummaries, Map<LocalDate, Long> dailyTotals) {
         this.totalSeconds = totalSeconds;
         this.tagSummaries = tagSummaries;
+        this.dailyTotals = dailyTotals;
     }
+
+    public Map<LocalDate, Long> getDailyTotals() { return dailyTotals; }
 
     public static RecordSummaryResponse from(RecordSummaryResult result) {
         List<TagSummaryResponse> tags = result.getTagSummaries().stream()
                 .map(TagSummaryResponse::from)
                 .collect(Collectors.toList());
-        return new RecordSummaryResponse(result.getTotalSeconds(), tags);
+        return new RecordSummaryResponse(result.getTotalSeconds(), tags, result.getDailyTotals());
     }
 
     public Long getTotalSeconds() { return totalSeconds; }
