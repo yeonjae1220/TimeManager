@@ -15,4 +15,12 @@ export const authApi = {
 
   googleLogin: (code: string, redirectUri: string) =>
     apiClient.post<{ accessToken: string; memberId: number }>('/api/v1/auth/google', { code, redirectUri }),
+
+  appleLogin: (identityToken: string, authorizationCode: string, nonce: string, fullName: string) =>
+    apiClient.post<{ accessToken: string; memberId: number }>('/api/v1/auth/apple', {
+      identityToken,
+      authorizationCode: authorizationCode || null,
+      nonce,
+      fullName: fullName || null,
+    }),
 }

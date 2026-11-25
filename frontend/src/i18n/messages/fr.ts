@@ -57,6 +57,8 @@ const fr: Messages = {
   'login.submit': 'Se connecter',
   'login.or': 'ou',
   'login.google': 'Continuer avec Google',
+  'login.apple': 'Continuer avec Apple',
+  'login.appleFail': 'La connexion avec Apple a échoué. Veuillez réessayer.',
   'login.noAccount': 'Vous n’avez pas de compte ?',
   'login.registerLink': 'S’inscrire',
   'login.errorInvalid': 'E-mail ou mot de passe incorrect.',

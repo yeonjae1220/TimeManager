@@ -55,6 +55,11 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
             if (member.getProvider() == OAuthProvider.LOCAL) {
                 throw new DomainException("이미 이메일/비밀번호로 가입된 계정입니다. 일반 로그인을 사용해 주세요");
             }
+            // Apple 회원이 실제 주소(릴레이 아님)로 가입했을 수 있다. 같은 이메일의 Google 로그인으로
+            // 그 계정에 들어가게 두면 제공자를 건너뛰는 계정 탈취 경로가 된다 — 계정 연결은 지원하지 않는다.
+            if (member.getProvider() != OAuthProvider.GOOGLE) {
+                throw new DomainException("이미 다른 방식으로 가입된 계정입니다. 가입한 방식으로 로그인해 주세요");
+            }
             memberId = member.getId();
             isNewMember = false;
         } else {

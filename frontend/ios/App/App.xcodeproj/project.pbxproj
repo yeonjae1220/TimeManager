@@ -24,6 +24,7 @@
 		FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */; };
 		A1D3A2EA0DE4DA0846BBEC67 /* MainViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31F545B03C5530C90E7FDDF6 /* MainViewController.swift */; };
 		AA11PRIV0000000000000002 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = AA11PRIV0000000000000001 /* PrivacyInfo.xcprivacy */; };
+		AA11SIWA0000000000000002 /* AppleSignInPlugin.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA11SIWA0000000000000001 /* AppleSignInPlugin.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -69,6 +70,7 @@
 		CFA7FAA030359EDD00F10989 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
 		CFA7FAB63039FAE200F10989 /* TimerActivityAttributes.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimerActivityAttributes.swift; sourceTree = "<group>"; };
 		AA11PRIV0000000000000001 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; lastKnownFileType = text.xml; path = PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
+		AA11SIWA0000000000000001 /* AppleSignInPlugin.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppleSignInPlugin.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
@@ -134,6 +136,7 @@
 				50379B222058CBB4000EE86E /* capacitor.config.json */,
 				504EC3071FED79650016851F /* AppDelegate.swift */,
 				C1E00811940AB4AC8A6D38C2 /* LiveActivityPlugin.swift */,
+				AA11SIWA0000000000000001 /* AppleSignInPlugin.swift */,
 				31F545B03C5530C90E7FDDF6 /* MainViewController.swift */,
 				504EC30B1FED79650016851F /* Main.storyboard */,
 				504EC30E1FED79650016851F /* Assets.xcassets */,
@@ -275,6 +278,7 @@
 				504EC3081FED79650016851F /* AppDelegate.swift in Sources */,
 				CFA7FAB83039FC1500F10989 /* TimerActivityAttributes.swift in Sources */,
 				FDAB359738B7A597E3D7B4FC /* LiveActivityPlugin.swift in Sources */,
+				AA11SIWA0000000000000002 /* AppleSignInPlugin.swift in Sources */,
 				A1D3A2EA0DE4DA0846BBEC67 /* MainViewController.swift in Sources */,
 				9582B6832FE993A70072D4E8 /* SceneDelegate.swift in Sources */,
 			);

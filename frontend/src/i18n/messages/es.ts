@@ -57,6 +57,8 @@ const es: Messages = {
   'login.submit': 'Iniciar sesión',
   'login.or': 'o',
   'login.google': 'Continuar con Google',
+  'login.apple': 'Continuar con Apple',
+  'login.appleFail': 'No se pudo iniciar sesión con Apple. Inténtalo de nuevo.',
   'login.noAccount': '¿No tienes una cuenta?',
   'login.registerLink': 'Regístrate',
   'login.errorInvalid': 'El correo o la contraseña son incorrectos.',

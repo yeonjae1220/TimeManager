@@ -57,6 +57,8 @@ const zh: Messages = {
   'login.submit': '登录',
   'login.or': '或',
   'login.google': '使用 Google 继续',
+  'login.apple': '使用 Apple 继续',
+  'login.appleFail': 'Apple 登录失败，请重试。',
   'login.noAccount': '还没有账户？',
   'login.registerLink': '注册',
   'login.errorInvalid': '邮箱或密码不正确。',

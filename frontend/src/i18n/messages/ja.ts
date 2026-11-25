@@ -57,6 +57,8 @@ const ja: Messages = {
   'login.submit': 'ログイン',
   'login.or': 'または',
   'login.google': 'Google で続行',
+  'login.apple': 'Apple で続行',
+  'login.appleFail': 'Apple でのサインインに失敗しました。もう一度お試しください。',
   'login.noAccount': 'アカウントをお持ちでないですか？',
   'login.registerLink': '登録',
   'login.errorInvalid': 'メールまたはパスワードが正しくありません。',
