@@ -2,7 +2,7 @@
   "applinks": {
     "details": [
       {
-        "appIDs": ["TEAMID.com.mungji.timemanager"],
+        "appIDs": ["VWVM879DJ3.com.mungji.timemanager"],
         "components": [
           { "/": "/oauth/callback*", "comment": "OAuth 콜백만 앱으로 넘긴다" }
         ]

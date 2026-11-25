@@ -318,3 +318,68 @@ describe('Live Activity 렌더러 (iOS)', () => {
     expect(view![1], '워치 뷰에 부연 문구(text)가 들어갔습니다').not.toContain('state.text')
   })
 })
+
+/**
+ * 스토어 제출 설정 축. 전부 **빠져도 빌드·시뮬레이터 실행이 그대로 되는** 값이라
+ * 되돌려져도 초록불이고, 증상은 심사 제출 시점이나 실기기 OAuth 에서야 드러난다.
+ */
+describe('네이티브 계약 (iOS 제출 설정)', () => {
+  const PBXPROJ = 'frontend/ios/App/App.xcodeproj/project.pbxproj'
+  const ENTITLEMENTS = 'frontend/ios/App/App/App.entitlements'
+  const PRIVACY_MANIFEST = 'frontend/ios/App/App/PrivacyInfo.xcprivacy'
+  const CAPACITOR_CONFIG = 'frontend/capacitor.config.ts'
+
+  function remoteHost(): string {
+    const config = readRepoFile(CAPACITOR_CONFIG)
+    const url = config.match(/url:\s*'([^']+)'/)
+    expect(url, `${CAPACITOR_CONFIG} 에서 server.url 을 찾지 못했습니다`).not.toBeNull()
+    return new URL(url![1]).host
+  }
+
+  it('App.entitlements 가 앱 타깃의 Debug·Release 양쪽에 연결돼 있다 — 파일만 있고 연결이 없으면 Universal Links 가 무증상으로 죽는다', () => {
+    const pbxproj = readRepoFile(PBXPROJ)
+    const links = pbxproj.match(/CODE_SIGN_ENTITLEMENTS = App\/App\.entitlements;/g) ?? []
+
+    expect(links).toHaveLength(2)
+  })
+
+  it('Associated Domains 와 App-Bound Domains 가 WebView 가 여는 도메인과 같다', () => {
+    const host = remoteHost()
+
+    expect(readRepoFile(ENTITLEMENTS)).toContain(`<string>applinks:${host}</string>`)
+    const bound = readRepoFile(APP_INFO_PLIST).match(/<key>WKAppBoundDomains<\/key>\s*<array>([\s\S]*?)<\/array>/)
+    expect(bound, `${APP_INFO_PLIST} 에서 WKAppBoundDomains 를 찾지 못했습니다`).not.toBeNull()
+    expect(bound![1]).toContain(`<string>${host}</string>`)
+  })
+
+  it('AASA 의 appID 가 프로젝트의 팀·번들 ID 와 같다 — 어긋나면 Universal Links 검증이 조용히 실패한다', () => {
+    const pbxproj = readRepoFile(PBXPROJ)
+    const teams = new Set([...pbxproj.matchAll(/DEVELOPMENT_TEAM = ([^;]+);/g)].map((m) => m[1]))
+    const aasa = JSON.parse(readRepoFile('frontend/public/.well-known/apple-app-site-association')) as {
+      applinks: { details: { appIDs: string[] }[] }
+    }
+
+    expect(teams.size, '타깃마다 DEVELOPMENT_TEAM 이 다릅니다').toBe(1)
+    const [team] = [...teams]
+    expect(aasa.applinks.details.flatMap((d) => d.appIDs)).toEqual([`${team}.${NATIVE_OAUTH_SCHEME}`])
+  })
+
+  it('프라이버시 매니페스트가 앱 타깃 리소스에 들어 있고 추적을 선언하지 않는다', () => {
+    const pbxproj = readRepoFile(PBXPROJ)
+    const manifest = readRepoFile(PRIVACY_MANIFEST)
+
+    expect(pbxproj).toContain('PrivacyInfo.xcprivacy in Resources */,')
+    expect(manifest).toMatch(/<key>NSPrivacyTracking<\/key>\s*<false\/>/)
+  })
+
+  it('수출 규정 면제 키가 있다 — 없으면 빌드를 올릴 때마다 App Store Connect 가 다시 묻는다', () => {
+    expect(readRepoFile(APP_INFO_PLIST)).toMatch(/<key>ITSAppUsesNonExemptEncryption<\/key>\s*<false\/>/)
+  })
+
+  it('앱과 위젯 확장이 모두 iPhone 전용이다 — 한쪽만 iPad 를 남기면 심사가 iPad 스크린샷을 요구한다', () => {
+    const families = [...readRepoFile(PBXPROJ).matchAll(/TARGETED_DEVICE_FAMILY = ([^;]+);/g)].map((m) => m[1])
+
+    expect(families).toHaveLength(4)
+    expect(new Set(families)).toEqual(new Set(['1']))
+  })
+})
