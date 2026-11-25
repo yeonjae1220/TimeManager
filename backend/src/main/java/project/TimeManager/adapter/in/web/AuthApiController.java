@@ -13,17 +13,21 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
 import project.TimeManager.shared.security.ClientIpResolver;
 import project.TimeManager.shared.security.RateLimiterService;
+import project.TimeManager.adapter.in.web.dto.request.AppleLoginRequest;
 import project.TimeManager.adapter.in.web.dto.request.GoogleLoginRequest;
 import project.TimeManager.adapter.in.web.dto.request.LoginRequest;
 import project.TimeManager.adapter.in.web.dto.response.GoogleAuthResponse;
 import project.TimeManager.adapter.in.web.dto.response.LoginResponse;
+import project.TimeManager.application.dto.command.auth.AppleLoginCommand;
 import project.TimeManager.application.dto.command.auth.GoogleLoginCommand;
 import project.TimeManager.application.dto.command.auth.LoginCommand;
 import project.TimeManager.application.dto.command.auth.LogoutCommand;
 import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
 import project.TimeManager.application.dto.result.GoogleLoginResult;
+import project.TimeManager.application.dto.result.SocialLoginResult;
 import project.TimeManager.application.dto.result.TokenPairResult;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.port.in.auth.AppleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
@@ -48,6 +52,7 @@ public class AuthApiController {
     private final RefreshTokenUseCase refreshTokenUseCase;
     private final LogoutUseCase logoutUseCase;
     private final GoogleLoginUseCase googleLoginUseCase;
+    private final AppleLoginUseCase appleLoginUseCase;
     private final RateLimiterService rateLimiterService;
     private final Environment environment;
     private final ClientIpResolver clientIpResolver;
@@ -104,6 +109,19 @@ public class AuthApiController {
         rateLimiterService.checkLoginRate(clientIpResolver.resolve(httpRequest));
         GoogleLoginResult result = googleLoginUseCase.loginWithGoogle(
                 new GoogleLoginCommand(request.code(), request.redirectUri()));
+        addRefreshCookie(response, result.refreshToken());
+        return ResponseEntity.ok(new GoogleAuthResponse(result.accessToken(), result.memberId(), result.newMember()));
+    }
+
+    /** iOS 네이티브 Sign in with Apple. 응답 형태는 Google 과 같다 — 프론트가 같은 후처리를 탄다. */
+    @PostMapping("/apple")
+    public ResponseEntity<GoogleAuthResponse> appleLogin(
+            @Valid @RequestBody AppleLoginRequest request,
+            HttpServletRequest httpRequest,
+            HttpServletResponse response) {
+        rateLimiterService.checkLoginRate(clientIpResolver.resolve(httpRequest));
+        SocialLoginResult result = appleLoginUseCase.loginWithApple(
+                new AppleLoginCommand(request.identityToken(), request.nonce(), request.fullName()));
         addRefreshCookie(response, result.refreshToken());
         return ResponseEntity.ok(new GoogleAuthResponse(result.accessToken(), result.memberId(), result.newMember()));
     }

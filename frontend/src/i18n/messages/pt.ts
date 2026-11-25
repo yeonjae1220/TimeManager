@@ -57,6 +57,8 @@ const pt: Messages = {
   'login.submit': 'Entrar',
   'login.or': 'ou',
   'login.google': 'Continuar com o Google',
+  'login.apple': 'Continuar com a Apple',
+  'login.appleFail': 'Falha ao entrar com a Apple. Tente novamente.',
   'login.noAccount': 'Não tem uma conta?',
   'login.registerLink': 'Registrar',
   'login.errorInvalid': 'E-mail ou senha incorretos.',

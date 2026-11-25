@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
+import project.TimeManager.domain.member.model.OAuthProvider;
 
 import java.time.LocalDateTime;
 import java.time.Instant;
@@ -26,6 +27,10 @@ public interface MemberJpaRepository extends JpaRepository<MemberJpaEntity, Long
 
     @Query("SELECT m FROM MemberJpaEntity m WHERE m.email = :email AND m.deletedAt IS NULL")
     Optional<MemberJpaEntity> findByEmail(@Param("email") String email);
+
+    @Query("SELECT m FROM MemberJpaEntity m WHERE m.provider = :provider AND m.providerId = :providerId AND m.deletedAt IS NULL")
+    Optional<MemberJpaEntity> findByProviderAndProviderId(@Param("provider") OAuthProvider provider,
+                                                          @Param("providerId") String providerId);
 
     @Query("SELECT m FROM MemberJpaEntity m WHERE m.deletedAt IS NULL")
     List<MemberJpaEntity> findAllActive();

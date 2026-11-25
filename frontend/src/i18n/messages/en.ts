@@ -63,6 +63,8 @@ const en = {
   'login.submit': 'Sign in',
   'login.or': 'or',
   'login.google': 'Continue with Google',
+  'login.apple': 'Continue with Apple',
+  'login.appleFail': 'Apple sign-in failed. Please try again.',
   'login.noAccount': "Don't have an account?",
   'login.registerLink': 'Register',
   'login.errorInvalid': 'Email or password is incorrect.',

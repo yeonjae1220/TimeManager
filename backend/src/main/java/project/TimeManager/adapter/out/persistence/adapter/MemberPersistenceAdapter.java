@@ -8,6 +8,7 @@ import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 import project.TimeManager.adapter.out.persistence.mapper.MemberMapper;
 import project.TimeManager.adapter.out.persistence.repository.MemberJpaRepository;
 import project.TimeManager.domain.member.model.Member;
+import project.TimeManager.domain.member.model.OAuthProvider;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.port.out.auth.LoadMemberCredentialsPort;
@@ -62,6 +63,12 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
     @Override
     public Optional<Member> findMemberByEmail(String email) {
         return memberJpaRepository.findByEmail(email)
+                .map(memberMapper::toDomain);
+    }
+
+    @Override
+    public Optional<Member> findMemberByProvider(OAuthProvider provider, String providerId) {
+        return memberJpaRepository.findByProviderAndProviderId(provider, providerId)
                 .map(memberMapper::toDomain);
     }
 

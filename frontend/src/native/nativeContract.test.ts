@@ -2,6 +2,7 @@ import { readdirSync } from 'node:fs'
 import { resolve } from 'node:path'
 import { describe, expect, it } from 'vitest'
 
+import { APPLE_SIGN_IN_PLUGIN } from './appleSignIn'
 import { LIVE_ACTIVITY_PLUGIN } from './liveActivity'
 import { TIMER_NOTIFICATION_PLUGIN } from './timerNotification'
 import { findRepoRoot, readRepoFile } from '@/test-utils/repoRoot'
@@ -381,5 +382,28 @@ describe('네이티브 계약 (iOS 제출 설정)', () => {
 
     expect(families).toHaveLength(4)
     expect(new Set(families)).toEqual(new Set(['1']))
+  })
+})
+
+describe('네이티브 계약 (Sign in with Apple)', () => {
+  const PLUGIN = 'frontend/ios/App/App/AppleSignInPlugin.swift'
+  const MAIN_VC = 'frontend/ios/App/App/MainViewController.swift'
+
+  it('플러그인 jsName 이 TS 상수와 같다', () => {
+    const swift = readRepoFile(PLUGIN)
+    const match = swift.match(/jsName\s*=\s*"([^"]+)"/)
+
+    expect(match, `${PLUGIN} 에서 jsName 을 찾지 못했습니다`).not.toBeNull()
+    expect(match![1]).toBe(APPLE_SIGN_IN_PLUGIN)
+  })
+
+  it('앱 타깃 플러그인이라 MainViewController 에서 명시 등록된다 — 빠지면 버튼이 조용히 안 뜬다(GLOBAL-PIT-140)', () => {
+    expect(readRepoFile(MAIN_VC)).toContain('registerPluginInstance(AppleSignInPlugin())')
+    expect(readRepoFile('frontend/ios/App/App.xcodeproj/project.pbxproj')).toContain('AppleSignInPlugin.swift in Sources */,')
+  })
+
+  it('권한 파일에 Sign in with Apple 이 켜져 있다 — 없으면 시트가 즉시 실패한다', () => {
+    expect(readRepoFile('frontend/ios/App/App/App.entitlements'))
+      .toMatch(/<key>com\.apple\.developer\.applesignin<\/key>\s*<array>\s*<string>Default<\/string>/)
   })
 })

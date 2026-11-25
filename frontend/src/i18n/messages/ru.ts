@@ -57,6 +57,8 @@ const ru: Messages = {
   'login.submit': 'Войти',
   'login.or': 'или',
   'login.google': 'Продолжить с Google',
+  'login.apple': 'Продолжить с Apple',
+  'login.appleFail': 'Не удалось войти через Apple. Попробуйте ещё раз.',
   'login.noAccount': 'Нет аккаунта?',
   'login.registerLink': 'Регистрация',
   'login.errorInvalid': 'Неверная почта или пароль.',
