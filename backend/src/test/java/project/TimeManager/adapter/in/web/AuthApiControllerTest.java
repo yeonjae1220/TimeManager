@@ -14,7 +14,10 @@ import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import project.TimeManager.adapter.in.web.dto.request.LoginRequest;
 import project.TimeManager.adapter.in.web.security.JwtTokenProvider;
+import project.TimeManager.application.dto.command.auth.AppleLoginCommand;
+import project.TimeManager.application.dto.result.SocialLoginResult;
 import project.TimeManager.application.dto.result.TokenPairResult;
+import project.TimeManager.domain.port.in.auth.AppleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
 import project.TimeManager.domain.port.in.auth.LogoutUseCase;
@@ -28,7 +31,10 @@ import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.BDDMockito.given;
 import static org.mockito.Mockito.verify;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.header;
+import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
+import static org.hamcrest.Matchers.containsString;
 
 /**
  * AuthApiController가 ClientIpResolver로 추출한 클라이언트 IP를
@@ -61,6 +67,9 @@ class AuthApiControllerTest {
     private GoogleLoginUseCase googleLoginUseCase;
 
     @MockBean
+    private AppleLoginUseCase appleLoginUseCase;
+
+    @MockBean
     private RateLimiterService rateLimiterService; // Redis 없이 테스트 — 위임 인자 캡처용
 
     @MockBean
@@ -85,5 +94,32 @@ class AuthApiControllerTest {
                 .andExpect(status().isOk());
 
         verify(rateLimiterService).checkLoginRate(eq("203.0.113.9"), eq("user@example.com"));
+    }
+
+    @Test
+    @DisplayName("Apple 로그인: 토큰·nonce·이름을 그대로 위임하고 refresh 쿠키를 심는다")
+    void appleLogin_delegatesAndSetsRefreshCookie() throws Exception {
+        given(clientIpResolver.resolve(any())).willReturn("203.0.113.9");
+        given(appleLoginUseCase.loginWithApple(any())).willReturn(new SocialLoginResult("access", "refresh", 7L, true));
+
+        mockMvc.perform(post("/api/v1/auth/apple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"identityToken\":\"tok\",\"nonce\":\"n\",\"fullName\":\"연재\"}"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.memberId").value(7))
+                .andExpect(jsonPath("$.newMember").value(true))
+                .andExpect(header().string("Set-Cookie", containsString("refresh_token=refresh")));
+
+        verify(appleLoginUseCase).loginWithApple(new AppleLoginCommand("tok", "n", "연재"));
+        verify(rateLimiterService).checkLoginRate(eq("203.0.113.9"));
+    }
+
+    @Test
+    @DisplayName("Apple 로그인: nonce 가 없으면 위임 전에 400")
+    void appleLogin_rejectsMissingNonce() throws Exception {
+        mockMvc.perform(post("/api/v1/auth/apple")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"identityToken\":\"tok\"}"))
+                .andExpect(status().isBadRequest());
     }
 }

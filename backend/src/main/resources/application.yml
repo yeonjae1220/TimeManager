@@ -52,6 +52,11 @@ jwt:
 auth:
   rotation-interval-hours: ${AUTH_ROTATION_INTERVAL_HOURS:24}
 
+apple:
+  sign-in:
+    # identity token 의 aud 로 허용할 값(쉼표 구분). 네이티브 iOS 는 번들 ID 가 aud 다. 비밀값 아님.
+    client-ids: ${APPLE_CLIENT_IDS:com.mungji.timemanager}
+
 google:
   oauth2:
     client-id: ${GOOGLE_CLIENT_ID:}

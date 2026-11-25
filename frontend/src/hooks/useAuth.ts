@@ -49,5 +49,12 @@ export function useAuth() {
     router.push(`/members/${memberId}/today`)
   }
 
-  return { login, logout, register, googleLogin }
+  async function appleLogin(identityToken: string, authorizationCode: string, nonce: string, fullName: string) {
+    const response = await authApi.appleLogin(identityToken, authorizationCode, nonce, fullName)
+    const { accessToken, memberId } = response.data
+    setAuth(accessToken, memberId)
+    router.push(`/members/${memberId}/today`)
+  }
+
+  return { login, logout, register, googleLogin, appleLogin }
 }

@@ -13,7 +13,7 @@ import Link from 'next/link'
  * 동작(DeleteMemberCommandService)을 바꾸면 이 문서도 함께 고칠 것.
  */
 
-const LAST_UPDATED = '2026-08-17'
+const LAST_UPDATED = '2026-11-25'
 /**
  * 백엔드 `member.deletion.grace-days` 와 같은 값이어야 한다.
  * 이 문서는 공개 약속이므로 설정을 바꾸면 여기도 함께 고칠 것
@@ -52,9 +52,11 @@ export default function PrivacyPage() {
 
       <Section title="1. What we collect · 수집 항목">
         <ul style={{ paddingLeft: 18, margin: 0 }}>
-          <li>Account: email address, display name, and — if you sign in with Google — the
-            provider&apos;s stable user identifier (<code>sub</code>).<br />
-            <span lang="ko">계정: 이메일 주소, 표시 이름, Google 로그인 시 제공자의 고유 식별자(<code>sub</code>).</span>
+          <li>Account: email address, display name, and — if you sign in with Google or Apple — the
+            provider&apos;s stable user identifier (<code>sub</code>). With Apple&apos;s &quot;Hide My
+            Email&quot;, the address we receive is an Apple relay address.<br />
+            <span lang="ko">계정: 이메일 주소, 표시 이름, Google·Apple 로그인 시 제공자의 고유 식별자(<code>sub</code>).
+            Apple 의 &apos;이메일 가리기&apos;를 쓰면 Apple 릴레이 주소를 받습니다.</span>
           </li>
           <li>Usage data you create: tags, timer sessions, and time records.<br />
             <span lang="ko">사용자가 만든 데이터: 태그, 타이머 세션, 시간 기록.</span>
@@ -93,11 +95,11 @@ export default function PrivacyPage() {
 
       <Section title="4. Sharing · 제3자 제공">
         <p>
-          We do not sell or share your data. The only third party involved is Google, and only when
-          you choose to sign in with a Google account — we receive your email, name, and identifier
-          from them. There are no advertising or analytics trackers in this app.<br />
-          <span lang="ko">데이터를 판매하거나 공유하지 않습니다. 관여하는 제3자는 Google 로그인을 선택했을 때의
-          Google 뿐이며, 이메일·이름·식별자를 제공받습니다. 광고·분석 추적기는 사용하지 않습니다.</span>
+          We do not sell or share your data. The only third parties involved are Google and Apple,
+          and only when you choose to sign in with that account — we receive your email, name, and
+          identifier from them. There are no advertising or analytics trackers in this app.<br />
+          <span lang="ko">데이터를 판매하거나 공유하지 않습니다. 관여하는 제3자는 해당 계정으로 로그인을 선택했을 때의
+          Google·Apple 뿐이며, 이메일·이름·식별자를 제공받습니다. 광고·분석 추적기는 사용하지 않습니다.</span>
         </p>
       </Section>
 

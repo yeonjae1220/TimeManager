@@ -57,6 +57,8 @@ const ko: Messages = {
   'login.submit': '로그인',
   'login.or': '또는',
   'login.google': 'Google로 계속하기',
+  'login.apple': 'Apple로 계속하기',
+  'login.appleFail': 'Apple 로그인에 실패했습니다. 다시 시도해 주세요.',
   'login.noAccount': '계정이 없으신가요?',
   'login.registerLink': '회원가입',
   'login.errorInvalid': '이메일 또는 비밀번호가 올바르지 않습니다.',
