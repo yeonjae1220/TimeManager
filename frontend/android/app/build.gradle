@@ -1,5 +1,41 @@
 apply plugin: 'com.android.application'
 
+import groovy.json.JsonSlurper
+
+/*
+ * 버전 — frontend/package.json 의 "version"(x.y.z) 하나가 정본이다.
+ *   versionName = "x.y.z"
+ *   versionCode = x*10000 + y*100 + z   (Play 는 업로드마다 versionCode 가 커져야 한다)
+ * 올릴 땐 `npm version patch|minor|major --no-git-tag-version` 한 번이면 된다.
+ * y·z 가 100 이상이면 자리가 겹쳐 순서가 뒤집히므로 빌드를 막는다.
+ */
+def appVersionName = new JsonSlurper().parse(rootProject.file('../package.json')).version as String
+def appVersionCode = {
+    def m = appVersionName =~ /^(\d+)\.(\d+)\.(\d+)$/
+    if (!m.matches()) throw new GradleException("package.json version '${appVersionName}' 은 x.y.z 형식이어야 합니다")
+    def (major, minor, patch) = [m.group(1), m.group(2), m.group(3)].collect { it as int }
+    if (minor > 99 || patch > 99) throw new GradleException("versionCode 자리 초과: ${appVersionName} (minor·patch 는 0~99)")
+    major * 10000 + minor * 100 + patch
+}()
+
+/*
+ * 릴리스(업로드 키) 서명 — 키스토어와 비밀번호는 레포 밖에 둔다.
+ * 찾는 순서: 환경변수 TIMEMANAGER_KEYSTORE_PROPERTIES → ~/.android-keystores/timemanager.properties
+ * 파일 키: storeFile, storePassword, keyAlias, keyPassword (storeFile 은 절대경로 또는 그 파일 기준 상대경로)
+ * 파일이 없으면 release 서명만 건너뛴다 — debug 빌드는 그대로 되고, bundleRelease 는 미서명 AAB 를 낸다.
+ */
+def keystorePropsFile = file(System.getenv('TIMEMANAGER_KEYSTORE_PROPERTIES')
+        ?: "${System.getProperty('user.home')}/.android-keystores/timemanager.properties")
+def keystoreProps = new Properties()
+def hasReleaseKeystore = keystorePropsFile.isFile()
+if (hasReleaseKeystore) {
+    keystorePropsFile.withInputStream { keystoreProps.load(it) }
+    def missing = ['storeFile', 'storePassword', 'keyAlias', 'keyPassword'].findAll { !keystoreProps.getProperty(it) }
+    if (missing) throw new GradleException("${keystorePropsFile} 에 ${missing} 가 비어 있습니다")
+} else {
+    logger.lifecycle("[signing] ${keystorePropsFile} 없음 — release 는 미서명으로 빌드된다")
+}
+
 android {
     namespace = "com.mungji.timemanager"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -7,8 +43,8 @@ android {
         applicationId "com.mungji.timemanager"
         minSdkVersion rootProject.ext.minSdkVersion
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -16,8 +52,20 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        if (hasReleaseKeystore) {
+            release {
+                def store = new File(keystoreProps.getProperty('storeFile'))
+                storeFile store.isAbsolute() ? store : new File(keystorePropsFile.parentFile, store.path)
+                storePassword keystoreProps.getProperty('storePassword')
+                keyAlias keystoreProps.getProperty('keyAlias')
+                keyPassword keystoreProps.getProperty('keyPassword')
+            }
+        }
+    }
     buildTypes {
         release {
+            if (hasReleaseKeystore) signingConfig signingConfigs.release
             minifyEnabled false
             proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
         }
