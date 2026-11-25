@@ -321,6 +321,54 @@ describe('Live Activity 렌더러 (iOS)', () => {
 })
 
 /**
+ * Android App Links 축. `assetlinks.json` 은 **웹 서버가 서빙**하고 패키지명·서명 지문은
+ * 네이티브 빌드가 정한다 — 두 곳이 어긋나면 autoVerify 가 조용히 실패해 OAuth 콜백 https
+ * 링크가 앱 대신 브라우저로 열린다. 빌드·설치·실행은 전부 정상이라 실기에서만 보인다.
+ */
+describe('네이티브 계약 (Android App Links · 릴리스 서명)', () => {
+  const ASSETLINKS = 'frontend/public/.well-known/assetlinks.json'
+  const APP_BUILD_GRADLE = 'frontend/android/app/build.gradle'
+
+  type AssetLink = {
+    relation: string[]
+    target: { namespace: string; package_name: string; sha256_cert_fingerprints: string[] }
+  }
+  const androidTargets = () =>
+    (JSON.parse(readRepoFile(ASSETLINKS)) as AssetLink[]).filter((l) => l.target.namespace === 'android_app')
+
+  it('assetlinks 의 package_name 이 build.gradle applicationId 와 같다', () => {
+    const gradle = readRepoFile(APP_BUILD_GRADLE)
+    const appId = gradle.match(/applicationId\s+"([^"]+)"/)
+    expect(appId, `${APP_BUILD_GRADLE} 에서 applicationId 를 찾지 못했습니다`).not.toBeNull()
+
+    const targets = androidTargets()
+    expect(targets.length).toBeGreaterThan(0)
+    for (const t of targets) expect(t.target.package_name).toBe(appId![1])
+  })
+
+  it('assetlinks 지문이 SHA-256 콜론 표기이고 중복이 없다', () => {
+    for (const { relation, target } of androidTargets()) {
+      expect(relation).toContain('delegate_permission/common.handle_all_urls')
+      const fps = target.sha256_cert_fingerprints
+      expect(fps.length).toBeGreaterThan(0)
+      for (const fp of fps) expect(fp).toMatch(/^([0-9A-F]{2}:){31}[0-9A-F]{2}$/)
+      expect(new Set(fps).size).toBe(fps.length)
+    }
+  })
+
+  it('build.gradle 에 서명 비밀번호가 직접 적혀 있지 않다 — 레포 밖 properties 에서 읽는다', () => {
+    const gradle = readRepoFile(APP_BUILD_GRADLE)
+    expect(gradle).not.toMatch(/(store|key)Password\s+['"]/)
+    expect(gradle).toMatch(/storePassword\s+keystoreProps\.getProperty/)
+  })
+
+  it('android/.gitignore 가 키스토어·서명 properties 를 막는다', () => {
+    const ignore = readRepoFile('frontend/android/.gitignore').split('\n').map((l) => l.trim())
+    for (const pattern of ['*.jks', '*.keystore', 'keystore.properties']) expect(ignore).toContain(pattern)
+  })
+})
+
+/**
  * 스토어 제출 설정 축. 전부 **빠져도 빌드·시뮬레이터 실행이 그대로 되는** 값이라
  * 되돌려져도 초록불이고, 증상은 심사 제출 시점이나 실기기 OAuth 에서야 드러난다.
  */
