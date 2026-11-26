@@ -11,6 +11,7 @@ import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
 import project.TimeManager.application.dto.result.TokenPairResult;
 import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.InvalidCredentialsException;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
@@ -34,6 +35,14 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
 
     private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
+    /**
+     * 타이밍 균등화용 고정 BCrypt 해시(cost 10 = BCryptPasswordEncoder 기본값, 60자).
+     * 어떤 비밀번호와도 일치하지 않도록 임의 문자열을 해시한 값 — 비밀이 아니다.
+     * 인코더 cost 를 바꾸면 이 값도 같은 cost 로 다시 만들어야 한다(AuthCommandServiceTest 가 검사).
+     */
+    static final String DUMMY_PASSWORD_HASH =
+            "$2a$10$2TZTuH5zWyHayp2PpHDN0ewOsv4LHZuRaI9ufUdRzGTnp/9cSqBzm";
+
     @Value("${auth.rotation-interval-hours:24}")
     private long rotationIntervalHours;
 
@@ -49,18 +58,19 @@ public class AuthCommandService implements LoginUseCase, RefreshTokenUseCase, Lo
 
     @Override
     public TokenPairResult login(LoginCommand command) {
-        var credentials = loadMemberCredentialsPort.findByEmail(command.email())
-                .orElseThrow(() -> new DomainException(INVALID_CREDENTIALS_MSG));
+        var credentials = loadMemberCredentialsPort.findByEmail(command.email());
+        String hashedPassword = credentials.map(c -> c.hashedPassword()).orElse(null);
 
-        if (credentials.hashedPassword() == null) {
-            throw new DomainException("소셜 로그인 계정입니다. Google 로그인을 사용해 주세요");
+        // 없는 이메일·소셜 전용 계정(비밀번호 없음)도 더미 해시로 BCrypt 비교를 한 번 돌려
+        // 응답 시간과 실패 문구로 가입 여부가 드러나지 않게 한다.
+        boolean matched = passwordHasherPort.matches(command.password(),
+                hashedPassword != null ? hashedPassword : DUMMY_PASSWORD_HASH);
+
+        if (hashedPassword == null || !matched) {
+            throw new InvalidCredentialsException(INVALID_CREDENTIALS_MSG);
         }
 
-        if (!passwordHasherPort.matches(command.password(), credentials.hashedPassword())) {
-            throw new DomainException(INVALID_CREDENTIALS_MSG);
-        }
-
-        return issueTokenPair(credentials.memberId());
+        return issueTokenPair(credentials.get().memberId());
     }
 
     @Override

@@ -15,6 +15,8 @@ import project.TimeManager.application.dto.command.auth.RefreshTokenCommand;
 import project.TimeManager.application.dto.result.TokenPairResult;
 import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.InvalidCredentialsException;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import project.TimeManager.domain.member.model.MemberCredentials;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.member.model.MemberRole;
@@ -63,6 +65,7 @@ class AuthCommandServiceTest {
     private static final String HASHED_PASSWORD = "hashed_password";
     private static final String ACCESS_TOKEN = "access-token";
     private static final String REFRESH_TOKEN = "refresh-token";
+    private static final String INVALID_CREDENTIALS_MSG = "이메일 또는 비밀번호가 올바르지 않습니다";
 
     @Nested
     @DisplayName("login")
@@ -86,25 +89,58 @@ class AuthCommandServiceTest {
         }
 
         @Test
-        @DisplayName("존재하지 않는 이메일로 로그인하면 DomainException이 발생한다")
-        void shouldThrow_whenEmailNotFound() {
+        @DisplayName("존재하지 않는 이메일이면 InvalidCredentialsException — 더미 해시로 비교를 한 번 돌린다")
+        void shouldThrowAndRunDummyMatch_whenEmailNotFound() {
             given(loadMemberCredentialsPort.findByEmail(anyString())).willReturn(Optional.empty());
 
             assertThatThrownBy(() -> authCommandService.login(new LoginCommand("notfound@example.com", PASSWORD)))
-                    .isInstanceOf(DomainException.class)
-                    .hasMessageContaining("이메일 또는 비밀번호가 올바르지 않습니다");
+                    .isExactlyInstanceOf(InvalidCredentialsException.class)
+                    .hasMessage(INVALID_CREDENTIALS_MSG);
+
+            // 응답 시간으로 가입 여부가 드러나지 않도록 없는 이메일에서도 BCrypt 비교를 수행한다
+            then(passwordHasherPort).should().matches(PASSWORD, AuthCommandService.DUMMY_PASSWORD_HASH);
+            then(tokenStorePort).should(never()).save(any());
         }
 
         @Test
-        @DisplayName("비밀번호가 틀리면 DomainException이 발생한다")
+        @DisplayName("소셜 전용 계정(비밀번호 없음)도 같은 예외·같은 메시지 — 더미 해시로 비교를 한 번 돌린다")
+        void shouldThrowSameFailureAndRunDummyMatch_whenSocialOnlyAccount() {
+            MemberCredentials socialOnly = new MemberCredentials(MEMBER_ID, null, MemberRole.MEMBER);
+            given(loadMemberCredentialsPort.findByEmail(EMAIL)).willReturn(Optional.of(socialOnly));
+
+            assertThatThrownBy(() -> authCommandService.login(new LoginCommand(EMAIL, PASSWORD)))
+                    .isExactlyInstanceOf(InvalidCredentialsException.class)
+                    .hasMessage(INVALID_CREDENTIALS_MSG);
+
+            then(passwordHasherPort).should().matches(PASSWORD, AuthCommandService.DUMMY_PASSWORD_HASH);
+            then(tokenStorePort).should(never()).save(any());
+        }
+
+        @Test
+        @DisplayName("비밀번호가 틀리면 같은 InvalidCredentialsException·같은 메시지")
         void shouldThrow_whenPasswordIncorrect() {
             MemberCredentials credentials = new MemberCredentials(MEMBER_ID, HASHED_PASSWORD, MemberRole.MEMBER);
             given(loadMemberCredentialsPort.findByEmail(EMAIL)).willReturn(Optional.of(credentials));
             given(passwordHasherPort.matches(anyString(), anyString())).willReturn(false);
 
             assertThatThrownBy(() -> authCommandService.login(new LoginCommand(EMAIL, "wrongPassword")))
-                    .isInstanceOf(DomainException.class)
-                    .hasMessageContaining("이메일 또는 비밀번호가 올바르지 않습니다");
+                    .isExactlyInstanceOf(InvalidCredentialsException.class)
+                    .hasMessage(INVALID_CREDENTIALS_MSG);
+
+            then(passwordHasherPort).should().matches("wrongPassword", HASHED_PASSWORD);
+        }
+
+        @Test
+        @DisplayName("더미 해시는 실제 인코더와 같은 cost 의 진짜 BCrypt 해시다 — 아니면 비교가 즉시 끝나 시간차가 남는다")
+        void dummyHash_isRealBcryptWithEncoderCost() {
+            String dummy = AuthCommandService.DUMMY_PASSWORD_HASH;
+            int encoderCost = Integer.parseInt(new BCryptPasswordEncoder().encode("x").substring(4, 6));
+
+            assertThat(dummy).hasSize(60).startsWith("$2a$");
+            assertThat(Integer.parseInt(dummy.substring(4, 6))).isEqualTo(encoderCost);
+            // 형식이 틀리면 BCryptPasswordEncoder 는 경고만 남기고 false 를 바로 돌려준다
+            assertThat(new BCryptPasswordEncoder().matches("anything", dummy)).isFalse();
+            assertThat(new BCryptPasswordEncoder().upgradeEncoding(dummy)).isFalse();
         }
     }
 

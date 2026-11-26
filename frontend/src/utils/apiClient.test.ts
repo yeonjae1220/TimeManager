@@ -171,3 +171,31 @@ describe('apiClient — 진행 중인 쓰기 요청 추적', () => {
     expect(hasInflightWrites()).toBe(false)
   })
 })
+
+describe('apiClient — 인증 엔드포인트의 401', () => {
+  // 로그인 실패는 401 로 온다. 이걸 '세션 만료'로 보고 refresh 를 돌리면, refresh 실패 시
+  // /login 으로 하드 리다이렉트돼 화면의 오류 문구가 사라진다. 인증 엔드포인트의 401 은
+  // 그대로 호출부(LoginView)에 넘긴다.
+  const reject401: AxiosAdapter = async (config) => {
+    const response = { data: { error: '이메일 또는 비밀번호가 올바르지 않습니다' }, status: 401, statusText: '', headers: {}, config }
+    throw new AxiosError('unauthorized', '401', config, null, response)
+  }
+
+  it.each(['/api/v1/auth/login', '/api/v1/auth/google', '/api/v1/auth/apple', '/api/v1/auth/refresh', '/api/v1/auth/logout'])(
+    '%s 의 401 은 refresh 를 시도하지 않고 그대로 reject 한다',
+    async (url) => {
+      const req = apiClient.post(url, {}, { adapter: reject401 })
+
+      await expect(req).rejects.toMatchObject({ response: { status: 401 } })
+      expect(mockRefresh).not.toHaveBeenCalled()
+    },
+  )
+
+  it('일반 API 의 401 은 여전히 refresh 를 시도한다', async () => {
+    mockRefresh.mockResolvedValue({ status: 'offline' })
+
+    await expect(apiClient.get('/api/v1/tags', { adapter: reject401 })).rejects.toBeInstanceOf(AxiosError)
+
+    expect(mockRefresh).toHaveBeenCalledTimes(1)
+  })
+})
