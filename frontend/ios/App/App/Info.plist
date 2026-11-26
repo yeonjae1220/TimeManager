@@ -15,7 +15,7 @@
 	<key>CFBundleInfoDictionaryVersion</key>
 	<string>6.0</string>
 	<key>CFBundleName</key>
-	<string>$(PRODUCT_NAME)</string>
+	<string>TimeManager</string>
 	<key>CFBundlePackageType</key>
 	<string>APPL</string>
 	<!-- 커스텀 스킴 폴백. Universal Links 는 associated-domains 권한(유료 계정)이 있어야

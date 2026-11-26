@@ -78,7 +78,14 @@ apiClient.interceptors.response.use(
     if (error.response) reportReachable()
     else if (error.code !== 'ERR_CANCELED') reportUnreachable()
 
-    if (error.response?.status !== 401 || originalRequest._retry) {
+    // 인증 엔드포인트(login·google·apple·refresh·logout)의 401 은 '세션 만료'가 아니다 —
+    // 로그인 실패도 401 로 온다. 여기서 refresh 를 돌리면 실패 시 /login 하드 리다이렉트로
+    // 화면의 오류 문구가 사라지므로, 그대로 호출부에 넘긴다.
+    if (
+      error.response?.status !== 401 ||
+      originalRequest?._retry ||
+      originalRequest?.url?.startsWith(AUTH_PATH_PREFIX)
+    ) {
       return Promise.reject(error)
     }
 

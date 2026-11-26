@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.method.annotation.MethodArgumentTypeMismatchException;
 import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.InvalidCredentialsException;
 import project.TimeManager.domain.exception.RecordOverlapException;
 import project.TimeManager.domain.exception.ResourceForbiddenException;
 import project.TimeManager.domain.exception.TooManyRequestsException;
@@ -76,6 +77,13 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(ResourceForbiddenException.class)
     public ResponseEntity<Map<String, String>> handleForbidden(ResourceForbiddenException e) {
         return ResponseEntity.status(HttpStatus.FORBIDDEN).body(Map.of("error", e.getMessage()));
+    }
+
+    /** 이메일 로그인 실패 — 401. 문구는 실패 사유와 무관하게 하나(가입 여부 비노출). */
+    @ExceptionHandler(InvalidCredentialsException.class)
+    public ResponseEntity<Map<String, String>> handleInvalidCredentials(InvalidCredentialsException e) {
+        return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                .body(Map.of("error", e.getMessage()));
     }
 
     @ExceptionHandler(DomainException.class)

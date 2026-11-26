@@ -17,6 +17,8 @@ import project.TimeManager.adapter.in.web.security.JwtTokenProvider;
 import project.TimeManager.application.dto.command.auth.AppleLoginCommand;
 import project.TimeManager.application.dto.result.SocialLoginResult;
 import project.TimeManager.application.dto.result.TokenPairResult;
+import project.TimeManager.domain.exception.DomainException;
+import project.TimeManager.domain.exception.InvalidCredentialsException;
 import project.TimeManager.domain.port.in.auth.AppleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.in.auth.LoginUseCase;
@@ -94,6 +96,35 @@ class AuthApiControllerTest {
                 .andExpect(status().isOk());
 
         verify(rateLimiterService).checkLoginRate(eq("203.0.113.9"), eq("user@example.com"));
+    }
+
+    @Test
+    @DisplayName("로그인 실패는 401 + {\"error\": 통일 문구} — 400 이 아니다")
+    void login_returns401_whenInvalidCredentials() throws Exception {
+        given(clientIpResolver.resolve(any())).willReturn("203.0.113.9");
+        given(loginUseCase.login(any()))
+                .willThrow(new InvalidCredentialsException("이메일 또는 비밀번호가 올바르지 않습니다"));
+
+        LoginRequest request = new LoginRequest("nobody@example.com", "Password123!");
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isUnauthorized())
+                .andExpect(jsonPath("$.error").value("이메일 또는 비밀번호가 올바르지 않습니다"));
+    }
+
+    @Test
+    @DisplayName("다른 DomainException 은 그대로 400")
+    void otherDomainException_staysBadRequest() throws Exception {
+        given(clientIpResolver.resolve(any())).willReturn("203.0.113.9");
+        given(loginUseCase.login(any())).willThrow(new DomainException("도메인 규칙 위반"));
+
+        LoginRequest request = new LoginRequest("user@example.com", "Password123!");
+        mockMvc.perform(post(LOGIN_URL)
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(request)))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.error").value("도메인 규칙 위반"));
     }
 
     @Test
