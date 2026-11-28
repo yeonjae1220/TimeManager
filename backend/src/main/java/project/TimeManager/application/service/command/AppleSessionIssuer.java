@@ -53,7 +53,7 @@ public class AppleSessionIssuer {
         Optional<Member> existing = loadMemberPort.findMemberByProvider(OAuthProvider.APPLE, identity.subject());
         MemberId memberId = existing.map(Member::getId).orElseGet(() -> register(identity, fullName));
 
-        // 소셜 회원에게는 JWT ADMIN 권한을 주지 않는다(GoogleAuthCommandService 와 같은 규칙).
+        // 소셜 회원에게는 JWT ADMIN 권한을 주지 않는다(GoogleSessionIssuer 와 같은 규칙).
         String accessToken = tokenGeneratorPort.generateAccessToken(memberId, MemberRole.MEMBER);
         String refreshToken = tokenGeneratorPort.generateRefreshToken();
         Instant expiresAt = Instant.now().plus(refreshTokenTtlMinutes, ChronoUnit.MINUTES);
