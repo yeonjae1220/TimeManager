@@ -14,5 +14,11 @@ public interface AppleRefreshTokenStorePort {
     /** 소프트 삭제된 회원도 찾는다 — 삭제 직후와 purge 때 철회해야 하므로. */
     Optional<String> find(Long memberId);
 
+    /**
+     * 지금 철회해도 되는 토큰. {@link #find} 와 같되, 같은 Apple ID 로 다시 가입한 활성 회원이 있으면 empty —
+     * Apple 승인은 사용자·앱 단위라 옛 토큰 철회가 새 계정의 승인까지 끊는다.
+     */
+    Optional<String> findRevocable(Long memberId);
+
     void clear(Long memberId);
 }

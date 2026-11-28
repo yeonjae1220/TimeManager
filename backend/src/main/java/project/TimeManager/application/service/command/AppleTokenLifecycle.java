@@ -43,7 +43,9 @@ public class AppleTokenLifecycle {
     public boolean revokeQuietly(Long memberId) {
         if (!appleTokenPort.isEnabled()) return true;
         try {
-            Optional<String> refreshToken = tokenStore.find(memberId);
+            // 같은 Apple ID 로 재가입한 활성 계정이 있으면 철회하지 않는다(그 계정의 승인까지 끊긴다).
+            // 옛 행은 purge 가 토큰째 지운다.
+            Optional<String> refreshToken = tokenStore.findRevocable(memberId);
             if (refreshToken.isEmpty()) return true;
             if (!appleTokenPort.revokeRefreshToken(refreshToken.get())) {
                 log.warn("apple.token revoke failed memberId={} — 토큰을 남겨 두고 purge 때 다시 시도한다", memberId);

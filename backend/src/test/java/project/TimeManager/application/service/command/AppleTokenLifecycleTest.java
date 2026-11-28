@@ -66,7 +66,7 @@ class AppleTokenLifecycleTest {
     @DisplayName("삭제: 저장된 토큰을 철회하고 성공하면 지운다")
     void revokesAndClears() {
         given(appleTokenPort.isEnabled()).willReturn(true);
-        given(tokenStore.find(7L)).willReturn(Optional.of("r.1"));
+        given(tokenStore.findRevocable(7L)).willReturn(Optional.of("r.1"));
         given(appleTokenPort.revokeRefreshToken("r.1")).willReturn(true);
 
         assertThat(lifecycle.revokeQuietly(7L)).isTrue();
@@ -77,7 +77,7 @@ class AppleTokenLifecycleTest {
     @DisplayName("삭제: 철회가 실패하면 토큰을 남겨 둔다(purge 때 재시도)")
     void keepsTokenWhenRevokeFails() {
         given(appleTokenPort.isEnabled()).willReturn(true);
-        given(tokenStore.find(7L)).willReturn(Optional.of("r.1"));
+        given(tokenStore.findRevocable(7L)).willReturn(Optional.of("r.1"));
         given(appleTokenPort.revokeRefreshToken("r.1")).willReturn(false);
 
         assertThat(lifecycle.revokeQuietly(7L)).isFalse();
@@ -88,8 +88,8 @@ class AppleTokenLifecycleTest {
     @DisplayName("삭제: 저장된 토큰이 없으면(Apple 회원 아님) Apple 을 부르지 않는다. 복호화 오류도 삼킨다")
     void noTokenOrDecryptError() {
         given(appleTokenPort.isEnabled()).willReturn(true);
-        given(tokenStore.find(7L)).willReturn(Optional.empty());
-        given(tokenStore.find(8L)).willThrow(new IllegalStateException("decrypt"));
+        given(tokenStore.findRevocable(7L)).willReturn(Optional.empty());
+        given(tokenStore.findRevocable(8L)).willThrow(new IllegalStateException("decrypt"));
 
         assertThat(lifecycle.revokeQuietly(7L)).isTrue();
         assertThat(lifecycle.revokeQuietly(8L)).isFalse();

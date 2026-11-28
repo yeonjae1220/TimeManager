@@ -16,6 +16,9 @@ import project.TimeManager.domain.port.in.member.PurgeDeletedMembersUseCase;
 import project.TimeManager.domain.port.in.member.RegisterMemberUseCase;
 import project.TimeManager.domain.port.out.auth.AppleRefreshTokenStorePort;
 import project.TimeManager.domain.port.out.auth.AppleTokenPort;
+import project.TimeManager.domain.member.model.Member;
+import project.TimeManager.domain.member.model.OAuthProvider;
+import project.TimeManager.domain.port.out.member.SaveMemberPort;
 
 import java.time.LocalDateTime;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -44,6 +47,7 @@ class AppleTokenRevocationIntegrationTest {
     @Autowired RegisterMemberUseCase registerMemberUseCase;
     @Autowired MemberPersistenceAdapter memberPersistenceAdapter;
     @Autowired MemberJpaRepository memberJpaRepository;
+    @Autowired SaveMemberPort saveMemberPort;
 
     private static final AtomicInteger SEQ = new AtomicInteger();
 
@@ -116,5 +120,27 @@ class AppleTokenRevocationIntegrationTest {
         tokenStore.save(memberId, "r.late");
 
         assertThat(rawColumn(memberId)).isNull();
+    }
+
+    @Test
+    @DisplayName("같은 Apple ID 로 재가입한 활성 계정이 있으면 purge 가 옛 토큰을 철회하지 않는다 — 새 계정의 승인이 끊기지 않게")
+    void doesNotRevokeWhenSameAppleIdReRegistered() {
+        int seq = SEQ.incrementAndGet();
+        String sub = "apple-sub-" + seq;
+        Long oldId = saveMemberPort.saveMember(
+                Member.registerWithOAuth("old" + seq, "old" + seq + "@privaterelay.test", OAuthProvider.APPLE, sub));
+        tokenStore.save(oldId, "r.old");
+        given(appleTokenPort.revokeRefreshToken("r.old")).willReturn(false);
+        deleteMemberUseCase.deleteMember(oldId);
+
+        saveMemberPort.saveMember(
+                Member.registerWithOAuth("new" + seq, "new" + seq + "@privaterelay.test", OAuthProvider.APPLE, sub));
+        var entity = memberJpaRepository.findById(oldId).orElseThrow();
+        entity.setDeletedAt(LocalDateTime.now().minusDays(31));
+        memberJpaRepository.save(entity);
+        purgeDeletedMembersUseCase.purgeExpired();
+
+        then(appleTokenPort).should(times(1)).revokeRefreshToken("r.old");
+        assertThat(memberJpaRepository.findById(oldId)).as("철회는 건너뛰어도 삭제는 한다").isEmpty();
     }
 }

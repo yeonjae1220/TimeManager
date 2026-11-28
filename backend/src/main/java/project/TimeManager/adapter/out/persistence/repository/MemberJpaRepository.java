@@ -72,4 +72,13 @@ public interface MemberJpaRepository extends JpaRepository<MemberJpaEntity, Long
     /** 삭제된 회원 포함 — 소프트 삭제 직후와 purge 직전에 철회해야 한다. */
     @Query("SELECT m.appleRefreshToken FROM MemberJpaEntity m WHERE m.id = :memberId")
     Optional<String> findAppleRefreshTokenIncludingDeleted(@Param("memberId") Long memberId);
+
+    /**
+     * 철회해도 되는 토큰만 — 같은 Apple ID(provider+provider_id)로 <b>다시 가입한 활성 회원</b>이 있으면 비운다.
+     * Apple 승인은 (사용자, 앱) 단위라, 옛 계정의 토큰을 철회하면 새 계정의 승인까지 끊긴다.
+     */
+    @Query("SELECT m.appleRefreshToken FROM MemberJpaEntity m WHERE m.id = :memberId AND NOT EXISTS ("
+            + "SELECT o.id FROM MemberJpaEntity o WHERE o.provider = m.provider AND o.providerId = m.providerId "
+            + "AND o.id <> m.id AND o.deletedAt IS NULL)")
+    Optional<String> findRevocableAppleRefreshToken(@Param("memberId") Long memberId);
 }
