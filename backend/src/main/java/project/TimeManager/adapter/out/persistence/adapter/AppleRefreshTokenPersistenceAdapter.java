@@ -32,6 +32,12 @@ public class AppleRefreshTokenPersistenceAdapter implements AppleRefreshTokenSto
     }
 
     @Override
+    public Optional<String> findRevocable(Long memberId) {
+        return memberJpaRepository.findRevocableAppleRefreshToken(memberId)
+                .map(stored -> cipher.decrypt(memberId, stored));
+    }
+
+    @Override
     public void clear(Long memberId) {
         memberJpaRepository.clearAppleRefreshToken(memberId);
     }
