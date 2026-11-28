@@ -55,7 +55,7 @@ class GoogleAuthCommandServiceTest {
     @Test
     @DisplayName("같은 이메일의 Apple 회원이 있으면 거부한다 — Google 로그인으로 Apple 계정에 들어가지 않는다")
     void rejectsAppleMemberWithSameEmail() {
-        given(googleOAuthPort.getUserProfile(any(), any())).willReturn(new GoogleUserProfile(EMAIL, "n", null, "gsub"));
+        given(googleOAuthPort.getUserProfile(any(), any())).willReturn(new GoogleUserProfile(EMAIL, "n", null, "gsub", true));
         given(loadMemberPort.findMemberByEmail(EMAIL)).willReturn(Optional.of(member(OAuthProvider.APPLE)));
 
         assertThatThrownBy(() -> service.loginWithGoogle(COMMAND)).isInstanceOf(DomainException.class);
@@ -66,7 +66,7 @@ class GoogleAuthCommandServiceTest {
     @DisplayName("같은 이메일의 Google 회원이면 그대로 로그인한다")
     void logsInGoogleMember() {
         ReflectionTestUtils.setField(service, "refreshTokenTtlMinutes", 43200L);
-        given(googleOAuthPort.getUserProfile(any(), any())).willReturn(new GoogleUserProfile(EMAIL, "n", null, "gsub"));
+        given(googleOAuthPort.getUserProfile(any(), any())).willReturn(new GoogleUserProfile(EMAIL, "n", null, "gsub", true));
         given(loadMemberPort.findMemberByEmail(EMAIL)).willReturn(Optional.of(member(OAuthProvider.GOOGLE)));
         given(tokenGeneratorPort.generateAccessToken(any(), any())).willReturn("access");
         given(tokenGeneratorPort.generateRefreshToken()).willReturn("refresh");
@@ -75,5 +75,16 @@ class GoogleAuthCommandServiceTest {
 
         assertThat(result.memberId()).isEqualTo(5L);
         assertThat(result.newMember()).isFalse();
+    }
+
+    @Test
+    @DisplayName("Google 이 이메일 소유를 확인하지 않았으면 회원 조회 전에 거부한다")
+    void rejectsUnverifiedEmail() {
+        given(googleOAuthPort.getUserProfile(any(), any())).willReturn(new GoogleUserProfile(EMAIL, "n", null, "gsub", false));
+
+        assertThatThrownBy(() -> service.loginWithGoogle(COMMAND)).isInstanceOf(DomainException.class);
+        then(loadMemberPort).should(never()).findMemberByEmail(any());
+        then(saveMemberPort).should(never()).saveMember(any());
+        then(tokenStorePort).should(never()).save(any());
     }
 }

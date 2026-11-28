@@ -44,6 +44,11 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
     @Override
     public GoogleLoginResult loginWithGoogle(GoogleLoginCommand command) {
         GoogleUserProfile profile = googleOAuthPort.getUserProfile(command.code(), command.redirectUri());
+        // 회원은 이메일로 찾는다. 소유가 확인되지 않은 이메일을 믿으면 남의 주소를 단 Google 계정으로
+        // 그 주소의 Google 회원에 들어가거나, 남의 주소로 새 계정을 선점할 수 있다.
+        if (!profile.emailVerified() || profile.email() == null || profile.email().isBlank()) {
+            throw new DomainException("이메일 인증이 완료된 Google 계정으로만 로그인할 수 있습니다");
+        }
 
         Optional<Member> existing = loadMemberPort.findMemberByEmail(profile.email());
 

@@ -11,6 +11,7 @@ import project.TimeManager.application.dto.result.AppleIdentity;
 import project.TimeManager.application.dto.result.SocialLoginResult;
 import project.TimeManager.domain.exception.DomainException;
 import project.TimeManager.domain.port.out.auth.AppleIdentityTokenPort;
+import project.TimeManager.domain.port.out.auth.IdentityTokenReplayGuardPort;
 
 import java.lang.reflect.Method;
 
@@ -27,15 +28,19 @@ class AppleAuthCommandServiceTest {
 
     @Mock AppleIdentityTokenPort appleIdentityTokenPort;
     @Mock AppleSessionIssuer appleSessionIssuer;
+    @Mock IdentityTokenReplayGuardPort replayGuardPort;
+
+    private static final java.time.Instant EXP = java.time.Instant.parse("2030-01-01T00:00:00Z");
 
     @InjectMocks AppleAuthCommandService service;
 
     @Test
     @DisplayName("검증한 신원과 이름을 세션 발급에 넘긴다")
     void verifiesThenIssues() {
-        AppleIdentity identity = new AppleIdentity("sub", "a@b.com", true);
+        AppleIdentity identity = new AppleIdentity("sub", "a@b.com", true, EXP);
         SocialLoginResult issued = new SocialLoginResult("a", "r", 1L, false);
         given(appleIdentityTokenPort.verify("tok", "nonce")).willReturn(identity);
+        given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(true);
         given(appleSessionIssuer.issue(identity, "이름")).willReturn(issued);
 
         assertThat(service.loginWithApple(new AppleLoginCommand("tok", "nonce", "이름"))).isSameAs(issued);
@@ -49,6 +54,28 @@ class AppleAuthCommandServiceTest {
         assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
                 .isInstanceOf(DomainException.class);
         then(appleSessionIssuer).should(never()).issue(any(), any());
+    }
+
+    @Test
+    @DisplayName("이미 쓰인 토큰을 다시 보내면 거부하고 세션을 발급하지 않는다")
+    void rejectsReplayedToken() {
+        AppleIdentity identity = new AppleIdentity("sub", "a@b.com", true, EXP);
+        given(appleIdentityTokenPort.verify("tok", "nonce")).willReturn(identity);
+        given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(false);
+
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
+                .isInstanceOf(DomainException.class);
+        then(appleSessionIssuer).should(never()).issue(any(), any());
+    }
+
+    @Test
+    @DisplayName("검증에 실패한 토큰은 사용 기록을 남기지 않는다 — 가짜 토큰으로 저장소를 채우지 못한다")
+    void doesNotRecordUnverifiedToken() {
+        given(appleIdentityTokenPort.verify("tok", "nonce")).willThrow(new DomainException("invalid"));
+
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
+                .isInstanceOf(DomainException.class);
+        then(replayGuardPort).shouldHaveNoInteractions();
     }
 
     @Test
