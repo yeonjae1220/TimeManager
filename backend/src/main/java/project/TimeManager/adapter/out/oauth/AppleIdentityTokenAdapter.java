@@ -22,6 +22,7 @@ import project.TimeManager.domain.port.out.auth.AppleIdentityTokenPort;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Instant;
 import java.util.Arrays;
 import java.util.HexFormat;
 
@@ -102,7 +103,8 @@ public class AppleIdentityTokenAdapter implements AppleIdentityTokenPort {
                 throw new DomainException("Apple 로그인 토큰이 유효하지 않습니다");
             }
             return new AppleIdentity(claims.getSubject(), claims.getStringClaimValue("email"),
-                    isTrue(claims.getClaimValue("email_verified")));
+                    isTrue(claims.getClaimValue("email_verified")),
+                    Instant.ofEpochSecond(claims.getExpirationTime().getValue()));
         } catch (MalformedClaimException e) {
             log.info("auth.apple.fail reason=malformed_claim");
             throw new DomainException("Apple 로그인 토큰이 유효하지 않습니다");

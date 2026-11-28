@@ -55,12 +55,15 @@ class AppleIdentityTokenAdapterTest {
         return jws.getCompactSerialization();
     }
 
+    private static final long EXP_SECONDS = NumericDate.now().getValue() + 300;
+
     @Test
     @DisplayName("Apple 키로 서명되고 nonce 가 맞는 토큰에서 신원을 꺼낸다")
     void acceptsValidToken() throws Exception {
-        AppleIdentity identity = adapter.verify(token(appleKey, c -> {}), RAW_NONCE);
+        AppleIdentity identity = adapter.verify(token(appleKey, c -> c.setExpirationTime(NumericDate.fromSeconds(EXP_SECONDS))), RAW_NONCE);
 
         assertThat(identity.subject()).isEqualTo("001234.abc");
+        assertThat(identity.expiresAt()).isEqualTo(java.time.Instant.ofEpochSecond(EXP_SECONDS));
         assertThat(identity.email()).isEqualTo("x7@privaterelay.appleid.com");
         assertThat(identity.emailVerified()).isTrue();
     }

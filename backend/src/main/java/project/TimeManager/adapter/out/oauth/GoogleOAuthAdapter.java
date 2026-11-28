@@ -39,7 +39,8 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
         try {
             GoogleTokenResponse tokenResponse = exchangeAuthCode(authCode, redirectUri);
             GoogleUserInfoResponse userInfo = fetchUserInfo(tokenResponse.accessToken());
-            return new GoogleUserProfile(userInfo.email(), userInfo.name(), userInfo.picture(), userInfo.sub());
+            return new GoogleUserProfile(userInfo.email(), userInfo.name(), userInfo.picture(), userInfo.sub(),
+                    Boolean.TRUE.equals(userInfo.emailVerified()));
         } catch (RestClientResponseException e) {
             throw new DomainException("Google 인증에 실패했습니다. 코드를 확인해 주세요");
         }
@@ -80,6 +81,7 @@ public class GoogleOAuthAdapter implements GoogleOAuthPort {
             String email,
             String name,
             String picture,
-            String sub
+            String sub,
+            @JsonProperty("email_verified") Boolean emailVerified
     ) {}
 }
