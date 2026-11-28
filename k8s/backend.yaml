@@ -87,6 +87,32 @@ spec:
                   name: timemanager-google-secret
                   key: GOOGLE_CLIENT_SECRET
                   optional: false
+            # Apple 토큰 철회(계정 삭제 시). CI 가 GitHub 시크릿으로 매 배포 만든다 — 시크릿이 비어 있으면
+            # 값이 빈 문자열이 되고 백엔드는 철회 기능만 끈 채 뜬다(AppleTokenAdapter).
+            - name: APPLE_TEAM_ID
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-apple-secret
+                  key: APPLE_TEAM_ID
+                  optional: false
+            - name: APPLE_KEY_ID
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-apple-secret
+                  key: APPLE_KEY_ID
+                  optional: false
+            - name: APPLE_PRIVATE_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-apple-secret
+                  key: APPLE_PRIVATE_KEY
+                  optional: false
+            - name: APPLE_TOKEN_ENCRYPTION_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: timemanager-apple-secret
+                  key: APPLE_TOKEN_ENCRYPTION_KEY
+                  optional: false
             - name: ADMIN_EMAIL
               valueFrom:
                 secretKeyRef:

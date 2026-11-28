@@ -27,8 +27,8 @@ import java.util.Arrays;
 import java.util.HexFormat;
 
 /**
- * Apple identity token(JWT) 검증. 서버 간 code 교환(.p8 client secret)은 하지 않는다 —
- * 로그인 판단에 필요한 신원은 서명된 identity token 에 전부 있다.
+ * Apple identity token(JWT) 검증. 로그인 판단에 필요한 신원은 서명된 identity token 에 전부 있다 —
+ * .p8 키가 필요한 code 교환은 로그인 판단에 쓰지 않고, 탈퇴 때 철회할 토큰을 받는 데만 쓴다(AppleTokenAdapter).
  *
  * nonce: 앱이 원문 nonce 의 SHA-256(hex)을 Apple 에 넘기고, Apple 은 그 값을 토큰의 nonce 클레임에
  * 그대로 싣는다. 서버는 원문을 받아 같은 해시를 만들어 비교한다 — 탈취한 토큰을 다른 요청에

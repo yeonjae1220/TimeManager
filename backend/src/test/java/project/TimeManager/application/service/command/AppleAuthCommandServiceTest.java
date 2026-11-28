@@ -29,6 +29,7 @@ class AppleAuthCommandServiceTest {
     @Mock AppleIdentityTokenPort appleIdentityTokenPort;
     @Mock AppleSessionIssuer appleSessionIssuer;
     @Mock IdentityTokenReplayGuardPort replayGuardPort;
+    @Mock AppleTokenLifecycle appleTokenLifecycle;
 
     private static final java.time.Instant EXP = java.time.Instant.parse("2030-01-01T00:00:00Z");
 
@@ -43,7 +44,35 @@ class AppleAuthCommandServiceTest {
         given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(true);
         given(appleSessionIssuer.issue(identity, "이름")).willReturn(issued);
 
-        assertThat(service.loginWithApple(new AppleLoginCommand("tok", "nonce", "이름"))).isSameAs(issued);
+        assertThat(service.loginWithApple(new AppleLoginCommand("tok", "nonce", "이름", "code"))).isSameAs(issued);
+    }
+
+    @Test
+    @DisplayName("세션 발급 뒤 authorizationCode 로 철회용 Apple 토큰을 받아 둔다")
+    void storesAppleTokenAfterIssuing() {
+        AppleIdentity identity = new AppleIdentity("sub", "a@b.com", true, EXP);
+        given(appleIdentityTokenPort.verify("tok", "nonce")).willReturn(identity);
+        given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(true);
+        given(appleSessionIssuer.issue(identity, null)).willReturn(new SocialLoginResult("a", "r", 42L, true));
+
+        service.loginWithApple(new AppleLoginCommand("tok", "nonce", null, "code"));
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(appleSessionIssuer, appleTokenLifecycle);
+        order.verify(appleSessionIssuer).issue(identity, null);
+        order.verify(appleTokenLifecycle).storeAfterLogin(42L, "code");
+    }
+
+    @Test
+    @DisplayName("세션 발급이 실패하면(이메일 충돌 등) Apple 토큰을 교환하지 않는다")
+    void doesNotStoreTokenWhenIssueFails() {
+        AppleIdentity identity = new AppleIdentity("sub", "a@b.com", true, EXP);
+        given(appleIdentityTokenPort.verify("tok", "nonce")).willReturn(identity);
+        given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(true);
+        given(appleSessionIssuer.issue(identity, null)).willThrow(new DomainException("dup"));
+
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null, "code")))
+                .isInstanceOf(DomainException.class);
+        then(appleTokenLifecycle).shouldHaveNoInteractions();
     }
 
     @Test
@@ -51,7 +80,7 @@ class AppleAuthCommandServiceTest {
     void doesNotTouchDbWhenVerificationFails() {
         given(appleIdentityTokenPort.verify("tok", "nonce")).willThrow(new DomainException("invalid"));
 
-        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null, "code")))
                 .isInstanceOf(DomainException.class);
         then(appleSessionIssuer).should(never()).issue(any(), any());
     }
@@ -63,7 +92,7 @@ class AppleAuthCommandServiceTest {
         given(appleIdentityTokenPort.verify("tok", "nonce")).willReturn(identity);
         given(replayGuardPort.markUsedOnce("tok", EXP)).willReturn(false);
 
-        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null, "code")))
                 .isInstanceOf(DomainException.class);
         then(appleSessionIssuer).should(never()).issue(any(), any());
     }
@@ -73,7 +102,7 @@ class AppleAuthCommandServiceTest {
     void doesNotRecordUnverifiedToken() {
         given(appleIdentityTokenPort.verify("tok", "nonce")).willThrow(new DomainException("invalid"));
 
-        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null)))
+        assertThatThrownBy(() -> service.loginWithApple(new AppleLoginCommand("tok", "nonce", null, "code")))
                 .isInstanceOf(DomainException.class);
         then(replayGuardPort).shouldHaveNoInteractions();
     }

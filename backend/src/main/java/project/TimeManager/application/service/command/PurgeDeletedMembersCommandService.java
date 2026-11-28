@@ -22,14 +22,17 @@ public class PurgeDeletedMembersCommandService implements PurgeDeletedMembersUse
 
     private final DeleteMemberPort deleteMemberPort;
     private final MemberPurger memberPurger;
+    private final AppleTokenLifecycle appleTokenLifecycle;
     private final int graceDays;
 
     public PurgeDeletedMembersCommandService(
             DeleteMemberPort deleteMemberPort,
             MemberPurger memberPurger,
+            AppleTokenLifecycle appleTokenLifecycle,
             @Value("${member.deletion.grace-days:30}") int graceDays) {
         this.deleteMemberPort = deleteMemberPort;
         this.memberPurger = memberPurger;
+        this.appleTokenLifecycle = appleTokenLifecycle;
         this.graceDays = graceDays;
     }
 
@@ -44,6 +47,10 @@ public class PurgeDeletedMembersCommandService implements PurgeDeletedMembersUse
         int purged = 0;
         int failed = 0;
         for (Long memberId : ids) {
+            // 탈퇴 때 Apple 철회에 실패해 토큰이 남은 계정의 마지막 기회. 여기서도 실패하면 그대로 지운다 —
+            // '30일 뒤 영구 삭제' 약속이 우선이고, 실패는 로그(apple.token revoke failed)로 남는다.
+            // 트랜잭션 밖(이 클래스)에서 부른다 — purgeOne 안에서 부르면 HTTP 동안 커넥션을 쥔다.
+            appleTokenLifecycle.revokeQuietly(memberId);
             try {
                 memberPurger.purgeOne(memberId);
                 purged++;

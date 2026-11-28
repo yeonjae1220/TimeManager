@@ -128,20 +128,20 @@ class AuthApiControllerTest {
     }
 
     @Test
-    @DisplayName("Apple 로그인: 토큰·nonce·이름을 그대로 위임하고 refresh 쿠키를 심는다")
+    @DisplayName("Apple 로그인: 토큰·nonce·이름·authorizationCode 를 그대로 위임하고 refresh 쿠키를 심는다")
     void appleLogin_delegatesAndSetsRefreshCookie() throws Exception {
         given(clientIpResolver.resolve(any())).willReturn("203.0.113.9");
         given(appleLoginUseCase.loginWithApple(any())).willReturn(new SocialLoginResult("access", "refresh", 7L, true));
 
         mockMvc.perform(post("/api/v1/auth/apple")
                         .contentType(MediaType.APPLICATION_JSON)
-                        .content("{\"identityToken\":\"tok\",\"nonce\":\"n\",\"fullName\":\"연재\"}"))
+                        .content("{\"identityToken\":\"tok\",\"nonce\":\"n\",\"fullName\":\"연재\",\"authorizationCode\":\"code\"}"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.memberId").value(7))
                 .andExpect(jsonPath("$.newMember").value(true))
                 .andExpect(header().string("Set-Cookie", containsString("refresh_token=refresh")));
 
-        verify(appleLoginUseCase).loginWithApple(new AppleLoginCommand("tok", "n", "연재"));
+        verify(appleLoginUseCase).loginWithApple(new AppleLoginCommand("tok", "n", "연재", "code"));
         verify(rateLimiterService).checkLoginRate(eq("203.0.113.9"));
     }
 

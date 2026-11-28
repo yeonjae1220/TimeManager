@@ -80,6 +80,15 @@ public class MemberJpaEntity {
     @Column(name = "last_reset_boundary_at", nullable = false)
     private Instant lastResetBoundaryAt = Instant.now();
 
+    /**
+     * Apple refresh token 암호문(AppleRefreshTokenCipher). 계정 삭제 때 Apple 승인을 철회하는 데만 쓴다.
+     *
+     * insertable·updatable=false 다 — 이 엔티티를 읽어 고친 뒤 저장하는 경로(프로필 수정·소프트 삭제)가
+     * 읽은 시점의 값으로 이 컬럼을 덮어쓰지 못하게 한다. 쓰기는 MemberJpaRepository 의 전용 UPDATE 로만 한다.
+     */
+    @Column(name = "apple_refresh_token", length = 1024, insertable = false, updatable = false)
+    private String appleRefreshToken;
+
     @OneToMany(mappedBy = "member", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<TagJpaEntity> tagList = new ArrayList<>();
 
