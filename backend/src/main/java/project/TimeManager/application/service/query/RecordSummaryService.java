@@ -15,6 +15,7 @@ import project.TimeManager.domain.member.model.MemberDayBoundary;
 import project.TimeManager.domain.port.in.record.GetRecordSummaryQuery;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
+import project.TimeManager.domain.tag.model.TagType;
 
 import java.time.LocalDate;
 import java.time.ZoneId;
@@ -67,7 +68,11 @@ public class RecordSummaryService implements GetRecordSummaryQuery {
             RecordJpaEntity sample = tagRecords.get(0);
             String tagName = sample.getTag().getName();
             var parent = sample.getTag().getParent();
-            String parentTagName = parent != null && memberId.equals(parent.getMember().getId())
+            // ROOT·DISCARDED 는 화면에 없는 시스템 태그다. 그 이름('root' 등)을 상위 태그명으로 내보내면
+            // 최상위 태그가 "root / 독서" 처럼 표시되므로, 사용자가 만든(CUSTOM) 부모일 때만 이름을 준다.
+            String parentTagName = parent != null
+                    && parent.getType() == TagType.CUSTOM
+                    && memberId.equals(parent.getMember().getId())
                     ? parent.getName() : null;
 
             long tagTotal = tagRecords.stream().mapToLong(RecordJpaEntity::getTotalTime).sum();

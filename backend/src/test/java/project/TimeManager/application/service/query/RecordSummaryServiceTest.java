@@ -9,6 +9,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 import org.junit.jupiter.api.BeforeEach;
 import project.TimeManager.adapter.out.persistence.entity.RecordJpaEntity;
+import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 import project.TimeManager.adapter.out.persistence.entity.TagJpaEntity;
 import project.TimeManager.application.dto.result.RecordSummaryResult;
 import project.TimeManager.application.service.MemberDayBoundarySettingsCache;
@@ -17,6 +18,7 @@ import project.TimeManager.domain.member.model.Member;
 import project.TimeManager.domain.member.model.MemberId;
 import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.member.model.OAuthProvider;
+import project.TimeManager.domain.tag.model.TagType;
 import project.TimeManager.domain.port.out.member.LoadMemberPort;
 import project.TimeManager.domain.port.out.record.LoadRecordsByMemberPort;
 
@@ -75,6 +77,51 @@ class RecordSummaryServiceTest {
         tag.setId(tagId);
         tag.setName(name);
         return tag;
+    }
+
+    private TagJpaEntity stubTag(Long tagId, String name, TagJpaEntity parent) {
+        TagJpaEntity tag = stubTag(tagId, name);
+        tag.setParent(parent);
+        return tag;
+    }
+
+    private TagJpaEntity stubParent(Long tagId, String name, TagType type) {
+        TagJpaEntity parent = stubTag(tagId, name);
+        parent.setType(type);
+        parent.setMember(memberEntity());
+        return parent;
+    }
+
+    private MemberJpaEntity memberEntity() {
+        MemberJpaEntity member = new MemberJpaEntity("tester");
+        member.setId(MEMBER_ID);
+        return member;
+    }
+
+    @Test
+    @DisplayName("최상위 태그는 상위 태그명이 없다 — 숨은 ROOT·DISCARDED 태그 이름(root 등)을 노출하지 않는다")
+    void getSummary_topLevelTag_hasNoParentName() {
+        given(loadMemberPort.loadMember(MEMBER_ID)).willReturn(Optional.of(memberWithResetHour(5)));
+        ZonedDateTime start = ZonedDateTime.of(2026, 7, 5, 10, 0, 0, 0, SEOUL);
+        ZonedDateTime end = start.plusMinutes(30);
+        TagJpaEntity root = stubParent(1L, "root", TagType.ROOT);
+        TagJpaEntity discarded = stubParent(2L, "discarded", TagType.DISCARDED);
+        TagJpaEntity study = stubParent(3L, "공부", TagType.CUSTOM);
+        given(loadRecordsByMemberPort.loadRecordsByMemberAndDateRange(eq(MEMBER_ID), any(), any()))
+                .willReturn(List.of(
+                        new RecordJpaEntity(stubTag(10L, "독서", root), start, end),
+                        new RecordJpaEntity(stubTag(11L, "옛 태그", discarded), start.plusHours(1), end.plusHours(1)),
+                        new RecordJpaEntity(stubTag(12L, "영어", study), start.plusHours(2), end.plusHours(2))));
+
+        LocalDate today = LocalDate.of(2026, 7, 5);
+        RecordSummaryResult result = recordSummaryService.getSummary(MEMBER_ID, today, today);
+
+        assertThat(result.getTagSummaries())
+                .extracting(RecordSummaryResult.TagSummary::getTagName, RecordSummaryResult.TagSummary::getParentTagName)
+                .containsExactlyInAnyOrder(
+                        org.assertj.core.groups.Tuple.tuple("독서", null),
+                        org.assertj.core.groups.Tuple.tuple("옛 태그", null),
+                        org.assertj.core.groups.Tuple.tuple("영어", "공부"));
     }
 
     @Test
