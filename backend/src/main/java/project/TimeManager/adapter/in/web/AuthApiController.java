@@ -121,7 +121,8 @@ public class AuthApiController {
             HttpServletResponse response) {
         rateLimiterService.checkLoginRate(clientIpResolver.resolve(httpRequest));
         SocialLoginResult result = appleLoginUseCase.loginWithApple(
-                new AppleLoginCommand(request.identityToken(), request.nonce(), request.fullName()));
+                new AppleLoginCommand(request.identityToken(), request.nonce(), request.fullName(),
+                        request.authorizationCode()));
         addRefreshCookie(response, result.refreshToken());
         return ResponseEntity.ok(new GoogleAuthResponse(result.accessToken(), result.memberId(), result.newMember()));
     }

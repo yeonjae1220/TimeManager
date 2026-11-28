@@ -26,6 +26,7 @@ public class AppleAuthCommandService implements AppleLoginUseCase {
     private final AppleIdentityTokenPort appleIdentityTokenPort;
     private final AppleSessionIssuer appleSessionIssuer;
     private final IdentityTokenReplayGuardPort replayGuardPort;
+    private final AppleTokenLifecycle appleTokenLifecycle;
 
     @Override
     public SocialLoginResult loginWithApple(AppleLoginCommand command) {
@@ -35,6 +36,9 @@ public class AppleAuthCommandService implements AppleLoginUseCase {
             log.info("auth.apple.fail reason=token_replayed");
             throw new DomainException("Apple 로그인 토큰이 유효하지 않습니다");
         }
-        return appleSessionIssuer.issue(identity, command.fullName());
+        SocialLoginResult result = appleSessionIssuer.issue(identity, command.fullName());
+        // 세션 발급(커밋) 뒤, 트랜잭션 밖에서. 실패해도 로그인은 성공이다 — 철회용 토큰을 못 받았을 뿐이다.
+        appleTokenLifecycle.storeAfterLogin(result.memberId(), command.authorizationCode());
+        return result;
     }
 }

@@ -33,10 +33,13 @@ class PurgeDeletedMembersCommandServiceTest {
     @Mock
     private MemberPurger memberPurger;
 
+    @Mock
+    private AppleTokenLifecycle appleTokenLifecycle;
+
     private PurgeDeletedMembersCommandService service;
 
     private void givenPurgeable(Long... ids) {
-        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, 30);
+        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, appleTokenLifecycle, 30);
         given(deleteMemberPort.findPurgeableMemberIds(any(LocalDateTime.class)))
                 .willReturn(List.of(ids));
     }
@@ -82,7 +85,7 @@ class PurgeDeletedMembersCommandServiceTest {
     @Test
     @DisplayName("대상이 없으면 회원 단위 작업을 아예 호출하지 않는다")
     void noTargetsSkipsWork() {
-        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, 30);
+        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, appleTokenLifecycle, 30);
         given(deleteMemberPort.findPurgeableMemberIds(any(LocalDateTime.class)))
                 .willReturn(List.of());
 
@@ -93,7 +96,7 @@ class PurgeDeletedMembersCommandServiceTest {
     @Test
     @DisplayName("유예 기간이 임계 시각으로 반영된다")
     void graceDaysBecomeThreshold() {
-        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, 7);
+        service = new PurgeDeletedMembersCommandService(deleteMemberPort, memberPurger, appleTokenLifecycle, 7);
         given(deleteMemberPort.findPurgeableMemberIds(any(LocalDateTime.class)))
                 .willReturn(List.of());
         LocalDateTime before = LocalDateTime.now().minusDays(7);
@@ -104,5 +107,19 @@ class PurgeDeletedMembersCommandServiceTest {
                 org.mockito.ArgumentMatchers.argThat(threshold ->
                         !threshold.isBefore(before.minusMinutes(1))
                                 && !threshold.isAfter(LocalDateTime.now().minusDays(7).plusMinutes(1))));
+    }
+
+    @Test
+    @DisplayName("지우기 전에 남은 Apple 토큰 철회를 한 번 더 시도하고, 철회가 실패해도 삭제는 진행한다")
+    void retriesAppleRevocationBeforePurging() {
+        givenPurgeable(5L);
+        given(appleTokenLifecycle.revokeQuietly(5L)).willReturn(false);
+
+        int purged = service.purgeExpired();
+
+        org.mockito.InOrder order = org.mockito.Mockito.inOrder(appleTokenLifecycle, memberPurger);
+        order.verify(appleTokenLifecycle).revokeQuietly(5L);
+        order.verify(memberPurger).purgeOne(5L);
+        assertThat(purged).isEqualTo(1);
     }
 }

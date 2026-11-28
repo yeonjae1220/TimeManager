@@ -307,6 +307,11 @@ jobs:
           PUSH_VAPID_SUBJECT: ${{ secrets.PUSH_VAPID_SUBJECT }}
           GOOGLE_CLIENT_ID: ${{ secrets.GOOGLE_CLIENT_ID }}
           GOOGLE_CLIENT_SECRET: ${{ secrets.GOOGLE_CLIENT_SECRET }}
+          # Apple 토큰 철회용. 넷 다 비어 있으면 백엔드가 철회 기능만 끄고 뜬다. 일부만 있으면 기동 실패.
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          APPLE_KEY_ID: ${{ secrets.APPLE_KEY_ID }}
+          APPLE_PRIVATE_KEY: ${{ secrets.APPLE_PRIVATE_KEY }}
+          APPLE_TOKEN_ENCRYPTION_KEY: ${{ secrets.APPLE_TOKEN_ENCRYPTION_KEY }}
           ADMIN_EMAIL: ${{ secrets.ADMIN_EMAIL }}
           ADMIN_PASSWORD_BCRYPT: ${{ secrets.ADMIN_PASSWORD_BCRYPT }}
           CONSOLE_INTERNAL_TOKEN: ${{ secrets.CONSOLE_INTERNAL_TOKEN }}
@@ -331,6 +336,13 @@ jobs:
             --from-literal=GOOGLE_CLIENT_SECRET="${GOOGLE_CLIENT_SECRET}" \
             -n timemanager --dry-run=client -o yaml | sudo kubectl apply -f -
 
+          sudo kubectl create secret generic timemanager-apple-secret \
+            --from-literal=APPLE_TEAM_ID="${APPLE_TEAM_ID}" \
+            --from-literal=APPLE_KEY_ID="${APPLE_KEY_ID}" \
+            --from-literal=APPLE_PRIVATE_KEY="${APPLE_PRIVATE_KEY}" \
+            --from-literal=APPLE_TOKEN_ENCRYPTION_KEY="${APPLE_TOKEN_ENCRYPTION_KEY}" \
+            -n timemanager --dry-run=client -o yaml | sudo kubectl apply -f -
+
       - name: Review and apply manifests with pinned images
         shell: bash
         env:
@@ -343,11 +355,12 @@ jobs:
           # Metadata only: secrets consumed through environment variables require a new pod.
           app_secret_revision=$(sudo kubectl get secret timemanager-secret -n timemanager -o 'jsonpath={.metadata.resourceVersion}')
           google_secret_revision=$(sudo kubectl get secret timemanager-google-secret -n timemanager -o 'jsonpath={.metadata.resourceVersion}')
-          if [[ -z "$app_secret_revision" || -z "$google_secret_revision" ]]; then
+          apple_secret_revision=$(sudo kubectl get secret timemanager-apple-secret -n timemanager -o 'jsonpath={.metadata.resourceVersion}')
+          if [[ -z "$app_secret_revision" || -z "$google_secret_revision" || -z "$apple_secret_revision" ]]; then
             echo "::error::Missing backend secret resource version"
             exit 1
           fi
-          revisions=$(printf '%s\n' "$app_secret_revision" "$google_secret_revision" | sha256sum)
+          revisions=$(printf '%s\n' "$app_secret_revision" "$google_secret_revision" "$apple_secret_revision" | sha256sum)
           revisions=${revisions%% *}
 
           for app in backend frontend; do

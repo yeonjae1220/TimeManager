@@ -13,7 +13,7 @@ import Link from 'next/link'
  * 동작(DeleteMemberCommandService)을 바꾸면 이 문서도 함께 고칠 것.
  */
 
-const LAST_UPDATED = '2026-11-25'
+const LAST_UPDATED = '2026-11-29'
 /**
  * 백엔드 `member.deletion.grace-days` 와 같은 값이어야 한다.
  * 이 문서는 공개 약속이므로 설정을 바꾸면 여기도 함께 고칠 것
@@ -57,6 +57,11 @@ export default function PrivacyPage() {
             Email&quot;, the address we receive is an Apple relay address.<br />
             <span lang="ko">계정: 이메일 주소, 표시 이름, Google·Apple 로그인 시 제공자의 고유 식별자(<code>sub</code>).
             Apple 의 &apos;이메일 가리기&apos;를 쓰면 Apple 릴레이 주소를 받습니다.</span>
+          </li>
+          <li>Apple sign-in only: a token issued by Apple, stored encrypted and used for one purpose —
+            to revoke this app&apos;s access to your Apple ID when you delete your account.<br />
+            <span lang="ko">Apple 로그인 사용자만: Apple 이 발급한 토큰을 암호화해 보관합니다. 계정 삭제 때 이 앱의
+            Apple ID 접근 권한을 철회하는 용도로만 씁니다.</span>
           </li>
           <li>Usage data you create: tags, timer sessions, and time records.<br />
             <span lang="ko">사용자가 만든 데이터: 태그, 타이머 세션, 시간 기록.</span>
@@ -113,10 +118,14 @@ export default function PrivacyPage() {
           Deletion takes effect immediately: you are signed out, your sessions are revoked, your
           notification subscriptions are removed, and the account can no longer be signed in to or
           reached through the app. Your email address is released at the same moment, so you may
-          register a new account with it right away.<br />
+          register a new account with it right away. If you signed in with Apple and we hold the token
+          described in section 1, we also ask Apple to revoke this app&apos;s access to your Apple ID;
+          if Apple is unreachable, we retry before the data is permanently erased.<br />
           <span lang="ko">삭제는 즉시 적용됩니다. 로그아웃되고 세션이 무효화되며 알림 구독 정보가 제거되고,
           해당 계정으로는 더 이상 로그인하거나 앱에서 데이터에 접근할 수 없습니다. 이메일 주소는 그 시점에
-          함께 해제되므로 같은 주소로 바로 새 계정을 만들 수 있습니다.</span>
+          함께 해제되므로 같은 주소로 바로 새 계정을 만들 수 있습니다. Apple 로 로그인했고 1항의 토큰을
+          보관 중이면 Apple 에 이 앱의 Apple ID 접근 권한 철회도 요청하며, Apple 에 연결되지 않으면 영구 삭제
+          전에 다시 시도합니다.</span>
         </p>
         <p style={{ marginTop: 10 }}>
           The underlying account, tags, and records are then retained for {DELETION_GRACE_DAYS} days

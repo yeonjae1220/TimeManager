@@ -5,6 +5,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
+import org.springframework.transaction.annotation.Transactional;
 import org.springframework.data.repository.query.Param;
 import project.TimeManager.adapter.out.persistence.entity.MemberJpaEntity;
 import project.TimeManager.domain.member.model.OAuthProvider;
@@ -56,4 +57,19 @@ public interface MemberJpaRepository extends JpaRepository<MemberJpaEntity, Long
     /** purge 배치 전용 — 유예가 지난 삭제 계정. */
     @Query("SELECT m FROM MemberJpaEntity m WHERE m.deletedAt IS NOT NULL AND m.deletedAt < :threshold")
     List<MemberJpaEntity> findPurgeableIncludingDeleted(@Param("threshold") LocalDateTime threshold);
+
+    /** Apple refresh token 암호문 저장. 삭제된 회원에는 쓰지 않는다(삭제와 로그인이 겹쳐도 되살리지 않게). */
+    @Modifying
+    @Transactional
+    @Query("UPDATE MemberJpaEntity m SET m.appleRefreshToken = :token WHERE m.id = :memberId AND m.deletedAt IS NULL")
+    int updateAppleRefreshToken(@Param("memberId") Long memberId, @Param("token") String token);
+
+    @Modifying
+    @Transactional
+    @Query("UPDATE MemberJpaEntity m SET m.appleRefreshToken = NULL WHERE m.id = :memberId")
+    int clearAppleRefreshToken(@Param("memberId") Long memberId);
+
+    /** 삭제된 회원 포함 — 소프트 삭제 직후와 purge 직전에 철회해야 한다. */
+    @Query("SELECT m.appleRefreshToken FROM MemberJpaEntity m WHERE m.id = :memberId")
+    Optional<String> findAppleRefreshTokenIncludingDeleted(@Param("memberId") Long memberId);
 }

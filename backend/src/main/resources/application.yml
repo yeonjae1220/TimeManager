@@ -56,6 +56,13 @@ apple:
   sign-in:
     # identity token 의 aud 로 허용할 값(쉼표 구분). 네이티브 iOS 는 번들 ID 가 aud 다. 비밀값 아님.
     client-ids: ${APPLE_CLIENT_IDS:com.mungji.timemanager}
+    # ↓ 계정 삭제 때 Apple 승인 철회(가이드라인 5.1.1(v))용. 넷 다 비면 철회 기능만 꺼지고 로그인은 동작한다.
+    #   일부만 있으면 기동 실패(AppleTokenAdapter). private-key 는 .p8 파일 내용(PEM), 암호화 키는 32바이트 base64.
+    app-client-id: ${APPLE_APP_CLIENT_ID:com.mungji.timemanager}
+    team-id: ${APPLE_TEAM_ID:}
+    key-id: ${APPLE_KEY_ID:}
+    private-key: ${APPLE_PRIVATE_KEY:}
+    token-encryption-key: ${APPLE_TOKEN_ENCRYPTION_KEY:}
 
 google:
   oauth2:

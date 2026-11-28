@@ -4,6 +4,7 @@ import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.service.notification.PushSender;
 import project.TimeManager.domain.member.model.Member;
@@ -47,6 +48,11 @@ public class AdminService {
         updateMemberPort.updateMemberRole(memberId, role);
     }
 
+    /**
+     * 클래스 트랜잭션에 묶지 않는다 — deleteMember 는 커밋 뒤 Apple 철회(HTTP, 되돌릴 수 없음)를 한다.
+     * 바깥 트랜잭션 안이면 HTTP 동안 커넥션을 쥐고, 롤백되면 철회만 되고 삭제는 안 된 상태가 남는다.
+     */
+    @Transactional(propagation = Propagation.NOT_SUPPORTED)
     public void deleteMember(Long memberId) {
         deleteMemberUseCase.deleteMember(memberId);
     }
