@@ -47,7 +47,9 @@ public class MemberPersistenceAdapter implements LoadMemberPort, SaveMemberPort,
     @Override
     public Long saveMember(Member member) {
         MemberJpaEntity entity = memberMapper.toNewJpaEntity(member);
-        return memberJpaRepository.save(entity).getId();
+        // 바로 flush 한다. 시퀀스 ID 라 INSERT 가 커밋 시점까지 미뤄지면, 동시 가입으로 걸리는 유니크 위반이
+        // 세션(Redis)을 이미 저장한 뒤 커밋에서야 터져 없는 회원의 세션이 남는다. 여기서 실패하게 한다.
+        return memberJpaRepository.saveAndFlush(entity).getId();
     }
 
     @Override

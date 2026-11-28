@@ -1,45 +1,27 @@
 package project.TimeManager.application.service.command;
 
 import lombok.RequiredArgsConstructor;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 import project.TimeManager.application.dto.command.auth.GoogleLoginCommand;
 import project.TimeManager.application.dto.result.GoogleLoginResult;
 import project.TimeManager.application.dto.result.GoogleUserProfile;
-import project.TimeManager.domain.auth.model.AuthSession;
 import project.TimeManager.domain.exception.DomainException;
-import project.TimeManager.domain.member.model.Member;
-import project.TimeManager.domain.member.model.MemberId;
-import project.TimeManager.domain.member.model.OAuthProvider;
-import project.TimeManager.domain.member.model.MemberRole;
 import project.TimeManager.domain.port.in.auth.GoogleLoginUseCase;
 import project.TimeManager.domain.port.out.auth.GoogleOAuthPort;
-import project.TimeManager.domain.port.out.auth.TokenGeneratorPort;
-import project.TimeManager.domain.port.out.auth.TokenStorePort;
-import project.TimeManager.domain.port.out.member.InitializeMemberTagsPort;
-import project.TimeManager.domain.port.out.member.LoadMemberPort;
-import project.TimeManager.domain.port.out.member.SaveMemberPort;
 
-import java.time.Instant;
-import java.time.temporal.ChronoUnit;
-import java.util.Optional;
-
+/**
+ * Google 로그인 진입점. ⚠️ 일부러 @Transactional 이 아니다({@link AppleAuthCommandService} 와 같은 이유).
+ *
+ * code 교환과 userinfo 조회는 Google 로 가는 HTTP 왕복 두 번이다. 트랜잭션 안에서 하면 그동안
+ * DB 커넥션을 쥐고 있어서, 아무 문자열이나 code 로 보내는 요청 몇 개로 커넥션 풀을 말릴 수 있다.
+ * 그래서 HTTP 를 먼저 끝내고, DB 작업만 {@link GoogleSessionIssuer} 의 트랜잭션에서 한다.
+ */
 @Service
-@Transactional
 @RequiredArgsConstructor
 public class GoogleAuthCommandService implements GoogleLoginUseCase {
 
-    // 세션(=refresh 토큰) 만료와 쿠키 수명은 동일 소스에서 파생 (AuthApiController와 같은 키)
-    @Value("${jwt.refresh-token-ttl-minutes:43200}")
-    private long refreshTokenTtlMinutes;
-
     private final GoogleOAuthPort googleOAuthPort;
-    private final LoadMemberPort loadMemberPort;
-    private final SaveMemberPort saveMemberPort;
-    private final InitializeMemberTagsPort initializeMemberTagsPort;
-    private final TokenGeneratorPort tokenGeneratorPort;
-    private final TokenStorePort tokenStorePort;
+    private final GoogleSessionIssuer googleSessionIssuer;
 
     @Override
     public GoogleLoginResult loginWithGoogle(GoogleLoginCommand command) {
@@ -49,42 +31,6 @@ public class GoogleAuthCommandService implements GoogleLoginUseCase {
         if (!profile.emailVerified() || profile.email() == null || profile.email().isBlank()) {
             throw new DomainException("이메일 인증이 완료된 Google 계정으로만 로그인할 수 있습니다");
         }
-
-        Optional<Member> existing = loadMemberPort.findMemberByEmail(profile.email());
-
-        boolean isNewMember;
-        MemberId memberId;
-
-        if (existing.isPresent()) {
-            Member member = existing.get();
-            if (member.getProvider() == OAuthProvider.LOCAL) {
-                throw new DomainException("이미 이메일/비밀번호로 가입된 계정입니다. 일반 로그인을 사용해 주세요");
-            }
-            // Apple 회원이 실제 주소(릴레이 아님)로 가입했을 수 있다. 같은 이메일의 Google 로그인으로
-            // 그 계정에 들어가게 두면 제공자를 건너뛰는 계정 탈취 경로가 된다 — 계정 연결은 지원하지 않는다.
-            if (member.getProvider() != OAuthProvider.GOOGLE) {
-                throw new DomainException("이미 다른 방식으로 가입된 계정입니다. 가입한 방식으로 로그인해 주세요");
-            }
-            memberId = member.getId();
-            isNewMember = false;
-        } else {
-            Member newMember = Member.registerWithOAuth(
-                    profile.name(), profile.email(), OAuthProvider.GOOGLE, profile.googleId());
-            Long savedId = saveMemberPort.saveMember(newMember);
-            memberId = MemberId.of(savedId);
-            initializeMemberTagsPort.initializeDefaultTags(memberId);
-            isNewMember = true;
-        }
-
-        // Google OAuth 유저는 JWT에 ADMIN 권한을 부여하지 않는다.
-        // Admin 기능은 SSR 세션 기반(/admin) 전용이며 JWT로는 접근 불가.
-        MemberRole role = MemberRole.MEMBER;
-        String accessToken = tokenGeneratorPort.generateAccessToken(memberId, role);
-        String refreshToken = tokenGeneratorPort.generateRefreshToken();
-        Instant expiresAt = Instant.now().plus(refreshTokenTtlMinutes, ChronoUnit.MINUTES);
-        AuthSession session = AuthSession.create(memberId, refreshToken, expiresAt);
-        tokenStorePort.save(session);
-
-        return new GoogleLoginResult(accessToken, refreshToken, memberId.value(), isNewMember);
+        return googleSessionIssuer.issue(profile);
     }
 }

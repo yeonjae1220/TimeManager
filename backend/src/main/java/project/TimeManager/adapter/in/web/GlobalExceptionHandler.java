@@ -1,6 +1,7 @@
 package project.TimeManager.adapter.in.web;
 
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -15,6 +16,7 @@ import project.TimeManager.domain.exception.ResourceForbiddenException;
 import project.TimeManager.domain.exception.TooManyRequestsException;
 import project.TimeManager.domain.port.out.record.FindOverlappingRecordsPort.OverlapResult;
 
+import java.sql.SQLException;
 import java.time.ZonedDateTime;
 import java.util.List;
 import java.util.Map;
@@ -117,6 +119,33 @@ public class GlobalExceptionHandler {
         log.warn("Concurrent modification conflict: {}", e.getMessage());
         return ResponseEntity.status(HttpStatus.CONFLICT)
                 .body(Map.of("error", "요청이 충돌했습니다. 다시 시도해 주세요"));
+    }
+
+    /**
+     * 유니크 제약 위반(PostgreSQL 23505) — 409. 같은 이메일·같은 소셜 계정으로 가입 요청이 동시에 두 번
+     * 들어와 앞 요청이 먼저 저장된 경우다. 성공으로 넘기지 않는다(뒤 요청이 만든 것은 없다).
+     * 그 밖의 무결성 위반(NOT NULL·FK 등)은 코드 결함이므로 500 으로 둔다.
+     */
+    @ExceptionHandler(DataIntegrityViolationException.class)
+    public ResponseEntity<Map<String, String>> handleDataIntegrity(DataIntegrityViolationException e) {
+        if (isUniqueViolation(e)) {
+            log.warn("Unique constraint conflict: {}", e.getMostSpecificCause().getClass().getSimpleName());
+            return ResponseEntity.status(HttpStatus.CONFLICT)
+                    .body(Map.of("error", "요청이 충돌했습니다. 잠시 후 다시 시도해 주세요"));
+        }
+        return handleUnexpected(e);
+    }
+
+    private static final String UNIQUE_VIOLATION_SQLSTATE = "23505";
+
+    private static boolean isUniqueViolation(Throwable e) {
+        for (Throwable t = e; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql && UNIQUE_VIOLATION_SQLSTATE.equals(sql.getSQLState())) {
+                return true;
+            }
+            if (t.getCause() == t) break;
+        }
+        return false;
     }
 
     @ExceptionHandler(Exception.class)
